@@ -18,6 +18,12 @@ class AtomMappingError(Exception):
 class UnsupportedPotential(Exception):
     pass
 
+def get_romol_conf(mol):
+    """Coordinates of mol's 0th conformer, in nanometers"""
+    conformer = mol.GetConformer(0)
+    guest_conf = np.array(conformer.GetPositions(), dtype=np.float64)
+    return guest_conf/10 # from angstroms to nm
+
 class HostGuestTopology():
 
     def __init__(self, 
@@ -256,7 +262,6 @@ class BaseTopology():
         combined_potential = potentials.PeriodicTorsion(combined_idxs)
         return combined_params, combined_potential
 
-
 class DualTopology():
 
     def __init__(self, mol_a, mol_b, forcefield):
@@ -283,7 +288,15 @@ class DualTopology():
     def get_num_atoms(self):
         return self.mol_a.GetNumAtoms() + self.mol_b.GetNumAtoms()
 
-    def parameterize_nonbonded(self, ff_q_params, ff_lj_params):
+    def parameterize_nonbonded(
+        self,
+        ff_q_params,
+        ff_lj_params,
+        mol_a_lambda_offset,
+        mol_a_lambda_plane,
+        mol_b_lambda_offset,
+        mol_b_lambda_plane):
+
         q_params_a = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol_a)
         q_params_b = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol_b)
         lj_params_a = self.ff.lj_handle.partial_parameterize(ff_lj_params, self.mol_a)
@@ -332,10 +345,14 @@ class DualTopology():
             mutual_scale_factors
         ]).astype(np.float64)
 
-        combined_lambda_plane_idxs = np.zeros(NA+NB, dtype=np.int32)
+        combined_lambda_plane_idxs = np.concatenate([
+            np.zeros(NA, dtype=np.int32) + mol_a_lambda_plane,
+            np.zeros(NB, dtype=np.int32) + mol_b_lambda_plane
+        ])
+
         combined_lambda_offset_idxs = np.concatenate([
-            np.ones(NA, dtype=np.int32),
-            np.ones(NB, dtype=np.int32)
+            np.zeros(NA, dtype=np.int32) + mol_a_lambda_offset,
+            np.zeros(NB, dtype=np.int32) + mol_b_lambda_offset
         ])
 
         beta = _BETA
@@ -348,7 +365,7 @@ class DualTopology():
             combined_lambda_offset_idxs,
             beta,
             cutoff
-        ) 
+        )
 
         params = jnp.concatenate([
             jnp.reshape(q_params, (-1, 1)),
@@ -365,9 +382,47 @@ class DualTopology():
         idxs_c = np.concatenate([idxs_a, idxs_b + offset])
         return params_c, potential(idxs_c)
 
-    def parameterize_harmonic_bond(self, ff_params):
-        return self._parameterize_bonded_term(ff_params, self.ff.hb_handle, potentials.HarmonicBond)
+    def parameterize_harmonic_bond(self, ff_params, core, core_k, core_b):
 
+        if core is None:
+            assert core_k is None
+            assert core_b is None
+            core = []
+        else:
+            assert core_k is not None
+            # None core_b value implies that we use the geometry to compute
+            # bond lengths
+
+        params, potential = self._parameterize_bonded_term(
+            ff_params,
+            self.ff.hb_handle,
+            potentials.HarmonicBond)
+
+        idxs = potential.get_idxs()
+
+        params_core = []
+        idxs_core = []
+
+        conf_a = get_romol_conf(self.mol_a)
+        conf_b = get_romol_conf(self.mol_b)
+
+        for src, dst in core:
+            idxs_core.append((src, dst + self.mol_a.GetNumAtoms()))
+            k = core_k
+            if core_b is None:
+                # use the conformer's geometry to determine bond length
+                b = np.linalg.norm(conf_a[src] - conf_b[dst])
+            else:
+                b = core_b
+            params_core.append((k, b))
+
+        params_core = jnp.array(params_core, dtype=np.float64).reshape((-1, 2))
+        idxs_core = np.array(idxs_core, dtype=np.int32).reshape((-1, 2))
+
+        params_c = jnp.concatenate([params, params_core])
+        idxs_c = np.concatenate([idxs, idxs_core])
+
+        return params_c, potentials.HarmonicBond(idxs_c)
 
     def parameterize_harmonic_angle(self, ff_params):
         return self._parameterize_bonded_term(ff_params, self.ff.ha_handle, potentials.HarmonicAngle)

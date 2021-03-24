@@ -31,7 +31,12 @@ def _setup_hif2a_ligand_pair(ff='ff/params/smirnoff_1_1_0_ccc.py'):
     all_mols = [x for x in suppl]
     mol_a = all_mols[1]
     mol_b = all_mols[4]
+    # mol_b = all_mols[1]
 
+    # core = np.stack([
+    #     np.arange(mol_a.GetNumAtoms()),
+    #     np.arange(mol_a.GetNumAtoms())
+    #     ], axis=1)
     core = np.array([[0, 0],
                      [2, 2],
                      [1, 1],

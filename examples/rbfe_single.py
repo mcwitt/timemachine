@@ -2,12 +2,14 @@
 # estimate with respect to force field parameters, and adjusts the force field parameters to improve tha accuracy
 # of the free energy prediction.
 
+import mdtraj
 
 import argparse
 import numpy as np
 import jax
 from jax import numpy as jnp
 
+from fe import pdb_writer
 from fe.free_energy import construct_lambda_schedule
 from fe.utils import convert_uIC50_to_kJ_per_mole
 from fe import model
@@ -24,8 +26,33 @@ from typing import Union, Optional, Iterable, Any, Tuple, Dict
 
 from optimize.step import truncated_step
 
+import scipy
+
 array = Union[np.array, jnp.array]
 Handler = Union[AM1CCCHandler, LennardJonesHandler] # TODO: do these all inherit from a Handler class already?
+
+def get_romol_conf(mol):
+    """Coordinates of mol's 0th conformer, in nanometers"""
+    conformer = mol.GetConformer(0)
+    guest_conf = np.array(conformer.GetPositions(), dtype=np.float64)
+    return guest_conf/10 # from angstroms to nm
+
+def generate_core(mol_a, mol_b):
+    """
+    Generate a core using non-complete bipartite graph matching.
+
+    The smaller mol will be fully mapped.
+    """
+    xi = get_romol_conf(mol_a)
+    xj = get_romol_conf(mol_b)
+    xi = np.expand_dims(xi, axis=0)
+    xj = np.expand_dims(xj, axis=1)
+    xij = xi - xj
+    # use square distance to penalize far apart pairs
+    d2ij = np.sum(xij*xij, axis=-1)
+    row_idxs, col_idxs = scipy.optimize.linear_sum_assignment(d2ij)
+    core = np.stack([col_idxs, row_idxs], axis=-1)
+    return core
 
 if __name__ == "__main__":
 
@@ -74,9 +101,12 @@ if __name__ == "__main__":
     client = CUDAPoolClient(max_workers=cmd_args.num_gpus)
 
     # fetch mol_a, mol_b, core, forcefield from testsystem
-    mol_a, mol_b, core = hif2a_ligand_pair.mol_a, hif2a_ligand_pair.mol_b, hif2a_ligand_pair.core
+    mol_a, mol_b, _ = hif2a_ligand_pair.mol_a, hif2a_ligand_pair.mol_b, hif2a_ligand_pair.core
     forcefield = hif2a_ligand_pair.ff
 
+    core = generate_core(mol_a, mol_b)
+
+    # assert 0
     # compute ddG label from mol_a, mol_b
     # TODO: add label upon testsystem construction
     # (ytz): these are *binding* free energies, i.e. values that are less than zero.
@@ -94,12 +124,12 @@ if __name__ == "__main__":
     solvent_schedule = construct_lambda_schedule(cmd_args.num_solvent_windows)
 
     # build the protein system.
-    complex_system, complex_coords, _, _, complex_box, _ = builders.build_protein_system(
+    complex_system, complex_coords, _, _, complex_box, complex_topology = builders.build_protein_system(
         'tests/data/hif2a_nowater_min.pdb')
     complex_box += np.eye(3) * 0.1  # BFGS this later
 
     # build the water system.
-    solvent_system, solvent_coords, solvent_box, _ = builders.build_water_system(4.0)
+    solvent_system, solvent_coords, solvent_box, solvent_topology = builders.build_water_system(4.0)
     solvent_box += np.eye(3) * 0.1  # BFGS this later
 
     binding_model = model.RBFEModel(
@@ -117,7 +147,8 @@ if __name__ == "__main__":
         cmd_args.num_prod_steps
     )
 
-
+    complex_topology = pdb_writer.generate_topology([complex_topology, mol_a, mol_b], complex_coords, "complex.pdb")
+    solvent_topology = pdb_writer.generate_topology([solvent_topology, mol_a, mol_b], solvent_coords, "solvent.pdb")
 
     ordered_params = forcefield.get_ordered_params()
     ordered_handles = forcefield.get_ordered_handles()
@@ -173,12 +204,31 @@ if __name__ == "__main__":
 
     vg_fn = jax.value_and_grad(binding_model.loss, argnums=0, has_aux=True)
 
-    for epoch in range(1000):
+    for epoch in range(10):
         epoch_params = serialize_handlers(ordered_handles)
 
         (loss, aux), loss_grad = vg_fn(ordered_params, mol_a, mol_b, core, label_ddG)
 
+        for (stage, results), lambda_schedule, topology in zip(aux, [complex_schedule, solvent_schedule], [complex_topology, solvent_topology]):
+            avg_du_dls = []
+            for lamb_idx, (lamb, sim_res) in enumerate(zip(lambda_schedule, results)):
+
+                md_topology = mdtraj.Topology.from_openmm(topology)
+                traj = mdtraj.Trajectory(sim_res.xs, md_topology)
+                traj.save_xtc(stage+"_lambda_"+str(lamb_idx)+".xtc")
+
+                print(stage, "lambda", lamb, "<du/dl>", np.mean(sim_res.du_dls), "std(du/dl)", np.std(sim_res.du_dls))
+                avg_du_dls.append(np.mean(sim_res.du_dls))
+
+            dG = np.trapz(avg_du_dls, lambda_schedule)
+
+            print("stage", stage, "dG", dG)
+
+        assert 0
+
         print("epoch", epoch, "loss", loss)
+
+        assert 0
 
         # note: unflatten_grad and unflatten_theta have identical definitions for now
         flat_loss_grad, unflatten_grad = flatten(loss_grad)

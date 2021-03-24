@@ -214,8 +214,14 @@ class RelativeFreeEnergy(BaseFreeEnergy):
 
         final_params, final_potentials = self._get_system_params_and_potentials(ff_params, hgt)
 
-        combined_masses = np.concatenate([host_masses, np.mean(self.top.interpolate_params(ligand_masses_a, ligand_masses_b), axis=0)])
-        combined_coords = np.concatenate([host_coords, np.mean(self.top.interpolate_params(ligand_coords_a, ligand_coords_b), axis=0)])
+        if isinstance(self.top, topology.SingleTopology):
+            combined_masses = np.concatenate([host_masses, np.mean(self.top.interpolate_params(ligand_masses_a, ligand_masses_b), axis=0)])
+            combined_coords = np.concatenate([host_coords, np.mean(self.top.interpolate_params(ligand_coords_a, ligand_coords_b), axis=0)])
+        elif isinstance(self.top, topology.DualTopology):
+            combined_masses = np.concatenate([host_masses, ligand_masses_a, ligand_masses_b])
+            combined_coords = np.concatenate([host_coords, ligand_coords_a, ligand_coords_b])
+        else:
+            raise ValueError("Unknown Topology Type")
 
         return final_potentials, final_params, combined_masses, combined_coords
 
@@ -228,19 +234,31 @@ def construct_lambda_schedule(num_windows):
     manually optimized by YTZ
     """
 
-    A = int(.35 * num_windows)
-    B = int(.30 * num_windows)
-    C = num_windows - A - B
+    # A = int(.35 * num_windows)
+    # B = int(.30 * num_windows)
+    # C = num_windows - A - B
 
-    # Empirically, we see the largest variance in std <du/dl> near the endpoints in the nonbonded
-    # terms. Bonded terms are roughly linear. So we add more lambda windows at the endpoint to
-    # help improve convergence.
+    # # Empirically, we see the largest variance in std <du/dl> near the endpoints in the nonbonded
+    # # terms. Bonded terms are roughly linear. So we add more lambda windows at the endpoint to
+    # # help improve convergence.
+    # lambda_schedule = np.concatenate([
+    #     np.linspace(0.0, 0.25, A, endpoint=False),
+    #     np.linspace(0.25, 0.75, B, endpoint=False),
+    #     np.linspace(0.75, 1.0, C, endpoint=True)
+    # ])
+
+
+    # (ytz): for dual topology use
+    A = int(.75 * num_windows)
+    B = num_windows - A
+
     lambda_schedule = np.concatenate([
-        np.linspace(0.0, 0.25, A, endpoint=False),
-        np.linspace(0.25, 0.75, B, endpoint=False),
-        np.linspace(0.75, 1.0, C, endpoint=True)
+        np.linspace(0.0, 0.35, A, endpoint=False),
+        np.linspace(0.35, 1.0, B, endpoint=True),
     ])
 
     assert len(lambda_schedule) == num_windows
+
+    lambda_schedule = np.zeros(num_windows) + 1.0
 
     return lambda_schedule

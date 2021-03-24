@@ -183,21 +183,21 @@ class TestContext(unittest.TestCase):
 
         lambda_schedule = np.ones(num_steps)*lamb
 
-        du_dl_interval = 3
-        x_interval = 2
-        test_du_dls, test_xs = ctxt_2.multiple_steps(lambda_schedule, du_dl_interval, x_interval)
+        du_dl_freq = 3
+        x_freq = 2
+        test_du_dls, test_xs = ctxt_2.multiple_steps(lambda_schedule, du_dl_freq, x_freq)
 
         np.testing.assert_allclose(
             test_du_dls,
-            ref_all_du_dls[::du_dl_interval]
+            ref_all_du_dls[::du_dl_freq]
         )
 
         np.testing.assert_allclose(
             test_xs,
-            ref_all_xs[::x_interval]
+            ref_all_xs[::x_freq]
         )
 
-        test_du_dls, test_xs = ctxt_2.multiple_steps(lambda_schedule, du_dl_interval)
+        test_du_dls, test_xs = ctxt_2.multiple_steps(lambda_schedule, du_dl_freq)
 
 if __name__ == "__main__":
     unittest.main()

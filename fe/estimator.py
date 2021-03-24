@@ -28,7 +28,7 @@ def unflatten(aux_data, children):
 jax.tree_util.register_pytree_node(SimulationResult, flatten, unflatten)
 
 def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_steps,
-    x_interval=1000, du_dl_interval=5):
+    x_interval=500, du_dl_interval=5):
     """
     Run a simulation and collect relevant statistics for this simulation.
 
@@ -103,6 +103,7 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
     )
 
     # equilibration
+
     equil_schedule = np.ones(equil_steps)*lamb
     ctxt.multiple_steps(equil_schedule)
 

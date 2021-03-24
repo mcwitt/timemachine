@@ -1,9 +1,17 @@
+import jax.ops
 import jax.numpy as np
 
-def centroid_restraint(conf, params, box, lamb, masses, group_a_idxs, group_b_idxs, kb, b0):
-
+def centroid_restraint(conf, params, box, lamb, masses, group_a_idxs, group_b_idxs, kb, b0, lamb_offset=1.0, lamb_mult=0.0):
+    """
+    Compute a center of mass restraint whose centroids are defined by two groups of atoms.
+    """
     xi = conf[group_a_idxs]
     xj = conf[group_b_idxs]
+
+    if masses is None:
+        masses = np.ones(conf.shape[0])
+    else:
+        assert np.all(masses == 1)
 
     avg_xi = np.average(xi, axis=0, weights=masses[group_a_idxs])
     avg_xj = np.average(xj, axis=0, weights=masses[group_b_idxs])
@@ -12,7 +20,35 @@ def centroid_restraint(conf, params, box, lamb, masses, group_a_idxs, group_b_id
     dij = np.sqrt(np.sum(dx*dx))
     delta = dij - b0
 
-    return kb*delta*delta
+    prefactor = (lamb_offset + lamb_mult * lamb)
+
+    return prefactor*kb*delta*delta
+
+
+def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k, lamb_offset=1.0, lamb_mult=0.0):
+    """
+    Compute a rigid RMSD restraint using two groups of atoms. group_a_idxs and group_b_idxs must have the same
+    size. This function will automatically recenter the two groups of atoms as needed.
+
+    The zero point energy of this function is attained when the two structures are perfectly aligned. 
+    """
+    assert len(group_a_idxs) == len(group_b_idxs)
+
+    x1 = conf[group_a_idxs]
+    x2 = conf[group_b_idxs]
+    # recenter
+    x1 = x1 - np.mean(x1, axis=0)
+    x2 = x2 - np.mean(x2, axis=0)
+    # rotate x2 unto x1
+    correlation_matrix = np.dot(x2.T, x1)
+    V, S, W_tr = np.linalg.svd(correlation_matrix)
+    is_reflection = (np.linalg.det(V) * np.linalg.det(W_tr)) < 0.0
+    new_val = np.where(is_reflection, -V[:, -1], V[:, -1])
+    V = jax.ops.index_update(V, jax.ops.index[:, -1], new_val)
+    rotation = np.dot(V, W_tr)
+    angle = np.arccos((np.trace(rotation) - 1)/2)
+    prefactor = (lamb_offset + lamb_mult * lamb)
+    return prefactor*k*angle*angle
 
 def restraint(conf, lamb, params, lamb_flags, box, bond_idxs):
     """

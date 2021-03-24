@@ -41,6 +41,116 @@ class BenzenePhenolSparseTest(unittest.TestCase):
         super(BenzenePhenolSparseTest, self).__init__(*args, **kwargs)
 
 
+    def test_dual_topology_bonded(self):
+        """ Test that dual topology can properly generate bonded params and indices
+        when given a pre-defined core."""
+        core = np.array([
+            [0, 0],
+            [1, 1],
+            [2, 2],
+            [3, 3],
+            [4, 4],
+            [5, 5],
+        ], dtype=np.int32)
+
+        dt = topology.DualTopology(self.mol_a, self.mol_b, self.ff)
+
+        core_k = 35
+        core_b = 25
+
+        combined_params, vjp_fn, combined_potential = jax.vjp(
+            dt.parameterize_harmonic_bond,
+            self.ff.hb_handle.params,
+            core,
+            core_k,
+            core_b,
+            has_aux=True
+        )
+
+        num_bonds_a = self.mol_a.GetNumBonds()
+        num_bonds_b = self.mol_b.GetNumBonds()
+
+        assert len(combined_params) == num_bonds_a + num_bonds_b + len(core)
+
+        np.testing.assert_array_equal(
+            combined_params[num_bonds_a+num_bonds_b:],
+            np.array([[core_k, core_b]]*len(core))
+        )
+
+        expected_core = core.copy()
+        expected_core[:, 1] += self.mol_a.GetNumAtoms()
+
+        np.testing.assert_array_equal(
+            combined_potential.get_idxs()[num_bonds_a+num_bonds_b:],
+            expected_core
+        )
+
+        # use for the gas phase simulation
+        core_b = None
+
+        combined_params, vjp_fn, combined_potential = jax.vjp(
+            dt.parameterize_harmonic_bond,
+            self.ff.hb_handle.params,
+            core,
+            core_k,
+            core_b,
+            has_aux=True
+        )
+
+        conf_a = get_romol_conf(self.mol_a)
+        conf_b = get_romol_conf(self.mol_b)
+
+        expected_core_b = np.linalg.norm(conf_a[core[:, 0]] - conf_b[core[:, 1]], axis=1)
+
+        np.testing.assert_array_equal(
+            combined_params[num_bonds_a+num_bonds_b:][:, 0],
+            np.array([core_k]*len(core))
+        )
+
+        np.testing.assert_array_equal(
+            combined_params[num_bonds_a+num_bonds_b:][:, 1],
+            expected_core_b
+        )
+
+    def test_dual_topology_nonbonded(self):
+        core = np.array([
+            [0, 0],
+            [1, 1],
+            [2, 2],
+            [3, 3],
+            [4, 4],
+            [5, 5],
+        ], dtype=np.int32)
+
+        dt = topology.DualTopology(self.mol_a, self.mol_b, self.ff)
+
+        mol_a_lambda_offset = 1
+        mol_a_lambda_plane = 2
+        mol_b_lambda_offset = 3
+        mol_b_lambda_plane = 4
+
+        combined_params, vjp_fn, combined_potential = jax.vjp(
+            dt.parameterize_nonbonded,
+            self.ff.q_handle.params,
+            self.ff.lj_handle.params,
+            mol_a_lambda_offset,
+            mol_a_lambda_plane,
+            mol_b_lambda_offset,
+            mol_b_lambda_plane,
+            has_aux=True
+        )
+
+        test_lambda_offset = combined_potential.get_lambda_offset_idxs()
+        test_lambda_plane = combined_potential.get_lambda_plane_idxs()
+
+        num_atoms_a = self.mol_a.GetNumAtoms()
+
+        np.testing.assert_equal(test_lambda_offset[:num_atoms_a], mol_a_lambda_offset)
+        np.testing.assert_equal(test_lambda_offset[num_atoms_a:], mol_b_lambda_offset)
+
+        np.testing.assert_equal(test_lambda_plane[:num_atoms_a], mol_a_lambda_plane)
+        np.testing.assert_equal(test_lambda_plane[num_atoms_a:], mol_b_lambda_plane)
+
     def test_bonded(self):
         # other bonded terms use an identical protocol, so we assume they're correct if the harmonic bond tests pass.
         # leaving benzene H unmapped, and phenol OH unmapped

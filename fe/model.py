@@ -86,8 +86,35 @@ class RBFEModel():
             # to remove the randomness completely from the minimization.
             min_host_coords = minimizer.minimize_host_4d([mol_a, mol_b], host_system, host_coords, self.ff, host_box)
 
-            single_topology = topology.SingleTopology(mol_a, mol_b, core, self.ff)
-            rfe = free_energy.RelativeFreeEnergy(single_topology)
+            if False:
+                topo = topology.SingleTopology(mol_a, mol_b, core, self.ff)
+            else:
+
+                # end-point
+                topo = topology.DualTopology(mol_a, mol_b, self.ff)
+
+                core_k = 30
+                core_b = None
+
+                # core = None
+                # core_k = None
+                # core_b = None
+                topo.parameterize_harmonic_bond = partial(
+                    topo.parameterize_harmonic_bond,
+                    core=core,
+                    core_k=core_k,
+                    core_b=core_b
+                )
+
+                topo.parameterize_nonbonded = partial(
+                    topo.parameterize_nonbonded,
+                    mol_a_lambda_offset=0,
+                    mol_a_lambda_plane=0,
+                    mol_b_lambda_offset=1,
+                    mol_b_lambda_plane=0,
+                )
+
+            rfe = free_energy.RelativeFreeEnergy(topo)
 
             unbound_potentials, sys_params, masses, coords = rfe.prepare_host_edge(ff_params, host_system, min_host_coords)
 

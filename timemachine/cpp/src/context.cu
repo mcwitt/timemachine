@@ -1,5 +1,3 @@
-
-
 #include "context.hpp"
 #include "gpu_utils.cuh"
 #include "fixed_point.hpp"
@@ -65,18 +63,19 @@ void Context::add_observable(Observable *obs) {
 
 std::array<std::vector<double>, 2> Context::multiple_steps(
     const std::vector<double> &lambda_schedule,
-    int store_du_dl_interval,
-    int store_x_interval) {
+    int store_du_dl_freq,
+    int store_x_freq) {
     unsigned long long *d_du_dl_buffer = nullptr;
+    double *d_x_buffer = nullptr;
     // try catch block is to deal with leaks in d_du_dl_buffer
-    if(store_du_dl_interval <= 0) {
-        throw std::runtime_error("store_du_dl_interval <= 0");
+    if(store_du_dl_freq == 0) {
+        store_du_dl_freq = lambda_schedule.size();
     }
-    if(store_x_interval <= 0) {
-        throw std::runtime_error("store_x_interval <= 0");
+    if(store_x_freq == 0) {
+        store_x_freq = lambda_schedule.size();
     }
-    int du_dl_buffer_size = (lambda_schedule.size() + store_du_dl_interval - 1) / store_du_dl_interval;
-    int x_buffer_size = (lambda_schedule.size() + store_x_interval - 1) / store_x_interval;
+    int du_dl_buffer_size = (lambda_schedule.size() + store_du_dl_freq - 1) / store_du_dl_freq;
+    int x_buffer_size = (lambda_schedule.size() + store_x_freq - 1) / store_x_freq;
 
     std::vector<double> h_x_buffer(x_buffer_size*N_*3);
 
@@ -88,14 +87,14 @@ std::array<std::vector<double>, 2> Context::multiple_steps(
         for(int i=0; i < lambda_schedule.size(); i++) {
             // decide if we need to store the du_dl for this step
             unsigned long long *du_dl_ptr = nullptr;
-            if(i % store_du_dl_interval == 0) {
+            if(i % store_du_dl_freq == 0) {
                 // pemdas but just to make it clear we're doing pointer arithmetic
-                du_dl_ptr = d_du_dl_buffer + (i / store_du_dl_interval);
+                du_dl_ptr = d_du_dl_buffer + (i / store_du_dl_freq);
             }
 
-            if(i % store_x_interval == 0) {
+            if(i % store_x_freq == 0) {
                 gpuErrchk(cudaMemcpy(
-                    &h_x_buffer[0] + (i / store_x_interval)*N_*3,
+                    &h_x_buffer[0] + (i / store_x_freq)*N_*3,
                     d_x_t_,
                     N_*3*sizeof(double),
                     cudaMemcpyDeviceToHost)
