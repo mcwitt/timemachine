@@ -259,6 +259,6 @@ def construct_lambda_schedule(num_windows):
 
     assert len(lambda_schedule) == num_windows
 
-    lambda_schedule = np.zeros(num_windows) + 1.0
+    # lambda_schedule = np.zeros(num_windows) + 0.21
 
     return lambda_schedule
