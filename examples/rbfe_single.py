@@ -222,9 +222,9 @@ if __name__ == "__main__":
 
             dG = np.trapz(avg_du_dls, lambda_schedule)
 
-            print("stage", stage, "dG", dG)
+            print("epoch", epoch, "stage", stage, "dG", dG)
 
-        assert 0
+        continue
 
         print("epoch", epoch, "loss", loss)
 
