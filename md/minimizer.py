@@ -53,22 +53,26 @@ def minimize_host_4d(mols, host_system, host_coords, ff, box):
     if len(mols) == 1:
         top = topology.BaseTopology(mols[0], ff)
     elif len(mols) == 2:
-        top = topology.DualTopology(mols[0], mols[1], ff)
 
-        top.parameterize_harmonic_bond = functools.partial(
-            top.parameterize_harmonic_bond,
-            core=None,
-            core_k=None,
-            core_b=None
-        )
+        assert 0
+        # top = topology.DualTopology(mols[0], mols[1], ff)
 
-        top.parameterize_nonbonded = functools.partial(
-            top.parameterize_nonbonded,
-            mol_a_lambda_offset=1,
-            mol_a_lambda_plane=0,
-            mol_b_lambda_offset=1,
-            mol_b_lambda_plane=0
-        )
+        # top.parameterize_harmonic_bond = functools.partial(
+        #     top.parameterize_harmonic_bond,
+        #     core=None,
+        #     core_k=None,
+        #     core_b=None,
+        #     core_lambda_mult=None,
+        #     core_lambda_offset=None
+        # )
+
+        # top.parameterize_nonbonded = functools.partial(
+        #     top.parameterize_nonbonded,
+        #     mol_a_lambda_offset=1,
+        #     mol_a_lambda_plane=0,
+        #     mol_b_lambda_offset=1,
+        #     mol_b_lambda_plane=0
+        # )
 
     else:
         raise ValueError("mols must be length 1 or 2")
@@ -83,8 +87,15 @@ def minimize_host_4d(mols, host_system, host_coords, ff, box):
     combined_masses = np.concatenate(mass_list)
     combined_coords = np.concatenate(conf_list)
 
-
     hgt = topology.HostGuestTopology(host_bps, top)
+
+    hgt.parameterize_harmonic_bond = functools.partial(
+        hgt.parameterize_harmonic_bond,
+        core_idxs=None,
+        core_params=None,
+        core_lambda_mult=None,
+        core_lambda_offset=None
+    )
 
     # setup the parameter handlers for the ligand
     tuples = [

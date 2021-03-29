@@ -1,7 +1,7 @@
 # This script repeatedly estimates the relative binding free energy of a single edge, along with the gradient of the
 # estimate with respect to force field parameters, and adjusts the force field parameters to improve tha accuracy
 # of the free energy prediction.
-
+import multiprocessing
 import mdtraj
 
 import argparse
@@ -54,7 +54,11 @@ def generate_core(mol_a, mol_b):
     core = np.stack([col_idxs, row_idxs], axis=-1)
     return core
 
+from rdkit.Chem import rdmolops
+
 if __name__ == "__main__":
+
+    multiprocessing.set_start_method('spawn')
 
     parser = argparse.ArgumentParser(
         description="Relative Binding Free Energy Testing",
@@ -104,8 +108,34 @@ if __name__ == "__main__":
     mol_a, mol_b, _ = hif2a_ligand_pair.mol_a, hif2a_ligand_pair.mol_b, hif2a_ligand_pair.core
     forcefield = hif2a_ligand_pair.ff
 
+    # print(mol_a.GetNumAtoms())
+    # print(mol_b.GetNumAtoms())
+
     core = generate_core(mol_a, mol_b)
 
+    ring_info = rdmolops.FastFindRings(mol_a)
+
+    core = []
+    for a_idx, a in enumerate(mol_a.GetAtoms()):
+
+        if a.IsInRing():
+            core.append((a_idx, a_idx))
+
+    print("core", core)
+
+    core = np.array(core, dtype=np.int32)
+    # print(ring_info)
+
+    # assert 0
+
+    # print(core.shape)
+
+    # core = generate_core(mol_b, mol_a)
+
+    # print(core.shape)
+
+
+    # assert 0
     # assert 0
     # compute ddG label from mol_a, mol_b
     # TODO: add label upon testsystem construction
@@ -132,6 +162,9 @@ if __name__ == "__main__":
     solvent_system, solvent_coords, solvent_box, solvent_topology = builders.build_water_system(4.0)
     solvent_box += np.eye(3) * 0.1  # BFGS this later
 
+    complex_topology = pdb_writer.generate_topology([complex_topology, mol_a, mol_b], complex_coords, "complex.pdb")
+    solvent_topology = pdb_writer.generate_topology([solvent_topology, mol_a, mol_b], solvent_coords, "solvent.pdb")
+
     binding_model = model.RBFEModel(
         client,
         forcefield,
@@ -144,11 +177,10 @@ if __name__ == "__main__":
         solvent_box,
         solvent_schedule,
         cmd_args.num_equil_steps,
-        cmd_args.num_prod_steps
+        cmd_args.num_prod_steps,
+        complex_topology,
+        solvent_topology
     )
-
-    complex_topology = pdb_writer.generate_topology([complex_topology, mol_a, mol_b], complex_coords, "complex.pdb")
-    solvent_topology = pdb_writer.generate_topology([solvent_topology, mol_a, mol_b], solvent_coords, "solvent.pdb")
 
     ordered_params = forcefield.get_ordered_params()
     ordered_handles = forcefield.get_ordered_handles()
@@ -204,14 +236,30 @@ if __name__ == "__main__":
 
     vg_fn = jax.value_and_grad(binding_model.loss, argnums=0, has_aux=True)
 
-    for epoch in range(10):
+    for epoch in range(100):
         epoch_params = serialize_handlers(ordered_handles)
 
-        (loss, aux), loss_grad = vg_fn(ordered_params, mol_a, mol_b, core, label_ddG)
+        # (loss, aux), loss_grad = vg_fn(ordered_params, mol_a, mol_b, core, label_ddG)
+
+        # loss, aux = binding_model.loss(ordered_params, mol_a, mol_b, core, label_ddG)
+
+        pred, aux = binding_model.predict(ordered_params, mol_a, mol_b, core, epoch)
+
+        continue
+
+        # print("epoch", epoch, "stage", stage, "dG", dG)
 
         for (stage, results), lambda_schedule, topology in zip(aux, [complex_schedule, solvent_schedule], [complex_topology, solvent_topology]):
             avg_du_dls = []
-            for lamb_idx, (lamb, sim_res) in enumerate(zip(lambda_schedule, results)):
+
+            combined_lambda_schedule = np.concatenate([
+                np.array([1000.0]),
+                lambda_schedule[::-1],
+                lambda_schedule,
+                np.array([1000.0]),
+            ])
+
+            for lamb_idx, (lamb, sim_res) in enumerate(zip(combined_lambda_schedule[1:-1], results[1:-1])):
 
                 md_topology = mdtraj.Topology.from_openmm(topology)
                 traj = mdtraj.Trajectory(sim_res.xs, md_topology)
@@ -220,7 +268,7 @@ if __name__ == "__main__":
                 print(stage, "lambda", lamb, "<du/dl>", np.mean(sim_res.du_dls), "std(du/dl)", np.std(sim_res.du_dls))
                 avg_du_dls.append(np.mean(sim_res.du_dls))
 
-            dG = np.trapz(avg_du_dls, lambda_schedule)
+            dG = np.trapz(avg_du_dls, combined_lambda_schedule[1:-1])
 
             print("epoch", epoch, "stage", stage, "dG", dG)
 

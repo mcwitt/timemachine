@@ -113,9 +113,44 @@ class HostGuestTopology():
 
         return combined_params, ctor(combined_idxs, combined_lambda_mult, combined_lambda_offset)
 
-    def parameterize_harmonic_bond(self, ff_params):
+    def parameterize_harmonic_bond(self,
+        ff_params,
+        core_idxs,
+        core_params,
+        core_lambda_mult,
+        core_lambda_offset):
         guest_params, guest_potential = self.guest_topology.parameterize_harmonic_bond(ff_params)
-        return self._parameterize_bonded_term(guest_params, guest_potential, self.host_harmonic_bond)
+        params, potential = self._parameterize_bonded_term(guest_params, guest_potential, self.host_harmonic_bond)
+
+        if core_idxs is not None:
+
+            params = jnp.concatenate([
+                params,
+                np.array(core_params)]
+            )
+
+            core_idxs = np.array(core_idxs, dtype=np.int32)
+            core_idxs[:, 1] += self.num_host_atoms
+
+            idxs = np.concatenate([
+                potential.get_idxs(),
+                core_idxs
+            ])
+
+            n_core_bonds = len(core_idxs)
+            bond_lambda_mult = np.concatenate([
+                potential.get_lambda_mult(),
+                np.zeros(n_core_bonds)+core_lambda_mult
+            ]).astype(np.int32)
+
+            bond_lambda_offset = np.concatenate([
+                potential.get_lambda_offset(),
+                np.zeros(n_core_bonds)+core_lambda_offset
+            ]).astype(np.int32)
+
+            return params, potentials.HarmonicBond(idxs.astype(np.int32), bond_lambda_mult, bond_lambda_offset)
+        else:
+            return params, potential
 
     def parameterize_harmonic_angle(self, ff_params):
         guest_params, guest_potential = self.guest_topology.parameterize_harmonic_angle(ff_params)
@@ -225,7 +260,7 @@ class BaseTopology():
             lambda_offset_idxs,
             beta,
             cutoff
-        ) 
+        )
 
         params = jnp.concatenate([
             jnp.reshape(q_params, (-1, 1)),
@@ -382,7 +417,7 @@ class DualTopology():
         idxs_c = np.concatenate([idxs_a, idxs_b + offset])
         return params_c, potential(idxs_c)
 
-    def parameterize_harmonic_bond(self, ff_params, core, core_k, core_b):
+    def parameterize_harmonic_bond(self, ff_params, core, core_k, core_b, core_lambda_mult, core_lambda_offset):
 
         if core is None:
             assert core_k is None
@@ -406,6 +441,9 @@ class DualTopology():
         conf_a = get_romol_conf(self.mol_a)
         conf_b = get_romol_conf(self.mol_b)
 
+        core_lamb_mult = []
+        core_lamb_offset = []
+
         for src, dst in core:
             idxs_core.append((src, dst + self.mol_a.GetNumAtoms()))
             k = core_k
@@ -416,13 +454,31 @@ class DualTopology():
                 b = core_b
             params_core.append((k, b))
 
+            n_core_bonds = len(params_core)
+
+            core_lamb_mult.append(core_lambda_mult)
+            core_lamb_offset.append(core_lambda_offset)
+
         params_core = jnp.array(params_core, dtype=np.float64).reshape((-1, 2))
         idxs_core = np.array(idxs_core, dtype=np.int32).reshape((-1, 2))
 
         params_c = jnp.concatenate([params, params_core])
         idxs_c = np.concatenate([idxs, idxs_core])
 
-        return params_c, potentials.HarmonicBond(idxs_c)
+        n_mol_bonds = len(params)
+
+
+        bond_lambda_mult = np.concatenate([
+            np.zeros(n_mol_bonds),
+            core_lamb_mult
+        ])
+
+        bond_lambda_offset = np.concatenate([
+            np.ones(n_mol_bonds),
+            core_lamb_offset
+        ])
+
+        return params_c, potentials.HarmonicBond(idxs_c, bond_lambda_mult, bond_lambda_offset)
 
     def parameterize_harmonic_angle(self, ff_params):
         return self._parameterize_bonded_term(ff_params, self.ff.ha_handle, potentials.HarmonicAngle)

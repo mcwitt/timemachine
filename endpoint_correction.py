@@ -210,7 +210,9 @@ def delta_u(conf, box, lamb, translation_restr, rotation_restr, core_restr):
     """
     U_rot_res - U_core_restr
     """
-    return translation_restr(conf=conf, box=box, lamb=lamb) + rotation_restr(conf=conf, box=box, lamb=lamb) - core_restr(conf=conf, box=box, lamb=lamb) 
+
+    # print(translation_restr(conf=conf, box=box, lamb=lamb), rotation_restr(conf=conf, box=box, lamb=lamb), core_restr(conf=conf, box=box, lamb=lamb))
+    return translation_restr(conf=conf, box=box, lamb=lamb) + rotation_restr(conf=conf, box=box, lamb=lamb) - core_restr(conf=conf, box=box, lamb=lamb)
 
 
 def run(trial, pool):
