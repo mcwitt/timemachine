@@ -43,13 +43,16 @@ pybind11_add_module(${LIBRARY_NAME} SHARED NO_EXTRAS
   src/harmonic_bond.cu
   src/harmonic_angle.cu
   src/periodic_torsion.cu
+  src/rmsd_restraint.cu
   src/integrator.cu
   src/context.cu
   src/kernels/k_neighborlist.cu
 )
 
+
 include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 include_directories(src/kernels)
+include_directories(src/eigen)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/${CUB_SRC_DIR})
 
 set_property(TARGET ${LIBRARY_NAME} PROPERTY CUDA_STANDARD 14)

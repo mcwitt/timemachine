@@ -61,6 +61,78 @@ class TestBonded(GradientTest):
     #             precision=precision
     #         )
 
+
+    def test_rmsd_restraint(self):
+        """Randomly define subsets A and B of a larger collection of particles,
+        generate a centroid restraint between A and B, and then validate the resulting CentroidRestraint force"""
+
+        np.random.seed(2021)
+
+        box = np.eye(3) * 100
+
+        n_particles_a = 25
+        n_particles_b = 7
+
+        # specific to centroid restraint force
+        relative_tolerance_at_precision = {np.float32: 2e-5, np.float64: 1e-9}
+
+        for precision, rtol in relative_tolerance_at_precision.items():
+
+            for _ in range(100):
+                coords = self.get_random_coords(n_particles_a + n_particles_b, 3)
+
+                n = coords.shape[0]
+                n_mapped_atoms = 5
+                # bad things happen if n_mapped_atoms = 5 as we can sometimes pick a side with only 2/3 atoms
+
+                atom_idxs_a = np.arange(n_particles_a)
+                atom_idxs_b = np.arange(n_particles_b)
+
+                atom_map = np.stack([
+                    np.random.randint(0, n_particles_a, n_mapped_atoms, dtype=np.int32),
+                    np.random.randint(0, n_particles_b, n_mapped_atoms, dtype=np.int32) + n_particles_a
+                ], axis=1)
+
+                atom_map = atom_map.astype(np.int32)
+
+                # impl = potentials.RMSDRestraint(atom_map, n).unbound_impl(np.float64)
+                # test_du_dx, _, _, test_nrg = impl.execute(coords, np.array([], dtype=np.float64), box, 0.0)
+
+                params = np.array([], dtype=np.float64)
+                k = 1.0
+                lamb = 0.0
+
+                for precision, rtol, atol in [(np.float64, 1e-6, 1e-6)]:
+
+                    ref_u = functools.partial(bonded.rmsd_restraint,
+                        # params=params,
+                        group_a_idxs=atom_map[:, 0],
+                        group_b_idxs=atom_map[:, 1],
+                        k=1.0,
+                        lamb_offset=1.0,
+                        lamb_mult=0.0
+                    )
+
+                    test_u = potentials.RMSDRestraint(atom_map, n)
+
+                    # note the slightly higher than usual atol (1e-6 vs 1e-8)
+                    # this is due to fixed pointe accumulation of energy wipes
+                    # the energies since some of test cases have an infinitesmally
+                    # small absolute error (on the order of 1e-8)
+                    self.compare_forces(
+                        coords,
+                        params,
+                        box,
+                        lamb,
+                        ref_u,
+                        test_u,
+                        rtol,
+                        atol=atol,
+                        precision=precision
+                    )
+
+
+
     def test_harmonic_bond(self, n_particles=64, n_bonds=35, dim=3):
         """Randomly connect pairs of particles, then validate the resulting HarmonicBond force"""
         np.random.seed(125)  # TODO: where should this seed be set?

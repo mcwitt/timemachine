@@ -1,4 +1,6 @@
+import jax
 import jax.numpy as np
+import numpy as onp
 
 def centroid_restraint(conf, params, box, lamb, masses, group_a_idxs, group_b_idxs, kb, b0):
 
@@ -66,6 +68,46 @@ def restraint(conf, lamb, params, lamb_flags, box, bond_idxs):
     energy = np.sum(kbs * term*term)
 
     return energy
+
+def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k, lamb_offset=1.0, lamb_mult=0.0):
+    """
+    Compute a rigid RMSD restraint using two groups of atoms. group_a_idxs and group_b_idxs must have the same
+    size. This function will automatically recenter the two groups of atoms as needed.
+
+    The zero point energy of this function is attained when the two structures are perfectly aligned. 
+    """
+    assert len(group_a_idxs) == len(group_b_idxs)
+
+    x1 = conf[group_a_idxs]
+    x2 = conf[group_b_idxs]
+    # recenter
+    x1 = x1 - np.mean(x1, axis=0)
+    x2 = x2 - np.mean(x2, axis=0)
+
+    correlation_matrix = np.dot(x2.T, x1)
+    U, S, V_tr = np.linalg.svd(correlation_matrix, full_matrices=False)
+
+    is_reflection = (np.linalg.det(U) * np.linalg.det(V_tr)) < 0.0
+    rotation = np.dot(U, V_tr)
+
+    epsilon = 1e-8
+
+    cond = np.any(S < epsilon)
+    # if matrix is not full rank we skip, SVD is underdetermined
+    if np.any(S < epsilon):
+        return 0.0
+
+    term = np.where(is_reflection,
+        (np.trace(rotation) + 1)/2 - 1,
+        (np.trace(rotation) - 1)/2 - 1
+    )
+
+    term = np.where(cond, 0.0, term)
+
+    prefactor = (lamb_offset + lamb_mult * lamb)
+    nrg = prefactor*k*term*term
+
+    return nrg
 
 # lamb is *not used* it is used in the alchemical stuff after
 def harmonic_bond(conf, params, box, lamb, bond_idxs, lamb_mult=None, lamb_offset=None):

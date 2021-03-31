@@ -311,11 +311,15 @@ class TestNonbondedWater(GradientTest):
         )
 
         big_box = box + np.eye(3)*1000
+        zero_box = box*0
 
         # print(big_box, small_box)
         # (ytz): note the ordering should be from large box to small box. though in the current code
         # the rebuild is triggered as long as the box *changes*.
-        for test_box in [big_box, box]:
+        # for test_box in [big_box, box, zero_box]:
+        for test_box in [zero_box]:
+
+            print(test_box)
 
             for precision, rtol in [(np.float64, 1e-8), (np.float32, 1e-4)]:
 
