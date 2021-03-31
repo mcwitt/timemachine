@@ -94,7 +94,11 @@ def minimize_host_4d(mols, host_system, host_coords, ff, box):
         core_idxs=None,
         core_params=None,
         core_lambda_mult=None,
-        core_lambda_offset=None
+        core_lambda_offset=None,
+        pocket_idxs=None,
+        pocket_params=None,
+        pocket_lambda_mult=None,
+        pocket_lambda_offset=None
     )
 
     # setup the parameter handlers for the ligand

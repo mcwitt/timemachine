@@ -146,6 +146,7 @@ FreeEnergyModel = namedtuple(
      # "num_a_atoms",
      # "num_b_atoms",
      "core",
+     "core_params",
      "topology",
      "stage",
      "num_host_atoms"
@@ -267,11 +268,12 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
     # core_idxs = np.array(model.core)
     # core_idxs[:, 1] += model.num_a_atoms
 
+    core_params = model.core_params
 
     # (ytz): MAKE SURE THIS MATCHES
-    core_params = np.array([
-        [10.0, 0.0],
-    ]*core_idxs.shape[0])
+    # core_params = np.array([
+        # [10.0, 0.0],
+    # ]*core_idxs.shape[0])
 
     # print("endpt core_idxs", core_idxs)
 

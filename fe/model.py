@@ -224,9 +224,9 @@ class BFEModel():
             # what if one of these c-alphas is a highly motile loop?
             pocket_atoms = set()
 
-            # 5 angstrom radius
+            # find all alpha carbons within a 0.5 angstrom
+            # of any of the ligand's core
             pocket_cutoff = 0.5
-
             for i_idx in range(mol.GetNumAtoms()):
                 if i_idx in ligand_core:
                     dists = dij[i_idx]
@@ -237,17 +237,45 @@ class BFEModel():
 
             pocket_atoms = np.array(list(pocket_atoms))
 
+            for a in pocket_atoms:
+                host_masses[a] = 999999.9 # jank but.. works
 
-            ri = np.expand_dims(ligand_coords, 1)
-            rj = np.expand_dims(host_coords[pocket_atoms], 0)
-            dij_pocket = np.sqrt(np.sum(np.power(ri-rj, 2), axis=-1))
+            # ri = np.expand_dims(ligand_coords, 1)
+            # rj = np.expand_dims(host_coords[pocket_atoms], 0)
+            # dij_pocket = np.sqrt(np.sum(np.power(ri-rj, 2), axis=-1))
 
-            for i_idx in range(mol.GetNumAtoms()):
-                if i_idx in ligand_core:
-                    dists = dij_pocket[i_idx]
-                    j_idx = np.argsort(dists)[0]
-                    core_idxs.append((pocket_atoms[j_idx], i_idx))
-                    core_params.append((10.0, 0.0))
+            # for i_idx in range(mol.GetNumAtoms()):
+                # if i_idx in ligand_core:
+                    # dists = dij_pocket[i_idx]
+                    # j_idx = np.argsort(dists)[0]
+                    # core_idxs.append((pocket_atoms[j_idx], i_idx))
+                    # core_params.append((10.0, 0.0))
+
+            pocket_idxs = []
+            pocket_params = []
+
+            # ytz: note, the pocket atoms need to be the same for every 
+            # ligand in the target, this is janky af
+            for j_idx in pocket_atoms:
+                nbs = np.argsort(dij[:, j_idx])
+                for i_idx in nbs:
+                    if i_idx in ligand_core:
+                        core_idxs.append((j_idx, i_idx))
+                        # core_params.append((10.0, dij[i_idx, j_idx]))
+                        core_params.append((10.0, 0))
+                        break
+
+                for k_idx in pocket_atoms:
+                    if k_idx > j_idx:
+                        pocket_idxs.append((j_idx, k_idx))
+                        pocket_params.append((0.0, np.linalg.norm(host_coords[k_idx] - host_coords[j_idx])))
+
+            pocket_params = np.array(pocket_params)
+
+            print("core_idxs", core_idxs)
+            print("core_params", core_params)
+            print("pocket_idxs", pocket_idxs)
+            # assert 0
 
             # for i_idx in range(mol.GetNumAtoms()):
             #     if i_idx in ligand_core:
@@ -277,14 +305,19 @@ class BFEModel():
             print("core_idxs ligand", core_idxs[:, 1])
             # assert 0
 
+            # tbd turn on pocket restraints
             unbound_potentials_end_state, sys_params_end_state, masses_end_state, coords_end_state = afe.prepare_host_edge(
                 ff_params,
                 host_system,
                 min_host_coords,
-                core_idxs,
-                core_params,
+                core_idxs=core_idxs,
+                core_params=core_params,
                 core_lambda_mult=-1.0,
-                core_lambda_offset=1.0
+                core_lambda_offset=1.0,
+                pocket_idxs=pocket_idxs,
+                pocket_params=pocket_params,
+                pocket_lambda_mult=0.0,
+                pocket_lambda_offset=1.0
             )
 
             afe = free_energy.AbsoluteFreeEnergy(topo)
@@ -292,10 +325,14 @@ class BFEModel():
                 ff_params,
                 host_system,
                 min_host_coords,
-                core_idxs,
-                core_params,
+                core_idxs=core_idxs,
+                core_params=core_params,
                 core_lambda_mult=0.0,
-                core_lambda_offset=1.0
+                core_lambda_offset=1.0,
+                pocket_idxs=pocket_idxs,
+                pocket_params=pocket_params,
+                pocket_lambda_mult=0.0,
+                pocket_lambda_offset=1.0
             )
 
             # rfe.prepare_host_edge(ff_params, host_system, min_host_coords)
@@ -320,6 +357,8 @@ class BFEModel():
 
             integrator = LangevinIntegrator(300.0, 1.5e-3, 1.0, masses_ti, seed)
 
+
+
             model = estimator.FreeEnergyModel(
                 unbound_potentials_ti,
                 unbound_potentials_end_state,
@@ -332,6 +371,7 @@ class BFEModel():
                 self.equil_steps,
                 self.prod_steps,
                 core_idxs,
+                np.array(core_params),
                 omm_topology,
                 stage+"_"+str(epoch),
                 host_coords.shape[0],

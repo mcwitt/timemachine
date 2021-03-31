@@ -118,35 +118,65 @@ class HostGuestTopology():
         core_idxs,
         core_params,
         core_lambda_mult,
-        core_lambda_offset):
+        core_lambda_offset,
+        pocket_idxs,
+        pocket_params,
+        pocket_lambda_mult,
+        pocket_lambda_offset):
         guest_params, guest_potential = self.guest_topology.parameterize_harmonic_bond(ff_params)
         params, potential = self._parameterize_bonded_term(guest_params, guest_potential, self.host_harmonic_bond)
 
         if core_idxs is not None:
 
+            assert pocket_idxs is not None
+
             params = jnp.concatenate([
                 params,
-                np.array(core_params)]
-            )
+                np.array(core_params),
+                pocket_params
+            ])
 
             core_idxs = np.array(core_idxs, dtype=np.int32)
             core_idxs[:, 1] += self.num_host_atoms
 
             idxs = np.concatenate([
                 potential.get_idxs(),
-                core_idxs
+                core_idxs,
+                pocket_idxs
             ])
 
             n_core_bonds = len(core_idxs)
+            n_pocket_bonds = len(pocket_idxs)
+
+
+            print(n_core_bonds)
+            print(n_pocket_bonds)
+            # assert 0
+
             bond_lambda_mult = np.concatenate([
                 potential.get_lambda_mult(),
-                np.zeros(n_core_bonds)+core_lambda_mult
+                np.zeros(n_core_bonds) + core_lambda_mult,
+                np.zeros(n_pocket_bonds) + pocket_lambda_mult
             ]).astype(np.int32)
 
             bond_lambda_offset = np.concatenate([
                 potential.get_lambda_offset(),
-                np.zeros(n_core_bonds)+core_lambda_offset
+                np.zeros(n_core_bonds) + core_lambda_offset,
+                np.zeros(n_pocket_bonds) + pocket_lambda_offset
             ]).astype(np.int32)
+
+            print(len(bond_lambda_offset))
+            print(len(bond_lambda_mult))
+            print(len(idxs))
+
+            # # add restraining potential between restrained protein atoms
+            # pocket_atoms = core_idxs[:, 0]
+            # pocket_restraint_idxs = []
+            # pocket_restraint_params = []
+            # for i in pocket_atoms:
+            #     for j in pocket_atoms:
+
+
 
             return params, potentials.HarmonicBond(idxs.astype(np.int32), bond_lambda_mult, bond_lambda_offset)
         else:

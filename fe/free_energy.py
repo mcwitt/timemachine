@@ -289,7 +289,8 @@ class AbsoluteFreeEnergy(BaseFreeEnergy):
 
     #     return final_potentials, final_params, combined_masses, combined_coords
 
-    def prepare_host_edge(self, ff_params, host_system, host_coords, core_idxs, core_params, core_lambda_mult, core_lambda_offset):
+    def prepare_host_edge(self, ff_params, host_system, host_coords, core_idxs, core_params, core_lambda_mult, core_lambda_offset,
+        pocket_idxs, pocket_params, pocket_lambda_mult, pocket_lambda_offset):
         """
         Prepares the host-edge system
 
@@ -324,7 +325,11 @@ class AbsoluteFreeEnergy(BaseFreeEnergy):
             core_idxs=core_idxs,
             core_params=core_params,
             core_lambda_mult=core_lambda_mult,
-            core_lambda_offset=core_lambda_offset
+            core_lambda_offset=core_lambda_offset,
+            pocket_idxs=pocket_idxs,
+            pocket_params=pocket_params,
+            pocket_lambda_mult=pocket_lambda_mult,
+            pocket_lambda_offset=pocket_lambda_offset
         )
 
         final_params, final_potentials = self._get_system_params_and_potentials(ff_params, hgt)

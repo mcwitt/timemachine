@@ -8,6 +8,8 @@ def centroid_restraint(conf, params, box, lamb, masses, group_a_idxs, group_b_id
     xi = conf[group_a_idxs]
     xj = conf[group_b_idxs]
 
+    assert b0 == 0.0
+
     if masses is None:
         masses = np.ones(conf.shape[0])
     else:
@@ -17,12 +19,14 @@ def centroid_restraint(conf, params, box, lamb, masses, group_a_idxs, group_b_id
     avg_xj = np.average(xj, axis=0, weights=masses[group_b_idxs])
 
     dx = avg_xi - avg_xj
-    dij = np.sqrt(np.sum(dx*dx))
-    delta = dij - b0
+    print("DX", dx)
+    # dij = np.sqrt(np.sum(dx*dx))
+    # dij = np.linalg.norm(dx*dx)
+    # delta = dij - b0
 
     prefactor = (lamb_offset + lamb_mult * lamb)
 
-    return prefactor*kb*delta*delta
+    return prefactor*kb*np.sum(dx*dx)
 
 
 def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k, lamb_offset=1.0, lamb_mult=0.0):
@@ -41,14 +45,16 @@ def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k, lamb_
     x2 = x2 - np.mean(x2, axis=0)
     # rotate x2 unto x1
     correlation_matrix = np.dot(x2.T, x1)
-    V, S, W_tr = np.linalg.svd(correlation_matrix)
+    V, S, W_tr = np.linalg.svd(correlation_matrix, full_matrices=False)
     is_reflection = (np.linalg.det(V) * np.linalg.det(W_tr)) < 0.0
     new_val = np.where(is_reflection, -V[:, -1], V[:, -1])
     V = jax.ops.index_update(V, jax.ops.index[:, -1], new_val)
     rotation = np.dot(V, W_tr)
-    angle = np.arccos((np.trace(rotation) - 1)/2)
+    # angle = np.arccos((np.trace(rotation) - 1)/2)
+    cos_angle = (np.trace(rotation) - 1)/2 - np.cos(0.0)
     prefactor = (lamb_offset + lamb_mult * lamb)
-    return prefactor*k*angle*angle
+    return prefactor*k*cos_angle*cos_angle
+    # return cos_angle*cos_angle
 
 def restraint(conf, lamb, params, lamb_flags, box, bond_idxs):
     """
@@ -121,7 +127,6 @@ def harmonic_bond(conf, params, box, lamb, bond_idxs, lamb_mult=None, lamb_offse
 
     box: shape [3, 3] np.array
         periodic boundary vectors, if not None
-
     lamb: float
         alchemical lambda parameter, linearly rescaled
 
