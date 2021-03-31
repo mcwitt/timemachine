@@ -31,20 +31,22 @@ def get_romol_conf(mol):
 
 def setup_system():
 
-    # pair = relative.hif2a_ligand_pair
-    # mol_a, mol_b = pair.mol_a, pair.mol_b
+    pair = relative.hif2a_ligand_pair
+    mol_a, mol_b = pair.mol_a, pair.mol_b
+    core_idxs = np.array(pair.core)
+    core_idxs[:, 1] += mol_a.GetNumAtoms()
 
-    mol_a = Chem.MolFromSmiles("C1CC1")
-    mol_b = Chem.MolFromSmiles("C1CC1")
+    # mol_a = Chem.MolFromSmiles("C1CC1")
+    # mol_b = Chem.MolFromSmiles("C1CC1")
 
-    AllChem.EmbedMolecule(mol_a)
-    AllChem.EmbedMolecule(mol_b)
+    # AllChem.EmbedMolecule(mol_a)
+    # AllChem.EmbedMolecule(mol_b)
 
-    core_idxs = np.array([
-        [0,3],
-        [1,4],
-        [2,5]
-    ])
+    # core_idxs = np.array([
+        # [0,3],
+        # [1,4],
+        # [2,5]
+    # ])
 
     # load the molecule
     handlers = deserialize_handlers(open('ff/params/smirnoff_1_1_0_ccc.py').read())
@@ -135,7 +137,7 @@ def run(trial, pool):
     u_fn, translation_restr_kb, restr_group_idxs_a, restr_group_idxs_b, mol_a, mol_b = setup_system()
 
     combined_mass = np.concatenate([
-        [a.GetMass() for a in mol_a.GetAtoms()],
+        [a.GetMass()*10000 for a in mol_a.GetAtoms()],
         [b.GetMass() for b in mol_b.GetAtoms()]
     ])
 
@@ -192,7 +194,7 @@ def run(trial, pool):
             print(step, np.mean(du_dls), np.std(du_dls))
             writer.write(make_conformer(mol_a, mol_b, x_t))
             fig = asciiplotlib.figure()
-            fig.hist(*np.histogram(du_dls), orientation="horizontal", force_ascii=False)
+            fig.hist(*np.histogram(du_dls, bins=25), orientation="horizontal", force_ascii=False)
             fig.show()
 
     assert 0

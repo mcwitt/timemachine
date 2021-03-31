@@ -19,7 +19,6 @@ def centroid_restraint(conf, params, box, lamb, masses, group_a_idxs, group_b_id
     avg_xj = np.average(xj, axis=0, weights=masses[group_b_idxs])
 
     dx = avg_xi - avg_xj
-    print("DX", dx)
     # dij = np.sqrt(np.sum(dx*dx))
     # dij = np.linalg.norm(dx*dx)
     # delta = dij - b0
@@ -46,15 +45,14 @@ def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k, lamb_
     # rotate x2 unto x1
     correlation_matrix = np.dot(x2.T, x1)
     V, S, W_tr = np.linalg.svd(correlation_matrix, full_matrices=False)
-    is_reflection = (np.linalg.det(V) * np.linalg.det(W_tr)) < 0.0
-    new_val = np.where(is_reflection, -V[:, -1], V[:, -1])
-    V = jax.ops.index_update(V, jax.ops.index[:, -1], new_val)
+    # is_reflection = (np.linalg.det(V) * np.linalg.det(W_tr)) < 0.0
+    # new_val = np.where(is_reflection, -V[:, -1], V[:, -1])
+    # V = jax.ops.index_update(V, jax.ops.index[:, -1], new_val)
     rotation = np.dot(V, W_tr)
     # angle = np.arccos((np.trace(rotation) - 1)/2)
     cos_angle = (np.trace(rotation) - 1)/2 - np.cos(0.0)
     prefactor = (lamb_offset + lamb_mult * lamb)
     return prefactor*k*cos_angle*cos_angle
-    # return cos_angle*cos_angle
 
 def restraint(conf, lamb, params, lamb_flags, box, bond_idxs):
     """
