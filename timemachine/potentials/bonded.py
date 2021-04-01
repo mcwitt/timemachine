@@ -50,8 +50,28 @@ def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k, lamb_
 
     # reflective forces ignored
     is_reflection = (np.linalg.det(U) * np.linalg.det(V_tr)) < 0.0
-    rotation = np.dot(U, V_tr)
 
+    # factorize out reflection
+    # 1.
+    # rotation = np.dot(U, V_tr)
+    # convert the improper rotation into a proper rotation through a transformation
+    # rotation = np.where(is_reflection,
+        # rotation@(np.eye(3)*-1),
+        # rotation
+    # )
+
+    # cos_angle = (np.trace(rotation) - 1)/2
+
+    # 2
+    # replace an eigenvector, but this causes instabilities
+    # new_val = np.where(is_reflection, -U[:, -1], U[:, -1])
+
+    # U = jax.ops.index_update(U, jax.ops.index[:, -1], new_val)
+    # rotation = np.dot(U, V_tr)
+    # cos_angle = (np.trace(rotation) - 1)/2 - 1
+
+    # 3
+    rotation = np.dot(U, V_tr)
     cos_angle = np.where(is_reflection,
         (np.trace(rotation) + 1)/2 - 1,
         (np.trace(rotation) - 1)/2 - 1

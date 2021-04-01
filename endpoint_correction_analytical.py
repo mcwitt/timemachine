@@ -92,7 +92,7 @@ def setup_system():
     )
 
     # (ytz):
-    rotation_restr_kb = 25.0
+    rotation_restr_kb = 100.0
 
     rotation_restr = functools.partial(
         bonded.rmsd_restraint,
@@ -181,6 +181,8 @@ def run(trial, pool):
 
     start = time.time()
 
+    rmsds = []
+
     for step in range(n_steps):
         du_dx = du_dx_fn(x_t, box, lamb)[0]
         # print(du_dx)
@@ -189,9 +191,10 @@ def run(trial, pool):
         v_t = ca*v_t + cb*du_dx + cc*np.random.normal(size=x_t.shape)
         x_t = x_t + v_t*dt
         if step % sampling_frequency == 0 and step > equilibrium_steps:
+            rmsds.append(np.linalg.norm(x_t[restr_group_idxs_a] - x_t[restr_group_idxs_b]))
             # lhs_du.append(delta_u_jit(x_t, box, lamb))
             du_dls.append(du_dl_fn(x_t, box, lamb)[0])
-            print(step, np.mean(du_dls), np.std(du_dls))
+            print(step, "<du/dl>", np.mean(du_dls), "std(du/dl)", np.std(du_dls), "<rmsd>", np.mean(rmsds))
             writer.write(make_conformer(mol_a, mol_b, x_t))
             fig = asciiplotlib.figure()
             fig.hist(*np.histogram(du_dls, bins=25), orientation="horizontal", force_ascii=False)
