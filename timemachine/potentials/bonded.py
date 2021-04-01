@@ -28,6 +28,7 @@ def centroid_restraint(conf, params, box, lamb, masses, group_a_idxs, group_b_id
     return prefactor*kb*np.sum(dx*dx)
 
 
+
 def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k, lamb_offset=1.0, lamb_mult=0.0):
     """
     Compute a rigid RMSD restraint using two groups of atoms. group_a_idxs and group_b_idxs must have the same
@@ -44,15 +45,22 @@ def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k, lamb_
     x2 = x2 - np.mean(x2, axis=0)
     # rotate x2 unto x1
     correlation_matrix = np.dot(x2.T, x1)
-    V, S, W_tr = np.linalg.svd(correlation_matrix, full_matrices=False)
-    # is_reflection = (np.linalg.det(V) * np.linalg.det(W_tr)) < 0.0
-    # new_val = np.where(is_reflection, -V[:, -1], V[:, -1])
-    # V = jax.ops.index_update(V, jax.ops.index[:, -1], new_val)
-    rotation = np.dot(V, W_tr)
-    # angle = np.arccos((np.trace(rotation) - 1)/2)
-    cos_angle = (np.trace(rotation) - 1)/2 - np.cos(0.0)
+    U, S, V_tr = np.linalg.svd(correlation_matrix, full_matrices=False)
+    # need to get the signs here right, inconsistent with Eigen
+
+    # reflective forces ignored
+    is_reflection = (np.linalg.det(U) * np.linalg.det(V_tr)) < 0.0
+    rotation = np.dot(U, V_tr)
+
+    cos_angle = np.where(is_reflection,
+        (np.trace(rotation) + 1)/2 - 1,
+        (np.trace(rotation) - 1)/2 - 1
+    )
+
     prefactor = (lamb_offset + lamb_mult * lamb)
+
     return prefactor*k*cos_angle*cos_angle
+
 
 def restraint(conf, lamb, params, lamb_flags, box, bond_idxs):
     """
