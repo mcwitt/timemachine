@@ -63,8 +63,7 @@ class TestBonded(GradientTest):
 
 
     def test_rmsd_restraint(self):
-        """Randomly define subsets A and B of a larger collection of particles,
-        generate a centroid restraint between A and B, and then validate the resulting CentroidRestraint force"""
+        # test the RMSD force by generating random coordinates.
 
         np.random.seed(2021)
 
@@ -83,7 +82,6 @@ class TestBonded(GradientTest):
 
                 n = coords.shape[0]
                 n_mapped_atoms = 5
-                # bad things happen if n_mapped_atoms = 5 as we can sometimes pick a side with only 2/3 atoms
 
                 atom_idxs_a = np.arange(n_particles_a)
                 atom_idxs_b = np.arange(n_particles_b)
@@ -95,30 +93,24 @@ class TestBonded(GradientTest):
 
                 atom_map = atom_map.astype(np.int32)
 
-                # impl = potentials.RMSDRestraint(atom_map, n).unbound_impl(np.float64)
-                # test_du_dx, _, _, test_nrg = impl.execute(coords, np.array([], dtype=np.float64), box, 0.0)
-
                 params = np.array([], dtype=np.float64)
-                k = 1.0
+                k = 1.35
                 lamb = 0.0
 
                 for precision, rtol, atol in [(np.float64, 1e-6, 1e-6)]:
 
                     ref_u = functools.partial(bonded.rmsd_restraint,
-                        # params=params,
                         group_a_idxs=atom_map[:, 0],
                         group_b_idxs=atom_map[:, 1],
-                        k=1.0,
-                        lamb_offset=1.0,
-                        lamb_mult=0.0
+                        k=k
                     )
 
-                    test_u = potentials.RMSDRestraint(atom_map, n)
+                    test_u = potentials.RMSDRestraint(atom_map, n, k)
 
                     # note the slightly higher than usual atol (1e-6 vs 1e-8)
-                    # this is due to fixed pointe accumulation of energy wipes
-                    # the energies since some of test cases have an infinitesmally
-                    # small absolute error (on the order of 1e-8)
+                    # this is due to fixed point accumulation of energy wipes out
+                    # the low magnitude energies as some of test cases have
+                    # an infinitesmally small absolute error (on the order of 1e-12)
                     self.compare_forces(
                         coords,
                         params,

@@ -670,14 +670,16 @@ void declare_rmsd_restraint(py::module &m, const char *typestr) {
     )
     .def(py::init([](
         const py::array_t<int, py::array::c_style> &atom_map,
-        const int N
+        const int N,
+        const double k
     ) {
         std::vector<int> vec_atom_map(atom_map.size());
         std::memcpy(vec_atom_map.data(), atom_map.data(), vec_atom_map.size()*sizeof(int));
 
         return new timemachine::RMSDRestraint<RealType>(
             vec_atom_map,
-            N
+            N,
+            k
         );
 
     }));

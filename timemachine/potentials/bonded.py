@@ -69,12 +69,39 @@ def restraint(conf, lamb, params, lamb_flags, box, bond_idxs):
 
     return energy
 
-def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k, lamb_offset=1.0, lamb_mult=0.0):
+def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k):
     """
-    Compute a rigid RMSD restraint using two groups of atoms. group_a_idxs and group_b_idxs must have the same
-    size. This function will automatically recenter the two groups of atoms as needed.
+    Compute a rigid RMSD restraint using two groups of atoms. group_a_idxs and group_b_idxs
+    must have the same size. a and b can have duplicate indices and need not be necessarily
+    disjoint. This function will automatically recenter the two groups of atoms before computing
+    the rotation matrix. For relative binding free energy calculations, this restraint
+    does not need to be turned off.
 
-    The zero point energy of this function is attained when the two structures are perfectly aligned. 
+    The zero point energy of this function is attained when the two structures are perfectly aligned.
+
+    Parameters
+    ----------
+    conf: np.ndarray
+        N x 3 coordinates
+
+    params: Any
+        Unused dummy variable for API consistency
+
+    box: Any
+        Unused dummy variable for API consistency
+
+    lamb: Any
+        Unused dummy variable for API consistency
+
+    group_a_idxs: list of int
+        idxs for the first group of atoms
+
+    group_b_idxs: list of int
+        idxs for the second group of atoms
+
+    k: float
+        force constant
+
     """
     assert len(group_a_idxs) == len(group_b_idxs)
 
@@ -104,8 +131,7 @@ def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k, lamb_
 
     term = np.where(cond, 0.0, term)
 
-    prefactor = (lamb_offset + lamb_mult * lamb)
-    nrg = prefactor*k*term*term
+    nrg = k*term*term
 
     return nrg
 

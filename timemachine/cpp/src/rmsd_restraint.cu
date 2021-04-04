@@ -14,17 +14,16 @@
 namespace timemachine {
 
 template<typename RealType>
-RMSDRestraint<RealType>::RMSDRestraint(const std::vector<int> &atom_map,
-    const int N) : h_atom_map_(atom_map), N_(N) {
+RMSDRestraint<RealType>::RMSDRestraint(
+    const std::vector<int> &atom_map,
+    const int N,
+    const double k) : h_atom_map_(atom_map), N_(N), k_(k) {
     if(atom_map.size() % 2 != 0) {
         throw std::runtime_error("Bad atom map size!");
     }
 
     gpuErrchk(cudaMalloc(&d_u_buf_, sizeof(d_u_buf_)));
     gpuErrchk(cudaMalloc(&d_du_dx_buf_, N*3*sizeof(d_du_dx_buf_)));
-
-    // gpuErrchk(cudaMalloc(&d_atom_map_, atom_map.size()*sizeof(*d_atom_map_)));
-    // gpuErrchk(cudaMemcpy(d_atom_map_, &bond_idxs[0], atom_map.size()*sizeof(*d_atom_map_), cudaMemcpyHostToDevice));
 
 }
 
@@ -55,8 +54,6 @@ void __global__ k_finalize(
 
     if(d_du_dx_out) {
         for(int d=0; d < 3; d++) {
-            // printf("kernel dst %d %d %f\n", atom_idx, d, FIXED_TO_FLOAT<double>(d_du_dx_buf[atom_idx*3 + d]));
-            // printf("kernel src %d %d %f\n", atom_idx, d, FIXED_TO_FLOAT<double>(d_du_dx_out[atom_idx*3 + d]));
             atomicAdd(d_du_dx_out + atom_idx*3 + d, d_du_dx_buf[atom_idx*3 + d]);
         }
     }
@@ -77,7 +74,6 @@ void RMSDRestraint<RealType>::execute_device(
     unsigned long long *d_u,  // buffered
     cudaStream_t stream) {
 
-    // auto start = std::chrono::high_resolution_clock::now();
 
     if(N != N_) {
         throw std::runtime_error("N_! = N");
@@ -145,10 +141,7 @@ void RMSDRestraint<RealType>::execute_device(
 
     double squared_term = term*term;
 
-    unsigned long long nrg = static_cast<unsigned long long>(llrint(squared_term*FIXED_EXPONENT));
-
-    // switch to atomicAdds instead
-
+    unsigned long long nrg = static_cast<unsigned long long>(llrint(k_*squared_term*FIXED_EXPONENT));
 
     // backprop'd forces
     Eigen::MatrixXd eye = Eigen::MatrixXd::Identity(3, 3);
@@ -156,13 +149,11 @@ void RMSDRestraint<RealType>::execute_device(
     double squared_term_adjoint = 1.0;
     double term_adjoint = squared_term_adjoint*2*term;
     Eigen::MatrixXd r_a = eye*term_adjoint/2;
-    // s_a = onp.zeros((3, 3))
     Eigen::MatrixXd u_a = r_a * v_t.transpose();
     Eigen::MatrixXd v_a_t = u.transpose() * r_a;
 
     Eigen::MatrixXd smat(3,3);
     Eigen::MatrixXd smat_inv(3,3);
-    // Eigen::MatrixXd s_a_mat(3,3);
     Eigen::MatrixXd F(3,3);
     for(int i=0; i < 3; i++) {
         for(int j=0; j < 3; j++) {
@@ -195,21 +186,15 @@ void RMSDRestraint<RealType>::execute_device(
 
     for(int b=0; b < B; b++) {
         int src_idx = h_atom_map_[b*2+0];
-
-        // std::cout << "x1_adjoint " << x1_adjoint(b, 0) << " " << x1_adjoint(b, 1) << " " << x1_adjoint(b, 2) << std::endl;
-        du_dx[src_idx*3+0] += static_cast<unsigned long long>(llrint(x1_adjoint(b, 0)*FIXED_EXPONENT));
-        du_dx[src_idx*3+1] += static_cast<unsigned long long>(llrint(x1_adjoint(b, 1)*FIXED_EXPONENT));
-        du_dx[src_idx*3+2] += static_cast<unsigned long long>(llrint(x1_adjoint(b, 2)*FIXED_EXPONENT));
+        du_dx[src_idx*3+0] += static_cast<unsigned long long>(llrint(k_*x1_adjoint(b, 0)*FIXED_EXPONENT));
+        du_dx[src_idx*3+1] += static_cast<unsigned long long>(llrint(k_*x1_adjoint(b, 1)*FIXED_EXPONENT));
+        du_dx[src_idx*3+2] += static_cast<unsigned long long>(llrint(k_*x1_adjoint(b, 2)*FIXED_EXPONENT));
 
         int dst_idx = h_atom_map_[b*2+1];
-        du_dx[dst_idx*3+0] += static_cast<unsigned long long>(llrint(x2_adjoint(b, 0)*FIXED_EXPONENT));
-        du_dx[dst_idx*3+1] += static_cast<unsigned long long>(llrint(x2_adjoint(b, 1)*FIXED_EXPONENT));
-        du_dx[dst_idx*3+2] += static_cast<unsigned long long>(llrint(x2_adjoint(b, 2)*FIXED_EXPONENT));
+        du_dx[dst_idx*3+0] += static_cast<unsigned long long>(llrint(k_*x2_adjoint(b, 0)*FIXED_EXPONENT));
+        du_dx[dst_idx*3+1] += static_cast<unsigned long long>(llrint(k_*x2_adjoint(b, 1)*FIXED_EXPONENT));
+        du_dx[dst_idx*3+2] += static_cast<unsigned long long>(llrint(k_*x2_adjoint(b, 2)*FIXED_EXPONENT));
     }
-
-    // for(int i=0; i < N; i++) {
-    //     std::cout << "du_dx " << FIXED_TO_FLOAT<double>(du_dx[i*3+0]) << " " <<  FIXED_TO_FLOAT<double>(du_dx[i*3+1]) << " " <<  FIXED_TO_FLOAT<double>(du_dx[i*3+2]) << std::endl;
-    // }
 
     gpuErrchk(cudaMemcpy(d_u_buf_, &nrg, sizeof(*d_u_buf_), cudaMemcpyHostToDevice));
     gpuErrchk(cudaMemcpy(d_du_dx_buf_, &du_dx[0], N*3*sizeof(*d_du_dx_buf_), cudaMemcpyHostToDevice));
@@ -226,16 +211,6 @@ void RMSDRestraint<RealType>::execute_device(
     );
 
     gpuErrchk(cudaPeekAtLastError());
-
-    // cudaDeviceSynchronize();
-
-    // auto end = std::chrono::high_resolution_clock::now();
-
-    // auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-
-    // To get the value of duration use the count()
-    // member function on the duration object
-    // std::cout << "timing: " << duration.count() << std::endl;
 
 };
 
