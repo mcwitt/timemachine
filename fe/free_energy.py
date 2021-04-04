@@ -215,8 +215,14 @@ class RelativeFreeEnergy(BaseFreeEnergy):
 
         final_params, final_potentials = self._get_system_params_and_potentials(ff_params, hgt)
 
-        combined_masses = np.concatenate([host_masses, np.mean(self.top.interpolate_params(ligand_masses_a, ligand_masses_b), axis=0)])
-        combined_coords = np.concatenate([host_coords, np.mean(self.top.interpolate_params(ligand_coords_a, ligand_coords_b), axis=0)])
+        if isinstance(self.top, topology.SingleTopology):
+            combined_masses = np.concatenate([host_masses, np.mean(self.top.interpolate_params(ligand_masses_a, ligand_masses_b), axis=0)])
+            combined_coords = np.concatenate([host_coords, np.mean(self.top.interpolate_params(ligand_coords_a, ligand_coords_b), axis=0)])
+        elif isinstance(self.top, topology.DualTopology):
+            combined_masses = np.concatenate([host_masses, ligand_masses_a, ligand_masses_b])
+            combined_coords = np.concatenate([host_coords, ligand_coords_a, ligand_coords_b])
+        else:
+            raise Exception("Unknown Topology")
 
         return final_potentials, final_params, combined_masses, combined_coords
 

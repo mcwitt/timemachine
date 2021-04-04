@@ -232,7 +232,6 @@ class BaseTopology():
         params, idxs = self.ff.hb_handle.partial_parameterize(ff_params, self.mol)
         return params, potentials.HarmonicBond(idxs)
 
-
     def parameterize_harmonic_angle(self, ff_params):
         params, idxs = self.ff.ha_handle.partial_parameterize(ff_params, self.mol)
         return params, potentials.HarmonicAngle(idxs)

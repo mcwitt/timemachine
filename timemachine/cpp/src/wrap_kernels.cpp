@@ -656,9 +656,7 @@ void declare_harmonic_angle(py::module &m, const char *typestr) {
 
 // }
 
-
 template <typename RealType>
-<<<<<<< HEAD
 void declare_rmsd_restraint(py::module &m, const char *typestr) {
 
     using Class = timemachine::RMSDRestraint<RealType>;
@@ -681,7 +679,14 @@ void declare_rmsd_restraint(py::module &m, const char *typestr) {
             vec_atom_map,
             N,
             k
-=======
+        );
+
+    }));
+
+}
+
+
+template <typename RealType>
 void declare_centroid_restraint(py::module &m, const char *typestr) {
 
     using Class = timemachine::CentroidRestraint<RealType>;
@@ -708,12 +713,12 @@ void declare_centroid_restraint(py::module &m, const char *typestr) {
             vec_group_b_idxs,
             kb,
             b0
->>>>>>> fix_centroid_restraints
         );
 
     }));
 
 }
+
 
 
 // template <typename RealType>

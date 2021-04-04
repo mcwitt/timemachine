@@ -6,6 +6,7 @@ from rdkit import Chem
 
 from md import minimizer
 from timemachine.lib import LangevinIntegrator
+from timemachine.lib import potentials
 from fe import free_energy, topology, estimator
 from ff import Forcefield
 
@@ -86,11 +87,37 @@ class RBFEModel():
             # to remove the randomness completely from the minimization.
             min_host_coords = minimizer.minimize_host_4d([mol_a, mol_b], host_system, host_coords, self.ff, host_box)
 
-            single_topology = topology.SingleTopology(mol_a, mol_b, core, self.ff)
-            rfe = free_energy.RelativeFreeEnergy(single_topology)
+            # single_topology = topology.SingleTopology(mol_a, mol_b, core, self.ff)
+            if True:
+                top = topology.DualTopology(mol_a, mol_b, self.ff)
+                rfe = free_energy.RelativeFreeEnergy(top)
+                unbound_potentials, sys_params, masses, coords = rfe.prepare_host_edge(ff_params, host_system, min_host_coords)
 
-            unbound_potentials, sys_params, masses, coords = rfe.prepare_host_edge(ff_params, host_system, min_host_coords)
+                num_host_atoms = host_coords.shape[0]
+                restr_group_idxs_a = core[:, 0] + num_host_atoms
+                restr_group_idxs_b = core[:, 1] + num_host_atoms + mol_a.GetNumAtoms()
 
+                k_rotation = 30.0
+
+                unbound_potentials.append(potentials.RMSDRestraint(
+                    np.stack([restr_group_idxs_a, restr_group_idxs_b], axis=1),
+                    coords.shape[0],
+                    k_rotation
+                ))
+                sys_params.append(np.array([], dtype=np.float64))
+
+                k_translation = 100.0
+
+                unbound_potentials.append(potentials.CentroidRestraint(
+                    restr_group_idxs_a,
+                    restr_group_idxs_b,
+                    k_translation,
+                    0.0
+                ))
+
+                sys_params.append(np.array([], dtype=np.float64))
+
+            # add restraining potentials
             x0 = coords
             v0 = np.zeros_like(coords)
             box = np.eye(3, dtype=np.float64)*100 # note: box unused

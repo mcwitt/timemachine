@@ -154,8 +154,9 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
     mean_du_dls = []
     all_grads = []
 
-    for result in results:
+    for idx, result in enumerate(results):
         # (ytz): figure out what to do with stddev(du_dl) later
+        print("lambda", model.lambda_schedule[idx], "du_dl", np.mean(result.du_dls))
         mean_du_dls.append(np.mean(result.du_dls))
         all_grads.append(result.du_dps)
 

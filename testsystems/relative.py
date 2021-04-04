@@ -62,7 +62,7 @@ def _setup_hif2a_ligand_pair(ff='ff/params/smirnoff_1_1_0_ccc.py'):
                      [30, 28],
                      [28, 27],
                      [21, 22]]
-                    )
+                    , dtype=np.int32)
 
     single_topology = topology.SingleTopology(mol_a, mol_b, core, forcefield)
     rfe = free_energy.RelativeFreeEnergy(single_topology)

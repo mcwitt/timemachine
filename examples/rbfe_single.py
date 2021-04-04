@@ -180,6 +180,8 @@ if __name__ == "__main__":
 
         print("epoch", epoch, "loss", loss)
 
+        continue
+
         # note: unflatten_grad and unflatten_theta have identical definitions for now
         flat_loss_grad, unflatten_grad = flatten(loss_grad)
         flat_theta, unflatten_theta = flatten(ordered_params)
