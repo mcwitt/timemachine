@@ -72,7 +72,6 @@ class TestBonded(GradientTest):
         n_particles_a = 25
         n_particles_b = 7
 
-        # specific to centroid restraint force
         relative_tolerance_at_precision = {np.float32: 2e-5, np.float64: 1e-9}
 
         for precision, rtol in relative_tolerance_at_precision.items():
@@ -97,7 +96,7 @@ class TestBonded(GradientTest):
                 k = 1.35
                 lamb = 0.0
 
-                for precision, rtol, atol in [(np.float64, 1e-6, 1e-6)]:
+                for precision, rtol, atol in [(np.float64, 1e-6, 1e-6), (np.float32, 1e-4, 1e-6)]:
 
                     ref_u = functools.partial(bonded.rmsd_restraint,
                         group_a_idxs=atom_map[:, 0],

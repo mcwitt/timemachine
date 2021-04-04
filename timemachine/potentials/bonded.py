@@ -77,7 +77,8 @@ def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k):
     the rotation matrix. For relative binding free energy calculations, this restraint
     does not need to be turned off.
 
-    The zero point energy of this function is attained when the two structures are perfectly aligned.
+    Note that you should add a center of mass restraint as well to accomodate for the translational
+    component.
 
     Parameters
     ----------
