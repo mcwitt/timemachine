@@ -125,7 +125,7 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
 
 FreeEnergyModel = namedtuple(
     "FreeEnergyModel",
-    ["unbound_potentials", "client", "box", "x0", "v0", "integrator", "lambda_schedule", "equil_steps", "prod_steps"]
+    ["unbound_potentials", "client", "box", "x0", "v0", "integrator", "lambda_schedule", "equil_steps", "prod_steps", "topology", "stage"]
 )
 
 gradient = List[Any] # TODO: make this more descriptive of dG_grad structure
@@ -154,9 +154,15 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
     mean_du_dls = []
     all_grads = []
 
-    for idx, result in enumerate(results):
+    for lamb_idx, result in enumerate(results):
         # (ytz): figure out what to do with stddev(du_dl) later
-        print("lambda", model.lambda_schedule[idx], "du_dl", np.mean(result.du_dls))
+        print("lambda", model.lambda_schedule[lamb_idx], "du_dl", np.mean(result.du_dls))
+        import mdtraj
+
+        md_topology = mdtraj.Topology.from_openmm(model.topology)
+        traj = mdtraj.Trajectory(result.xs, md_topology)
+        traj.save_xtc(model.stage+"_lambda_"+str(lamb_idx)+".xtc")
+
         mean_du_dls.append(np.mean(result.du_dls))
         all_grads.append(result.du_dps)
 

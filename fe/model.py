@@ -27,10 +27,12 @@ class RBFEModel():
         complex_coords: np.ndarray,
         complex_box: np.ndarray,
         complex_schedule: np.ndarray,
+        complex_topology: np.ndarray,
         solvent_system: openmm.System,
         solvent_coords: np.ndarray,
         solvent_box: np.ndarray,
         solvent_schedule: np.ndarray,
+        solvent_topology: np.ndarray,
         equil_steps: int,
         prod_steps: int):
 
@@ -38,10 +40,12 @@ class RBFEModel():
         self.complex_coords = complex_coords
         self.complex_box = complex_box
         self.complex_schedule = complex_schedule
+        self.complex_topology = complex_topology
         self.solvent_system = solvent_system
         self.solvent_coords = solvent_coords
         self.solvent_box = solvent_box
         self.solvent_schedule = solvent_schedule
+        self.solvent_topology = solvent_topology
         self.client = client
         self.ff = ff
         self.equil_steps = equil_steps
@@ -77,9 +81,9 @@ class RBFEModel():
         stage_dGs = []
         stage_results = []
 
-        for stage, host_system, host_coords, host_box, lambda_schedule in [
-            ("complex", self.complex_system, self.complex_coords, self.complex_box, self.complex_schedule),
-            ("solvent", self.solvent_system, self.solvent_coords, self.solvent_box, self.solvent_schedule)]:
+        for stage, host_system, host_coords, host_box, lambda_schedule, leg_topology in [
+            ("complex", self.complex_system, self.complex_coords, self.complex_box, self.complex_schedule, self.complex_topology),
+            ("solvent", self.solvent_system, self.solvent_coords, self.solvent_box, self.solvent_schedule, self.solvent_topology)]:
 
             print(f"Minimizing the {stage} host structure to remove clashes.")
             # (ytz): this isn't strictly symmetric, and we should modify minimize later on remove
@@ -106,7 +110,7 @@ class RBFEModel():
                 ))
                 sys_params.append(np.array([], dtype=np.float64))
 
-                k_translation = 100.0
+                k_translation = 1000.0
 
                 unbound_potentials.append(potentials.CentroidRestraint(
                     restr_group_idxs_a,
@@ -142,6 +146,8 @@ class RBFEModel():
                 lambda_schedule,
                 self.equil_steps,
                 self.prod_steps,
+                leg_topology,
+                stage
             )
 
             dG, results = estimator.deltaG(model, sys_params)
