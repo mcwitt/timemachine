@@ -218,7 +218,7 @@ def construct_lambda_schedule(num_windows):
     manually optimized by YTZ
     """
 
-    A = int(.35 * num_windows)
+    A = int(.70 * num_windows)
     B = num_windows - A
 
     # Empirically, we see the largest variance in std <du/dl> near the endpoints in the nonbonded
