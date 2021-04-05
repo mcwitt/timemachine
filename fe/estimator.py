@@ -156,7 +156,7 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
 
     for lamb_idx, result in enumerate(results):
         # (ytz): figure out what to do with stddev(du_dl) later
-        print("lambda", model.lambda_schedule[lamb_idx], "du_dl", np.mean(result.du_dls))
+        print("lambda", model.lambda_schedule[lamb_idx], "avg du_dl", np.mean(result.du_dls), "std du_dl", np.std(result.du_dls))
         import mdtraj
 
         md_topology = mdtraj.Topology.from_openmm(model.topology)
