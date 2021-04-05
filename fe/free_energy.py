@@ -60,15 +60,12 @@ class AbsoluteFreeEnergy(BaseFreeEnergy):
     def __init__(self, mol, ff):
         """
         Compute the absolute free energy of a molecule via 4D decoupling.
-
         Parameters
         ----------
         mol: rdkit mol
             Ligand to be decoupled
-
         ff: ff.Forcefield
             Ligand forcefield
-
         """
         self.mol = mol
         self.ff = ff
@@ -78,23 +75,18 @@ class AbsoluteFreeEnergy(BaseFreeEnergy):
     def prepare_host_edge(self, ff_params, host_system, host_coords):
         """
         Prepares the host-edge system
-
         Parameters
         ----------
         ff_params: tuple of np.array
             Exactly equal to bond_params, angle_params, proper_params, improper_params, charge_params, lj_params
-
         host_system: openmm.System
             openmm System object to be deserialized
-
         host_coords: np.array
             Nx3 array of atomic coordinates
-
         Returns
         -------
         4 tuple
             unbound_potentials, system_params, combined_masses, combined_coords
-
         """
         ligand_masses = [a.GetMass() for a in self.mol.GetAtoms()]
         ligand_coords = get_romol_conf(self.mol)
@@ -154,17 +146,14 @@ class RelativeFreeEnergy(BaseFreeEnergy):
     def prepare_vacuum_edge(self, ff_params):
         """
         Prepares the vacuum system.
-
         Parameters
         ----------
         ff_params: tuple of np.array
             Exactly equal to bond_params, angle_params, proper_params, improper_params, charge_params, lj_params
-
         Returns
         -------
         4 tuple
             unbound_potentials, system_parameters, combined_masses, combined_coords
-
         """
         ligand_masses_a = [a.GetMass() for a in self.mol_a.GetAtoms()]
         ligand_masses_b = [b.GetMass() for b in self.mol_b.GetAtoms()]
@@ -182,23 +171,18 @@ class RelativeFreeEnergy(BaseFreeEnergy):
     def prepare_host_edge(self, ff_params, host_system, host_coords):
         """
         Prepares the host-edge system
-
         Parameters
         ----------
         ff_params: tuple of np.array
             Exactly equal to bond_params, angle_params, proper_params, improper_params, charge_params, lj_params
-
         host_system: openmm.System
             openmm System object to be deserialized
-
         host_coords: np.array
             Nx3 array of atomic coordinates
-
         Returns
         -------
         4 tuple
             unbound_potentials, system_params, combined_masses, combined_coords
-
         """
 
         ligand_masses_a = [a.GetMass() for a in self.mol_a.GetAtoms()]
@@ -215,32 +199,48 @@ class RelativeFreeEnergy(BaseFreeEnergy):
 
         final_params, final_potentials = self._get_system_params_and_potentials(ff_params, hgt)
 
-        combined_masses = np.concatenate([host_masses, np.mean(self.top.interpolate_params(ligand_masses_a, ligand_masses_b), axis=0)])
-        combined_coords = np.concatenate([host_coords, np.mean(self.top.interpolate_params(ligand_coords_a, ligand_coords_b), axis=0)])
+        if isinstance(self.top, topology.SingleTopology):
+            combined_masses = np.concatenate([host_masses, np.mean(self.top.interpolate_params(ligand_masses_a, ligand_masses_b), axis=0)])
+            combined_coords = np.concatenate([host_coords, np.mean(self.top.interpolate_params(ligand_coords_a, ligand_coords_b), axis=0)])
+        elif isinstance(self.top, topology.DualTopology):
+            combined_masses = np.concatenate([host_masses, ligand_masses_a, ligand_masses_b])
+            combined_coords = np.concatenate([host_coords, ligand_coords_a, ligand_coords_b])
+        else:
+            raise Exception("Unknown Topology")
 
         return final_potentials, final_params, combined_masses, combined_coords
 
 
 def construct_lambda_schedule(num_windows):
     """Generate a length-num_windows list of lambda values from 0.0 up to 1.0
-
     Notes
     -----
     manually optimized by YTZ
     """
 
     A = int(.35 * num_windows)
-    B = int(.30 * num_windows)
-    C = num_windows - A - B
+    B = num_windows - A
 
     # Empirically, we see the largest variance in std <du/dl> near the endpoints in the nonbonded
     # terms. Bonded terms are roughly linear. So we add more lambda windows at the endpoint to
     # help improve convergence.
+    # lambda_schedule = np.concatenate([
+    #     np.linspace(0.0, 0.25, A, endpoint=False),
+    #     np.linspace(0.25, 0.75, B, endpoint=False),
+    #     np.linspace(0.75, 1.0, C, endpoint=True)
+    # ])
+
+    # for dual topology specifically
     lambda_schedule = np.concatenate([
-        np.linspace(0.0, 0.25, A, endpoint=False),
-        np.linspace(0.25, 0.75, B, endpoint=False),
-        np.linspace(0.75, 1.0, C, endpoint=True)
+        np.linspace(0.0, 0.35, A, endpoint=False),
+        np.linspace(0.35, 1.0, B, endpoint=True),
     ])
+
+    # REMOVE ME
+    # lambda_schedule = np.ones(num_windows) * 1.0
+
+    assert lambda_schedule[0] == 0.0
+    assert lambda_schedule[-1] == 1.0
 
     assert len(lambda_schedule) == num_windows
 

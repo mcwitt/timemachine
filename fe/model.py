@@ -1,3 +1,4 @@
+import functools
 import numpy as np
 import jax.numpy as jnp
 
@@ -6,6 +7,7 @@ from rdkit import Chem
 
 from md import minimizer
 from timemachine.lib import LangevinIntegrator
+from timemachine.lib import potentials
 from fe import free_energy, topology, estimator
 from ff import Forcefield
 
@@ -26,45 +28,51 @@ class RBFEModel():
         complex_coords: np.ndarray,
         complex_box: np.ndarray,
         complex_schedule: np.ndarray,
+        complex_topology: np.ndarray,
         solvent_system: openmm.System,
         solvent_coords: np.ndarray,
         solvent_box: np.ndarray,
         solvent_schedule: np.ndarray,
+        solvent_topology: np.ndarray,
         equil_steps: int,
-        prod_steps: int):
+        prod_steps: int,
+        k_translation: float,
+        k_rotation: float):
 
         self.complex_system = complex_system
         self.complex_coords = complex_coords
         self.complex_box = complex_box
         self.complex_schedule = complex_schedule
+        self.complex_topology = complex_topology
         self.solvent_system = solvent_system
         self.solvent_coords = solvent_coords
         self.solvent_box = solvent_box
         self.solvent_schedule = solvent_schedule
+        self.solvent_topology = solvent_topology
         self.client = client
         self.ff = ff
         self.equil_steps = equil_steps
         self.prod_steps = prod_steps
+        self.k_translation = k_translation
+        self.k_rotation = k_rotation
 
-    def predict(self, ff_params: list, mol_a: Chem.Mol, mol_b: Chem.Mol, core: np.ndarray):
+    def predict(self,
+        ff_params: list,
+        mol_a: Chem.Mol,
+        mol_b: Chem.Mol,
+        core: np.ndarray):
         """
         Predict the ddG of morphing mol_a into mol_b. This function is differentiable w.r.t. ff_params.
-
         Parameters
         ----------
-
         ff_params: list of np.ndarray
             This should match the ordered params returned by the forcefield
-
         mol_a: Chem.Mol
             Starting molecule corresponding to lambda = 0
-
         mol_b: Chem.Mol
             Starting molecule corresponding to lambda = 1
-
         core: np.ndarray
             N x 2 list of ints corresponding to the atom mapping of the core.
-
         Returns
         -------
         float
@@ -76,9 +84,9 @@ class RBFEModel():
         stage_dGs = []
         stage_results = []
 
-        for stage, host_system, host_coords, host_box, lambda_schedule in [
-            ("complex", self.complex_system, self.complex_coords, self.complex_box, self.complex_schedule),
-            ("solvent", self.solvent_system, self.solvent_coords, self.solvent_box, self.solvent_schedule)]:
+        for stage, host_system, host_coords, host_box, lambda_schedule, leg_topology in [
+            ("complex", self.complex_system, self.complex_coords, self.complex_box, self.complex_schedule, self.complex_topology),
+            ("solvent", self.solvent_system, self.solvent_coords, self.solvent_box, self.solvent_schedule, self.solvent_topology)]:
 
             print(f"Minimizing the {stage} host structure to remove clashes.")
             # (ytz): this isn't strictly symmetric, and we should modify minimize later on remove
@@ -86,11 +94,50 @@ class RBFEModel():
             # to remove the randomness completely from the minimization.
             min_host_coords = minimizer.minimize_host_4d([mol_a, mol_b], host_system, host_coords, self.ff, host_box)
 
-            single_topology = topology.SingleTopology(mol_a, mol_b, core, self.ff)
-            rfe = free_energy.RelativeFreeEnergy(single_topology)
+            # single_topology = topology.SingleTopology(mol_a, mol_b, core, self.ff)
+            if True:
+                top = topology.DualTopology(mol_a, mol_b, self.ff)
 
-            unbound_potentials, sys_params, masses, coords = rfe.prepare_host_edge(ff_params, host_system, min_host_coords)
 
+                NA = mol_a.GetNumAtoms()
+                NB = mol_b.GetNumAtoms()
+
+                combined_lambda_plane_idxs = np.zeros(NA+NB, dtype=np.int32)
+                combined_lambda_offset_idxs = np.concatenate([
+                    np.zeros(NA, dtype=np.int32),
+                    np.ones(NB, dtype=np.int32)
+                ])
+
+                top.parameterize_nonbonded = functools.partial(top.parameterize_nonbonded,
+                    combined_lambda_plane_idxs=combined_lambda_plane_idxs,
+                    combined_lambda_offset_idxs=combined_lambda_offset_idxs
+                )
+
+
+                rfe = free_energy.RelativeFreeEnergy(top)
+                unbound_potentials, sys_params, masses, coords = rfe.prepare_host_edge(ff_params, host_system, min_host_coords)
+
+                num_host_atoms = host_coords.shape[0]
+                restr_group_idxs_a = core[:, 0] + num_host_atoms
+                restr_group_idxs_b = core[:, 1] + num_host_atoms + mol_a.GetNumAtoms()
+
+                unbound_potentials.append(potentials.RMSDRestraint(
+                    np.stack([restr_group_idxs_a, restr_group_idxs_b], axis=1),
+                    coords.shape[0],
+                    self.k_rotation
+                ))
+                sys_params.append(np.array([], dtype=np.float64))
+
+                unbound_potentials.append(potentials.CentroidRestraint(
+                    restr_group_idxs_a,
+                    restr_group_idxs_b,
+                    self.k_translation,
+                    0.0
+                ))
+
+                sys_params.append(np.array([], dtype=np.float64))
+
+            # add restraining potentials
             x0 = coords
             v0 = np.zeros_like(coords)
             box = np.eye(3, dtype=np.float64)*100 # note: box unused
@@ -115,6 +162,8 @@ class RBFEModel():
                 lambda_schedule,
                 self.equil_steps,
                 self.prod_steps,
+                leg_topology,
+                stage
             )
 
             dG, results = estimator.deltaG(model, sys_params)
@@ -129,21 +178,16 @@ class RBFEModel():
     def loss(self, ff_params, mol_a, mol_b, core, label_ddG):
         """
         Computes the L1 loss relative to some label. See predict() for the type signature.
-
         This function is differentiable w.r.t. ff_params.
-
         Parameters
         ----------
         label_ddG: float
             Label ddG in kJ/mol of the alchemical transformation.
-
         Returns
         -------
         float
             loss
-
         TODO: make this configurable, using loss functions from in fe/loss.py
-
         """
         pred_ddG, results = self.predict(ff_params, mol_a, mol_b, core)
         loss = jnp.abs(pred_ddG - label_ddG)

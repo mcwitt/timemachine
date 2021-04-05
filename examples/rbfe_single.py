@@ -27,6 +27,43 @@ from optimize.step import truncated_step
 array = Union[np.array, jnp.array]
 Handler = Union[AM1CCCHandler, LennardJonesHandler] # TODO: do these all inherit from a Handler class already?
 
+from simtk.openmm import app
+from simtk.openmm.app import PDBFile, Topology
+from rdkit import Chem
+
+import tempfile
+
+def generate_topology(objs, host_coords, out_filename):
+    rd_mols = []
+    # super jank
+    for obj in objs:
+        if isinstance(obj, app.Topology):
+            with tempfile.NamedTemporaryFile(mode='w') as fp:
+                # write
+                PDBFile.writeHeader(obj, fp)
+                PDBFile.writeModel(obj, host_coords, fp, 0)
+                PDBFile.writeFooter(obj, fp)
+                fp.flush()
+                # read
+                rd_mols.append(Chem.MolFromPDBFile(fp.name, removeHs=False))
+
+        if isinstance(obj, Chem.Mol):
+            rd_mols.append(obj)
+
+    combined_mol = rd_mols[0]
+    for mol in rd_mols[1:]:
+        combined_mol = Chem.CombineMols(combined_mol, mol)
+
+    # with tempfile.NamedTemporaryFile(mode='w') as fp:
+    fp = open(out_filename, "w")
+    # write
+    Chem.MolToPDBFile(combined_mol, out_filename)
+    fp.flush()
+    # read
+    combined_pdb = app.PDBFile(out_filename)
+    return combined_pdb.topology
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
@@ -69,6 +106,20 @@ if __name__ == "__main__":
         required=True
     )
 
+    parser.add_argument(
+        "--k_translation",
+        type=float,
+        help="Force constant for translational restraint",
+        required=True
+    )
+
+    parser.add_argument(
+        "--k_rotation",
+        type=float,
+        help="Force constant for rotational restraint",
+        required=True
+    )
+
     cmd_args = parser.parse_args()
 
     client = CUDAPoolClient(max_workers=cmd_args.num_gpus)
@@ -94,11 +145,17 @@ if __name__ == "__main__":
     solvent_schedule = construct_lambda_schedule(cmd_args.num_solvent_windows)
 
     # build the protein system.
-    complex_system, complex_coords, _, _, complex_box, _ = builders.build_protein_system(
+    complex_system, complex_coords, _, _, complex_box, complex_topology = builders.build_protein_system(
         'tests/data/hif2a_nowater_min.pdb')
+    complex_box += np.eye(3) * 0.1  # BFGS this later
 
     # build the water system.
-    solvent_system, solvent_coords, solvent_box, _ = builders.build_water_system(4.0)
+    solvent_system, solvent_coords, solvent_box, solvent_topology = builders.build_water_system(4.0)
+    solvent_box += np.eye(3) * 0.1  # BFGS this later
+
+    complex_topology = generate_topology([complex_topology, mol_a, mol_b], complex_coords, "complex.pdb")
+    solvent_topology = generate_topology([solvent_topology, mol_a, mol_b], solvent_coords, "solvent.pdb")
+
 
     binding_model = model.RBFEModel(
         client,
@@ -107,12 +164,16 @@ if __name__ == "__main__":
         complex_coords,
         complex_box,
         complex_schedule,
+        complex_topology,
         solvent_system,
         solvent_coords,
         solvent_box,
         solvent_schedule,
+        solvent_topology,
         cmd_args.num_equil_steps,
-        cmd_args.num_prod_steps
+        cmd_args.num_prod_steps,
+        cmd_args.k_translation,
+        cmd_args.k_rotation
     )
 
 
@@ -124,12 +185,9 @@ if __name__ == "__main__":
 
     def flatten(params) -> Tuple[np.array, callable]:
         """Turn params dict into flat array, with an accompanying unflatten function
-
         TODO: note that the result is going to be in the order given by ordered_handles (filtered by presence in handle_types)
             rather than in the order they appear in handle_types_being_optimized
-
         TODO: maybe leave out the reference to handle_types_being optimized altogether
-
         TODO: does Jax have a pytree-based flatten / unflatten utility?
         """
 
@@ -174,9 +232,17 @@ if __name__ == "__main__":
     for epoch in range(1000):
         epoch_params = serialize_handlers(ordered_handles)
 
-        (loss, aux), loss_grad = vg_fn(ordered_params, mol_a, mol_b, core, label_ddG)
+        (loss, aux), loss_grad = vg_fn(
+            ordered_params,
+            mol_a,
+            mol_b,
+            core,
+            label_ddG
+        )
 
         print("epoch", epoch, "loss", loss)
+
+        continue
 
         # note: unflatten_grad and unflatten_theta have identical definitions for now
         flat_loss_grad, unflatten_grad = flatten(loss_grad)

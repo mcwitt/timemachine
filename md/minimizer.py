@@ -1,4 +1,5 @@
 import numpy as np
+import functools
 
 from fe import topology
 
@@ -111,6 +112,21 @@ def minimize_host_4d(mols, host_system, host_coords, ff, box) -> np.ndarray:
         top = topology.BaseTopology(mols[0], ff)
     elif len(mols) == 2:
         top = topology.DualTopology(mols[0], mols[1], ff)
+
+        NA = mols[0].GetNumAtoms()
+        NB = mols[1].GetNumAtoms()
+
+        combined_lambda_plane_idxs = np.zeros(NA+NB, dtype=np.int32)
+        combined_lambda_offset_idxs = np.concatenate([
+            np.ones(NA, dtype=np.int32),
+            np.ones(NB, dtype=np.int32)
+        ])
+
+        top.parameterize_nonbonded = functools.partial(top.parameterize_nonbonded,
+            combined_lambda_plane_idxs=combined_lambda_plane_idxs,
+            combined_lambda_offset_idxs=combined_lambda_offset_idxs
+        )
+
     else:
         raise ValueError("mols must be length 1 or 2")
 

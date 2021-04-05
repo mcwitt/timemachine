@@ -26,15 +26,12 @@ class HostGuestTopology():
         """
         Utility tool for combining host with a guest, in that order. host_potentials must be comprised
         exclusively of supported potentials (currently: bonds, angles, torsions, nonbonded).
-
         Parameters
         ----------
         host_potentials:
             Bound potentials for the host.
-
         guest_topology:
             Guest's Topology {Base, Dual, Single}Topology.
-
         """
         self.guest_topology = guest_topology
 
@@ -175,15 +172,12 @@ class BaseTopology():
     def __init__(self, mol, forcefield):
         """
         Utility for working with a single ligand.
-
         Parameter
         ---------
         mol: ROMol
             Ligand to be parameterized
-
         forcefield: ff.Forcefield
             A convenience wrapper for forcefield lists.
-
         """
         self.mol = mol
         self.ff = forcefield
@@ -232,7 +226,6 @@ class BaseTopology():
         params, idxs = self.ff.hb_handle.partial_parameterize(ff_params, self.mol)
         return params, potentials.HarmonicBond(idxs)
 
-
     def parameterize_harmonic_angle(self, ff_params):
         params, idxs = self.ff.ha_handle.partial_parameterize(ff_params, self.mol)
         return params, potentials.HarmonicAngle(idxs)
@@ -263,18 +256,14 @@ class DualTopology():
         """
         Utility for working with two ligands via dual topology. Both copies of the ligand
         will be present after merging.
-
         Parameter
         ---------
         mol_a: ROMol
             First ligand to be parameterized
-
         mol_b: ROMol
             Second ligand to be parameterized
-
         forcefield: ff.Forcefield
             A convenience wrapper for forcefield lists.
-
         """
         self.mol_a = mol_a
         self.mol_b = mol_b
@@ -283,7 +272,12 @@ class DualTopology():
     def get_num_atoms(self):
         return self.mol_a.GetNumAtoms() + self.mol_b.GetNumAtoms()
 
-    def parameterize_nonbonded(self, ff_q_params, ff_lj_params):
+    def parameterize_nonbonded(
+        self,
+        ff_q_params,
+        ff_lj_params,
+        combined_lambda_offset_idxs,
+        combined_lambda_plane_idxs):
         q_params_a = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol_a)
         q_params_b = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol_b)
         lj_params_a = self.ff.lj_handle.partial_parameterize(ff_lj_params, self.mol_a)
@@ -332,12 +326,6 @@ class DualTopology():
             mutual_scale_factors
         ]).astype(np.float64)
 
-        combined_lambda_plane_idxs = np.zeros(NA+NB, dtype=np.int32)
-        combined_lambda_offset_idxs = np.concatenate([
-            np.ones(NA, dtype=np.int32),
-            np.ones(NB, dtype=np.int32)
-        ])
-
         beta = _BETA
         cutoff = _CUTOFF # solve for this analytically later
 
@@ -348,7 +336,7 @@ class DualTopology():
             combined_lambda_offset_idxs,
             beta,
             cutoff
-        ) 
+        )
 
         params = jnp.concatenate([
             jnp.reshape(q_params, (-1, 1)),
@@ -397,21 +385,16 @@ class SingleTopology():
         SingleTopology combines two molecules through a common core. The combined mol has
         atom indices laid out such that mol_a is identically mapped to the combined mol indices.
         The atoms in the mol_b's R-group is then glued on to resulting molecule.
-
         Parameters
         ----------
         mol_a: ROMol
             First ligand
-
         mol_b: ROMol
             Second ligand
-
         core: np.array (C, 2)
             Atom mapping from mol_a to to mol_b
-
         ff: ff.Forcefield
             Forcefield to be used for parameterization.
-
         """
         self.mol_a = mol_a
         self.mol_b = mol_b
@@ -513,7 +496,6 @@ class SingleTopology():
     def assert_factorizability(self):
         """
         Number of atoms in the combined mol
-
         TODO: add a reference to Boresch paper describing the assumption being checked
         """
         offending_core_indices = self._identify_offending_core_indices()
@@ -535,22 +517,17 @@ class SingleTopology():
     def interpolate_params(self, params_a, params_b):
         """
         Interpolate two sets of per-particle parameters.
-
         This can be used to interpolate masses, coordinates, etc.
-
         Parameters
         ----------
         params_a: np.ndarray, shape [N_A, ...]
             Parameters for the mol_a
-
         params_b: np.ndarray, shape [N_B, ...]
             Parameters for the mol_b
-
         Returns
         -------
         tuple: (src, dst)
             Two np.ndarrays each of shape [N_C, ...]
-
         """
 
         src_params = [None]*self.get_num_atoms()
@@ -575,20 +552,16 @@ class SingleTopology():
         that branch from multiple distinct attachment points are fully non-interacting
         to allow for factorization of the partition function. In order words, this function
         implements essentially the non-softcore part of parameter interpolation.
-
         Parameters
         ----------
         params_a: np.ndarray, shape [N_A, 3]
             Nonbonded parameters for the mol_a
-
         params_b: np.ndarray, shape [N_B, 3]
             Nonbonded parameters for the mol_b
-
         Returns
         -------
         tuple: (src, dst)
             Two np.ndarrays each of shape [N_C, ...]
-
         """
 
         src_params = [None]*self.get_num_atoms()
@@ -822,4 +795,3 @@ class SingleTopology():
         combined_lambda_offset = np.concatenate([proper_potential.get_lambda_offset(), improper_potential.get_lambda_offset()])
         combined_potential = potentials.PeriodicTorsion(combined_idxs, combined_lambda_mult, combined_lambda_offset)
         return combined_params, combined_potential
-
