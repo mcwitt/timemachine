@@ -1,3 +1,4 @@
+import functools
 import numpy as np
 import jax.numpy as jnp
 
@@ -94,6 +95,23 @@ class RBFEModel():
             # single_topology = topology.SingleTopology(mol_a, mol_b, core, self.ff)
             if True:
                 top = topology.DualTopology(mol_a, mol_b, self.ff)
+
+
+                NA = mol_a.GetNumAtoms()
+                NB = mol_b.GetNumAtoms()
+
+                combined_lambda_plane_idxs = np.zeros(NA+NB, dtype=np.int32)
+                combined_lambda_offset_idxs = np.concatenate([
+                    np.zeros(NA, dtype=np.int32),
+                    np.ones(NB, dtype=np.int32)
+                ])
+
+                top.parameterize_nonbonded = functools.partial(top.parameterize_nonbonded,
+                    combined_lambda_plane_idxs=combined_lambda_plane_idxs,
+                    combined_lambda_offset_idxs=combined_lambda_offset_idxs
+                )
+
+
                 rfe = free_energy.RelativeFreeEnergy(top)
                 unbound_potentials, sys_params, masses, coords = rfe.prepare_host_edge(ff_params, host_system, min_host_coords)
 

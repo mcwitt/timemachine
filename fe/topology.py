@@ -282,7 +282,12 @@ class DualTopology():
     def get_num_atoms(self):
         return self.mol_a.GetNumAtoms() + self.mol_b.GetNumAtoms()
 
-    def parameterize_nonbonded(self, ff_q_params, ff_lj_params):
+    def parameterize_nonbonded(
+        self,
+        ff_q_params,
+        ff_lj_params,
+        combined_lambda_offset_idxs,
+        combined_lambda_plane_idxs):
         q_params_a = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol_a)
         q_params_b = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol_b)
         lj_params_a = self.ff.lj_handle.partial_parameterize(ff_lj_params, self.mol_a)
@@ -331,12 +336,6 @@ class DualTopology():
             mutual_scale_factors
         ]).astype(np.float64)
 
-        combined_lambda_plane_idxs = np.zeros(NA+NB, dtype=np.int32)
-        combined_lambda_offset_idxs = np.concatenate([
-            np.ones(NA, dtype=np.int32),
-            np.ones(NB, dtype=np.int32)
-        ])
-
         beta = _BETA
         cutoff = _CUTOFF # solve for this analytically later
 
@@ -347,7 +346,7 @@ class DualTopology():
             combined_lambda_offset_idxs,
             beta,
             cutoff
-        ) 
+        )
 
         params = jnp.concatenate([
             jnp.reshape(q_params, (-1, 1)),
