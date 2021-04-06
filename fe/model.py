@@ -110,7 +110,8 @@ class RBFEModel():
 
                 top.parameterize_nonbonded = functools.partial(top.parameterize_nonbonded,
                     combined_lambda_plane_idxs=combined_lambda_plane_idxs,
-                    combined_lambda_offset_idxs=combined_lambda_offset_idxs
+                    combined_lambda_offset_idxs=combined_lambda_offset_idxs,
+                    minimize=False,
                 )
 
 

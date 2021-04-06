@@ -124,7 +124,8 @@ def minimize_host_4d(mols, host_system, host_coords, ff, box) -> np.ndarray:
 
         top.parameterize_nonbonded = functools.partial(top.parameterize_nonbonded,
             combined_lambda_plane_idxs=combined_lambda_plane_idxs,
-            combined_lambda_offset_idxs=combined_lambda_offset_idxs
+            combined_lambda_offset_idxs=combined_lambda_offset_idxs,
+            minimize=True
         )
 
     else:

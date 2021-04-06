@@ -41,6 +41,70 @@ class BenzenePhenolSparseTest(unittest.TestCase):
         super(BenzenePhenolSparseTest, self).__init__(*args, **kwargs)
 
 
+    def test_dual_topology(self):
+
+
+
+        st = topology.DualTopology(self.mol_a, self.mol_b, self.ff)
+
+        NA = self.mol_a.GetNumAtoms()
+        NB = self.mol_b.GetNumAtoms()
+
+        combined_lambda_plane_idxs = np.zeros(NA+NB, dtype=np.int32)
+        combined_lambda_offset_idxs = np.concatenate([
+            np.zeros(NA, dtype=np.int32),
+            np.ones(NB, dtype=np.int32)
+        ])
+
+        combined_params, vjp_fn, combined_potential = jax.vjp(
+            st.parameterize_nonbonded,
+            self.ff.q_handle.params,
+            self.ff.lj_handle.params,
+            combined_lambda_plane_idxs,
+            combined_lambda_offset_idxs,
+            False,
+            has_aux=True
+        )
+
+        src_params, dst_params = combined_params[:15], combined_params[15:]
+        src_charges_a = src_params[:NA, 0]
+        src_charges_b = src_params[NA:, 0]
+        src_lj_a = src_params[:NA, 1:]
+        src_lj_b = src_params[NA:, 1:]
+
+        dst_charges_a = dst_params[:NA, 0]
+        dst_charges_b = dst_params[NA:, 0]
+        dst_lj_a = dst_params[:NA, 1:]
+        dst_lj_b = dst_params[NA:, 1:]
+
+        qlj_a, _ = topology.BaseTopology(self.mol_a, self.ff).parameterize_nonbonded(self.ff.q_handle.params, self.ff.lj_handle.params)
+        qlj_b, _ = topology.BaseTopology(self.mol_b, self.ff).parameterize_nonbonded(self.ff.q_handle.params, self.ff.lj_handle.params)
+
+        # A turning on
+        # charges should go from 0.5 to 1.0
+        np.testing.assert_array_equal(src_charges_a, qlj_a[:, 0]*0.5)
+        np.testing.assert_array_equal(dst_charges_a, qlj_a[:, 0]*1.0)
+
+        # sigma unchanged
+        np.testing.assert_array_equal(src_lj_a[:, 0], qlj_a[:, 1])
+        np.testing.assert_array_equal(dst_lj_a[:, 0], qlj_a[:, 1])
+
+        # eps should go from 0.5 to 1.0
+        np.testing.assert_array_equal(src_lj_a[:, 1], qlj_a[:, 2]*0.5)
+        np.testing.assert_array_equal(dst_lj_a[:, 1], qlj_a[:, 2]*1.0)
+
+        # B is being deleted
+        np.testing.assert_array_equal(src_charges_b, qlj_b[:, 0]*0.5)
+        np.testing.assert_array_equal(dst_charges_b, qlj_b[:, 0]*0.0)
+
+        # sigma unchanged
+        np.testing.assert_array_equal(src_lj_b[:, 0], qlj_b[:, 1])
+        np.testing.assert_array_equal(dst_lj_b[:, 0], qlj_b[:, 1])
+
+        # eps should go from 0.5 to 0.1
+        np.testing.assert_array_equal(src_lj_b[:, 1], qlj_b[:, 2]*0.5)
+        np.testing.assert_array_equal(dst_lj_b[:, 1], qlj_b[:, 2]*0.1)
+
     def test_bonded(self):
         # other bonded terms use an identical protocol, so we assume they're correct if the harmonic bond tests pass.
         # leaving benzene H unmapped, and phenol OH unmapped
