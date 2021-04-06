@@ -132,7 +132,7 @@ class TestBonded(GradientTest):
 
         for precision, rtol in relative_tolerance_at_precision.items():
 
-            for _ in range(100):
+            for count in range(100):
                 coords = self.get_random_coords(n_particles_a + n_particles_b, 3)
 
                 n = coords.shape[0]

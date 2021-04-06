@@ -85,38 +85,10 @@ def restraint(conf, lamb, params, lamb_flags, box, bond_idxs):
 
 def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k):
     """
-    Compute a rigid RMSD restraint using two groups of atoms. group_a_idxs and group_b_idxs
-    must have the same size. a and b can have duplicate indices and need not be necessarily
-    disjoint. This function will automatically recenter the two groups of atoms before computing
-    the rotation matrix. For relative binding free energy calculations, this restraint
-    does not need to be turned off.
+    Compute a rigid RMSD restraint using two groups of atoms. group_a_idxs and group_b_idxs must have the same
+    size. This function will automatically recenter the two groups of atoms as needed.
 
-    Note that you should add a center of mass restraint as well to accomodate for the translational
-    component.
-
-    Parameters
-    ----------
-    conf: np.ndarray
-        N x 3 coordinates
-
-    params: Any
-        Unused dummy variable for API consistency
-
-    box: Any
-        Unused dummy variable for API consistency
-
-    lamb: Any
-        Unused dummy variable for API consistency
-
-    group_a_idxs: list of int
-        idxs for the first group of atoms
-
-    group_b_idxs: list of int
-        idxs for the second group of atoms
-
-    k: float
-        force constant
-
+    The zero point energy of this function is attained when the two structures are perfectly aligned. 
     """
     assert len(group_a_idxs) == len(group_b_idxs)
 
@@ -125,30 +97,27 @@ def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k):
     # recenter
     x1 = x1 - np.mean(x1, axis=0)
     x2 = x2 - np.mean(x2, axis=0)
-
+    # rotate x2 unto x1
     correlation_matrix = np.dot(x2.T, x1)
     U, S, V_tr = np.linalg.svd(correlation_matrix, full_matrices=False)
 
-    is_reflection = (np.linalg.det(U) * np.linalg.det(V_tr)) < 0.0
-    rotation = np.dot(U, V_tr)
-
     epsilon = 1e-8
-
-    cond = np.any(S < epsilon)
-    # if matrix is not full rank we skip, SVD is underdetermined
     if np.any(S < epsilon):
         return 0.0
 
-    term = np.where(is_reflection,
-        (np.trace(rotation) + 1)/2 - 1,
-        (np.trace(rotation) - 1)/2 - 1
+    is_reflection = (np.linalg.det(U) * np.linalg.det(V_tr)) < 0.0
+
+    U = jax.ops.index_update(U,
+        jax.ops.index[:, -1],
+        np.where(is_reflection, -U[:, -1], U[:, -1])
     )
 
-    term = np.where(cond, 0.0, term)
+    rotation = np.dot(U, V_tr)
 
-    nrg = k*term*term
+    cos_angle = (np.trace(rotation) - 1)/2 - 1
 
-    return nrg
+    return k*cos_angle*cos_angle
+
 
 # lamb is *not used* it is used in the alchemical stuff after
 def harmonic_bond(conf, params, box, lamb, bond_idxs, lamb_mult=None, lamb_offset=None):
