@@ -12,6 +12,8 @@ from typing import Tuple, List, Any
 import dataclasses
 import jax.numpy as jnp
 
+import pickle
+
 @dataclasses.dataclass
 class SimulationResult:
    xs: np.array
@@ -28,7 +30,7 @@ def unflatten(aux_data, children):
 jax.tree_util.register_pytree_node(SimulationResult, flatten, unflatten)
 
 def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_steps,
-    x_interval=1000, du_dl_interval=5):
+    x_interval=5, du_dl_interval=5):
     """
     Run a simulation and collect relevant statistics for this simulation.
     Parameters
@@ -61,18 +63,21 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
         Results of the simulation.
     """
     all_impls = []
-    bonded_impls = []
-    nonbonded_impls = []
+    # bonded_impls = []
+    # nonbonded_impls = []
 
     # set up observables for du_dps here as well.
     du_dp_obs = []
 
+    print("Lambda", lamb)
+
     for bp in final_potentials:
         impl = bp.bound_impl(np.float32)
         if isinstance(bp, potentials.Nonbonded):
-            nonbonded_impls.append(impl)
-        else:
-            bonded_impls.append(impl)
+            nb_bp = bp
+            # nonbonded_impls.append(impl)
+        # else
+            # bonded_impls.append(impl)
         all_impls.append(impl)
         du_dp_obs.append(custom_ops.AvgPartialUPartialParam(impl, 5))
 
@@ -90,9 +95,29 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
         all_impls
     )
 
+    print("before equil")
+    for impl in all_impls:
+        print(impl)
+        _, du_dl, u = impl.execute(x0, box, lamb)
+        print(u, du_dl)
+
+
     # equilibration
-    equil_schedule = np.ones(equil_steps)*lamb
+
+    # equil_schedule = np.ones(equil_steps)*lamb
+    equil_schedule = np.ones(100)*lamb
     ctxt.multiple_steps(equil_schedule)
+
+    print("after equil")
+
+    pickle.dump((ctxt.get_x_t(), box, lamb, nb_bp), open("repro.pkl", "wb"))
+
+    for impl in all_impls:
+        print(impl)
+        _, du_dl, u = impl.execute(ctxt.get_x_t(), box, lamb)
+        print(u, du_dl)
+
+    assert 0
 
     for obs in du_dp_obs:
         ctxt.add_observable(obs)
@@ -100,6 +125,13 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
     prod_schedule = np.ones(prod_steps)*lamb
 
     full_du_dls, xs = ctxt.multiple_steps(prod_schedule, du_dl_interval, x_interval)
+
+    # print("after md")
+
+    for impl in all_impls:
+        print(impl)
+        _, _, u = impl.execute(ctxt.get_x_t(), box, lamb)
+        print(u)
 
     # keep the structure of grads the same as that of final_potentials so we can properly
     # form their vjps.
