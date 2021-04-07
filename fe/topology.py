@@ -362,20 +362,23 @@ class DualTopology():
                 cutoff
             )
 
-            # A is being turned on fully, scale charge and epsilons to one.
-            q_params_a_src = q_params_a*0.5
+            # A is being turned on.
+            # charges go from  0 to 1
+            # lj goes from 0.5 to 1.0
+            q_params_a_src = q_params_a*0.0
             lj_params_a_src = jax.ops.index_update(lj_params_a, jax.ops.index[:, 1], lj_params_a[:, 1]*0.5)
 
             q_params_a_dst = q_params_a*1.0
             lj_params_a_dst = jax.ops.index_update(lj_params_a, jax.ops.index[:, 1], lj_params_a[:, 1]*1.0)
 
-            # B is being deleted, scale charge and epsilons to zero.
-            q_params_b_src = q_params_b*0.5
+            # B is being pulled out
+            # charges go from 0 to 0
+            # lj goes from 0.5 to 0.0
+            q_params_b_src = q_params_b*0.0
             lj_params_b_src = jax.ops.index_update(lj_params_b, jax.ops.index[:, 1], lj_params_b[:, 1]*0.5)
 
             q_params_b_dst = q_params_b*0.0
-            # don't turn off lj sites when decoupling
-            lj_params_b_dst = jax.ops.index_update(lj_params_b, jax.ops.index[:, 1], lj_params_b[:, 1]*0.5)
+            lj_params_b_dst = jax.ops.index_update(lj_params_b, jax.ops.index[:, 1], lj_params_b[:, 1]*0.0)
 
             q_params_src = jnp.concatenate([q_params_a_src, q_params_b_src])
             lj_params_src = jnp.concatenate([lj_params_a_src, lj_params_b_src])
