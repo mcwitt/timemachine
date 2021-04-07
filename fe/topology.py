@@ -373,10 +373,9 @@ class DualTopology():
             q_params_b_src = q_params_b*0.5
             lj_params_b_src = jax.ops.index_update(lj_params_b, jax.ops.index[:, 1], lj_params_b[:, 1]*0.5)
 
-            # tbd: don't really have to scale to zero to get cancellation, since we might have intra-molecular
-            # singularities that may arise in rare cases.
             q_params_b_dst = q_params_b*0.0
-            lj_params_b_dst = jax.ops.index_update(lj_params_b, jax.ops.index[:, 1], lj_params_b[:, 1]*0.1)
+            # don't turn off lj sites when decoupling
+            lj_params_b_dst = jax.ops.index_update(lj_params_b, jax.ops.index[:, 1], lj_params_b[:, 1]*0.5)
 
             q_params_src = jnp.concatenate([q_params_a_src, q_params_b_src])
             lj_params_src = jnp.concatenate([lj_params_a_src, lj_params_b_src])
