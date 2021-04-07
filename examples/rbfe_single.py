@@ -156,8 +156,6 @@ if __name__ == "__main__":
     complex_topology = generate_topology([complex_topology, mol_a, mol_b], complex_coords, "complex.pdb")
     solvent_topology = generate_topology([solvent_topology, mol_a, mol_b], solvent_coords, "solvent.pdb")
 
-    client = None
-
     binding_model = model.RBFEModel(
         client,
         forcefield,
