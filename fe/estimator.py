@@ -69,8 +69,6 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
     # set up observables for du_dps here as well.
     du_dp_obs = []
 
-    print("Lambda", lamb)
-
     for bp in final_potentials:
         impl = bp.bound_impl(np.float32)
         if isinstance(bp, potentials.Nonbonded):
@@ -95,29 +93,11 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
         all_impls
     )
 
-    print("before equil")
-    for impl in all_impls:
-        print(impl)
-        _, du_dl, u = impl.execute(x0, box, lamb)
-        print(u, du_dl)
-
-
     # equilibration
 
     # equil_schedule = np.ones(equil_steps)*lamb
     equil_schedule = np.ones(100)*lamb
     ctxt.multiple_steps(equil_schedule)
-
-    print("after equil")
-
-    pickle.dump((ctxt.get_x_t(), box, lamb, nb_bp), open("repro.pkl", "wb"))
-
-    for impl in all_impls:
-        print(impl)
-        _, du_dl, u = impl.execute(ctxt.get_x_t(), box, lamb)
-        print(u, du_dl)
-
-    assert 0
 
     for obs in du_dp_obs:
         ctxt.add_observable(obs)
