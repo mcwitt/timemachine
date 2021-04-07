@@ -198,6 +198,16 @@ void RMSDRestraint<RealType>::execute_device(
     std::vector<unsigned long long> du_dx(N*3, 0);
 
     for(int b=0; b < B; b++) {
+
+        if(abs(x1_adjoint(b, 0)) > 100000 || abs(x1_adjoint(b, 1)) > 100000 || abs(x1_adjoint(b, 2)) > 100000) {
+            throw std::runtime_error("Rotation Force Blew Up");
+        }
+
+
+        if(abs(x2_adjoint(b, 0)) > 100000 || abs(x2_adjoint(b, 1)) > 100000 || abs(x2_adjoint(b, 2)) > 100000) {
+            throw std::runtime_error("Rotation Force Blew Up");
+        }
+
         int src_idx = h_atom_map_[b*2+0];
         du_dx[src_idx*3+0] += static_cast<unsigned long long>(llrint(k_*x1_adjoint(b, 0)*FIXED_EXPONENT));
         du_dx[src_idx*3+1] += static_cast<unsigned long long>(llrint(k_*x1_adjoint(b, 1)*FIXED_EXPONENT));
