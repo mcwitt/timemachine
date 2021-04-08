@@ -128,7 +128,7 @@ void RMSDRestraint<RealType>::execute_device(
     double alpha = 1e-3;
 
     // degenerate eigenvalues, set rotation to identity.
-    if(abs(s[0] -  s[1]) < alpha || abs(s[0] -  s[2]) < alpha || abs(s[1] -  s[2])) {
+    if(abs(s[0] -  s[1]) < alpha || abs(s[0] -  s[2]) < alpha || abs(s[1] -  s[2]) < alpha) {
         return;
     }
 
