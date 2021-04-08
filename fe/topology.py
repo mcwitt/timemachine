@@ -373,7 +373,7 @@ class DualTopology():
 
             # B is being pulled out
             # charges go from 0 to 0
-            # lj goes from 0.1 to 0.0
+            # lj goes from 0.5 to 0.1
             q_params_b_src = q_params_b*0.0
             lj_params_b_src = jax.ops.index_update(lj_params_b, jax.ops.index[:, 1], lj_params_b[:, 1]*0.5)
 
