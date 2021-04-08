@@ -378,7 +378,7 @@ class DualTopology():
             lj_params_b_src = jax.ops.index_update(lj_params_b, jax.ops.index[:, 1], lj_params_b[:, 1]*0.5)
 
             q_params_b_dst = q_params_b*0.0
-            lj_params_b_dst = jax.ops.index_update(lj_params_b, jax.ops.index[:, 1], lj_params_b[:, 1]*0.0)
+            lj_params_b_dst = jax.ops.index_update(lj_params_b, jax.ops.index[:, 1], lj_params_b[:, 1]*0.5)
 
             q_params_src = jnp.concatenate([q_params_a_src, q_params_b_src])
             lj_params_src = jnp.concatenate([lj_params_a_src, lj_params_b_src])
