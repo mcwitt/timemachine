@@ -241,7 +241,7 @@ if __name__ == "__main__":
 
         print("epoch", epoch, "loss", loss)
 
-        assert 0
+        # assert 0
 
         continue
 
