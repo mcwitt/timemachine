@@ -105,8 +105,6 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
 
     full_du_dls, xs = ctxt.multiple_steps(prod_schedule, du_dl_interval, x_interval)
 
-    print("inner lambda", lamb, "avg_du_dls", np.mean(full_du_dls))
-
     # keep the structure of grads the same as that of final_potentials so we can properly
     # form their vjps.
     grads = []
