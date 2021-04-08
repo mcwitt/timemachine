@@ -115,6 +115,12 @@ def lennard_jones_v2(
 
     return lj - lj_exc
 
+
+def distance_squared(ri, rj, box=None):
+    dxdydz = np.power(delta_r(ri, rj, box), 2)
+    d2ij = np.sum(dxdydz, axis=-1)
+    return d2ij
+
 def nonbonded_v3(
     conf,
     params,
@@ -122,7 +128,6 @@ def nonbonded_v3(
     lamb,
     charge_rescale_mask,
     lj_rescale_mask,
-    scales,
     beta,
     cutoff,
     lambda_plane_idxs,
@@ -130,20 +135,22 @@ def nonbonded_v3(
     
     N = conf.shape[0]
 
-    conf = convert_to_4d(conf, lamb, lambda_plane_idxs, lambda_offset_idxs, cutoff)
+    # conf = convert_to_4d(conf, lamb, lambda_plane_idxs, lambda_offset_idxs, cutoff)
 
-    # make 4th dimension of box large enough so its roughly aperiodic
-    if box is not None:
-        box_4d = np.eye(4)*1000
-        box_4d = index_update(box_4d, index[:3, :3], box)
-    else:
-        box_4d = None
+    # # make 4th dimension of box large enough so its roughly aperiodic
+    # if box is not None:
+    #     box_4d = np.eye(4)*1000
+    #     box_4d = index_update(box_4d, index[:3, :3], box)
+    # else:
+    #     box_4d = None
 
-    box = box_4d
+    # box = box_4d
+
+    # tbd alchemically scale lj terms as well.
 
     charges = params[:, 0]
     sig = params[:, 1]
-    eps = params[:, 2]
+    eps = params[:, 2]*(1-lamb)
 
     sig_i = np.expand_dims(sig, 0)
     sig_j = np.expand_dims(sig, 1)
@@ -155,7 +162,16 @@ def nonbonded_v3(
 
     eps_ij = eps_i * eps_j
 
-    dij = distance(conf, box)
+    ri = np.expand_dims(conf, axis=1)
+    rj = np.expand_dims(conf, axis=0)
+
+    d2ij = distance_squared(ri, rj, box)
+    d2ij = np.where(np.eye(N), 0, d2ij)
+    # dij = np.sqrt(d2ij + 2*lamb**2)
+
+    w = np.where(lamb == 0, 0, -lamb)
+
+    dij = np.where(np.eye(N), 0, np.sqrt(d2ij + 2*w**2))
 
     N = conf.shape[0]
     keep_mask = np.ones((N,N)) - np.eye(N)
