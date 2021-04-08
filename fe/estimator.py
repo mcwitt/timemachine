@@ -95,8 +95,7 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
 
     # equilibration
 
-    # equil_schedule = np.ones(equil_steps)*lamb
-    equil_schedule = np.ones(100)*lamb
+    equil_schedule = np.ones(equil_steps)*lamb
     ctxt.multiple_steps(equil_schedule)
 
     for obs in du_dp_obs:
