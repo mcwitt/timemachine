@@ -134,7 +134,7 @@ void RMSDRestraint<RealType>::execute_device(
 
     double term = 0;
     if(is_reflection) {
-        return;
+        term = (rotation.trace() + 1)/2 - 1;
     } else {
         term = (rotation.trace() - 1)/2 - 1;
     }
