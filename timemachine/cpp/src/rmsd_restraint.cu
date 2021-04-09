@@ -121,9 +121,9 @@ void RMSDRestraint<RealType>::execute_device(
     gpuErrchk(cudaMemset(d_du_dx_buf_, 0, N*3*sizeof(*d_du_dx_buf_)));
 
     // improper and proper rotations both satisfy this
-    if(s[0] < epsilon || s[1] < epsilon || s[2] < epsilon) {
-        return;
-    }
+    // if(s[0] < epsilon || s[1] < epsilon || s[2] < epsilon) {
+        // return;
+    // }
 
     double alpha = 1e-3;
 
