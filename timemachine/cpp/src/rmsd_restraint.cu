@@ -219,14 +219,16 @@ void RMSDRestraint<RealType>::execute_device(
         }
 
 
-        if(abs(x1_adjoint(b, 0)) > 10000 || abs(x1_adjoint(b, 1)) > 10000 || abs(x1_adjoint(b, 2)) > 10000) {
+        if(abs(k_*x1_adjoint(b, 0)) > 30000 || abs(k_*x1_adjoint(b, 1)) > 30000 || abs(k_*x1_adjoint(b, 2)) > 30000) {
             std::cout << "Rotation Force Blew Up" << std::endl;
+            std::cout << k_*x1_adjoint << std::endl;
             throw std::runtime_error("Rotation Force Blew Up");
         }
 
 
-        if(abs(x2_adjoint(b, 0)) > 10000 || abs(x2_adjoint(b, 1)) > 10000 || abs(x2_adjoint(b, 2)) > 10000) {
+        if(abs(k_*x2_adjoint(b, 0)) > 30000 || abs(k_*x2_adjoint(b, 1)) > 30000 || abs(k_*x2_adjoint(b, 2)) > 30000) {
             std::cout << "Rotation Force Blew Up" << std::endl;
+            std::cout << k_*x2_adjoint << std::endl;
             throw std::runtime_error("Rotation Force Blew Up");
         }
 
