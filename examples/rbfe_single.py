@@ -226,7 +226,7 @@ if __name__ == "__main__":
     flat_grad_traj = []
     loss_traj = []
 
-    vg_fn = jax.value_and_grad(binding_model.loss, argnums=0, has_aux=True)
+    vg_fn = jax.value_and_grad(binding_model.predict, argnums=0, has_aux=True)
 
     for epoch in range(1000):
         epoch_params = serialize_handlers(ordered_handles)
@@ -236,10 +236,10 @@ if __name__ == "__main__":
             mol_a,
             mol_b,
             core,
-            label_ddG
+            epoch
         )
 
-        print("epoch", epoch, "loss", loss)
+        print("epoch", epoch, "predict", loss)
 
         # assert 0
 

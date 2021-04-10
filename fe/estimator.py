@@ -29,7 +29,7 @@ def unflatten(aux_data, children):
 
 jax.tree_util.register_pytree_node(SimulationResult, flatten, unflatten)
 
-def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_steps,
+def simulate(debug_file_info, lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_steps,
     x_interval=1000, du_dl_interval=5):
     """
     Run a simulation and collect relevant statistics for this simulation.
@@ -85,6 +85,24 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
 
     intg_impl = integrator.impl()
     # context components: positions, velocities, box, integrator, energy fxns
+
+    binary = {
+        "integrator": integrator,
+        "x0": x0,
+        "v0": v0,
+        "final_potentials": final_potentials,
+        "lamb": lamb,
+        "box": box,
+        "equil_steps": equil_steps,
+        "prod_steps": prod_steps,
+        "x_interval": x_interval,
+        "du_dl_interval": du_dl_interval
+    }
+
+    pickle.dump(binary,
+        open("initial_state_"+debug_file_info+".pkl", "wb")
+    )
+
     ctxt = custom_ops.Context(
         x0,
         v0,
@@ -94,7 +112,6 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
     )
 
     # equilibration
-
     equil_schedule = np.ones(equil_steps)*lamb
     ctxt.multiple_steps(equil_schedule)
 
@@ -117,7 +134,7 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
 
 FreeEnergyModel = namedtuple(
     "FreeEnergyModel",
-    ["unbound_potentials", "client", "box", "x0", "v0", "integrator", "lambda_schedule", "equil_steps", "prod_steps", "topology", "stage"]
+    ["unbound_potentials", "client", "box", "x0", "v0", "integrator", "lambda_schedule", "equil_steps", "prod_steps", "topology", "stage", "debug_info"]
 )
 
 gradient = List[Any] # TODO: make this more descriptive of dG_grad structure
@@ -131,14 +148,16 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
         bp = unbound_pot.bind(np.asarray(params))
         bound_potentials.append(bp)
 
+    debug_prefix = model.debug_info + "_stage_" + model.stage + "_"
+
     if model.client is None:
         results = []
-        for lamb in model.lambda_schedule:
-            results.append(simulate(lamb, model.box, model.x0, model.v0, bound_potentials, model.integrator, model.equil_steps, model.prod_steps))
+        for lamb_idx, lamb in enumerate(model.lambda_schedule):
+            results.append(simulate(debug_prefix+"lambda_idx_"+str(lamb_idx), lamb, model.box, model.x0, model.v0, bound_potentials, model.integrator, model.equil_steps, model.prod_steps))
     else:
         futures = []
-        for lamb in model.lambda_schedule:
-            args = (lamb, model.box, model.x0, model.v0, bound_potentials, model.integrator, model.equil_steps, model.prod_steps)
+        for lamb_idx, lamb in enumerate(model.lambda_schedule):
+            args = (debug_prefix+"lambda_idx_"+str(lamb_idx), lamb, model.box, model.x0, model.v0, bound_potentials, model.integrator, model.equil_steps, model.prod_steps)
             futures.append(model.client.submit(simulate, *args))
 
         results = [x.result() for x in futures]
@@ -148,12 +167,12 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
 
     for lamb_idx, result in enumerate(results):
         # (ytz): figure out what to do with stddev(du_dl) later
-        print("lambda", model.lambda_schedule[lamb_idx], "avg du_dl", np.mean(result.du_dls), "std du_dl", np.std(result.du_dls))
+        print(debug_prefix+"lambda_idx_"+str(lamb_idx), "lambda", model.lambda_schedule[lamb_idx], "avg du_dl", np.mean(result.du_dls), "std du_dl", np.std(result.du_dls))
         import mdtraj
 
         md_topology = mdtraj.Topology.from_openmm(model.topology)
         traj = mdtraj.Trajectory(result.xs, md_topology)
-        traj.save_xtc(model.stage+"_lambda_"+str(lamb_idx)+".xtc")
+        traj.save_xtc(debug_prefix+"_lambda_idx_"+str(lamb_idx)+".xtc")
 
         mean_du_dls.append(np.mean(result.du_dls))
         all_grads.append(result.du_dps)

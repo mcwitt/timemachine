@@ -60,7 +60,8 @@ class RBFEModel():
         ff_params: list,
         mol_a: Chem.Mol,
         mol_b: Chem.Mol,
-        core: np.ndarray):
+        core: np.ndarray,
+        epoch: int):
         """
         Predict the ddG of morphing mol_a into mol_b. This function is differentiable w.r.t. ff_params.
         Parameters
@@ -114,7 +115,6 @@ class RBFEModel():
                     minimize=False,
                 )
 
-
                 rfe = free_energy.RelativeFreeEnergy(top)
                 unbound_potentials, sys_params, masses, coords = rfe.prepare_host_edge(ff_params, host_system, min_host_coords)
 
@@ -153,6 +153,8 @@ class RBFEModel():
                 seed
             )
 
+            debug_info = "epoch_"+str(epoch)
+
             model = estimator.FreeEnergyModel(
                 unbound_potentials,
                 self.client,
@@ -164,7 +166,8 @@ class RBFEModel():
                 self.equil_steps,
                 self.prod_steps,
                 leg_topology,
-                stage
+                stage,
+                debug_info
             )
 
             dG, results = estimator.deltaG(model, sys_params)
@@ -176,20 +179,20 @@ class RBFEModel():
 
         return pred, stage_results
 
-    def loss(self, ff_params, mol_a, mol_b, core, label_ddG):
-        """
-        Computes the L1 loss relative to some label. See predict() for the type signature.
-        This function is differentiable w.r.t. ff_params.
-        Parameters
-        ----------
-        label_ddG: float
-            Label ddG in kJ/mol of the alchemical transformation.
-        Returns
-        -------
-        float
-            loss
-        TODO: make this configurable, using loss functions from in fe/loss.py
-        """
-        pred_ddG, results = self.predict(ff_params, mol_a, mol_b, core)
-        loss = jnp.abs(pred_ddG - label_ddG)
-        return loss, results
+    # def loss(self, ff_params, mol_a, mol_b, core, label_ddG):
+    #     """
+    #     Computes the L1 loss relative to some label. See predict() for the type signature.
+    #     This function is differentiable w.r.t. ff_params.
+    #     Parameters
+    #     ----------
+    #     label_ddG: float
+    #         Label ddG in kJ/mol of the alchemical transformation.
+    #     Returns
+    #     -------
+    #     float
+    #         loss
+    #     TODO: make this configurable, using loss functions from in fe/loss.py
+    #     """
+    #     pred_ddG, results = self.predict(ff_params, mol_a, mol_b, core)
+    #     loss = jnp.abs(pred_ddG - label_ddG)
+    #     return loss, results
