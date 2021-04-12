@@ -14,3 +14,7 @@ def svd_based_alignment(x_a, x_b):
 
     rotation = np.dot(U, V_tr)
     return rotation
+
+
+# TODO: quaternion-based alignment?
+#   see also https://github.com/charnley/rmsd

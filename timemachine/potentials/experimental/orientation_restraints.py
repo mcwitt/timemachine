@@ -5,6 +5,7 @@
 
 from jax import numpy as np
 from typing import Optional
+from timemachine.potentials.experimental.optimal_alignments import svd_based_alignment
 
 Coords = np.ndarray
 
@@ -50,8 +51,8 @@ class RelativeOrientationProjection(Projection):
     def project(self, x: Coords):
         displacement = Translation(np.mean(x, axis=0) - np.mean(self.reference, axis=0))
 
-        # TODO: replace this line with a function that gets an orientation relative to reference
-        rotation = Rotation(np.eye(3))
+        # TODO: double-check ordering here...
+        rotation = Rotation(svd_based_alignment(self.reference, x))
 
         return Orientation(displacement, rotation)
 
