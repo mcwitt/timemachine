@@ -83,15 +83,6 @@ def restraint(conf, lamb, params, lamb_flags, box, bond_idxs):
 
     return energy
 
-# X@np.eye(3)
-# X@np.eye(3)*-1
-
-@jax.jit
-def psi(rotation, k):
-    term = (np.trace(rotation) - 1)/2 - 1
-    nrg = k*term*term
-    return nrg
-
 def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k):
     """
     Compute a rigid RMSD restraint using two groups of atoms. group_a_idxs and group_b_idxs
@@ -146,7 +137,6 @@ def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k):
     rotation = np.dot(U, V_tr)
 
     return psi(rotation, k)
-
 
 def rmsd_align(x_t, a_idxs, b_idxs, NA):
     """

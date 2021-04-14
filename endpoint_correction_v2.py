@@ -168,12 +168,33 @@ def sample_rotation(k):
         Rs = special_ortho_group.rvs(3, size=batch_size)
         tests = np.random.rand(batch_size)
         M = np.pi**2 # volume of SO(3)
-        acceptance_prob = exp_batch(Rs, k)/M
+        # acceptance_prob = exp_batch(Rs, k)/M
+        acceptance_prob = exp_batch(Rs, k)
         locations = np.argwhere(tests < acceptance_prob).reshape(-1)
         if len(locations) > 0:
             return Rs[locations[0]]
 
     raise Exception("Failed to Sample Rotation")
+
+def sample_multiple_rotations(k, size):
+    num_batches = 500
+    batch_size = 10000
+
+    samples = []
+
+    for batch_attempt in range(num_batches):
+        Rs = special_ortho_group.rvs(3, size=batch_size)
+        tests = np.random.rand(batch_size)
+        M = np.pi**2 # volume of SO(3)
+        # acceptance_prob = exp_batch(Rs, k)/M
+        acceptance_prob = exp_batch(Rs, k)
+        locations = np.argwhere(tests < acceptance_prob).reshape(-1)
+
+        samples.append(Rs[locations])
+        if sum([len(x) for x in samples]) > size:
+            break
+
+    return np.concatenate(samples)[:size]
 
 def run(trial):
 
@@ -209,11 +230,12 @@ def run(trial):
 
     box = None
 
-    n_steps = 500001
+    n_steps = 100000
     # n_steps = 500
     equilibrium_steps = 20000
     # equilibrium_steps = 100
     sampling_frequency = 100
+    # sampling_frequency = 13
 
     lhs_du = []
     start = time.time()
@@ -239,6 +261,12 @@ def run(trial):
     rmsds = []
     rhs_du_dx_fn = jax.jit(jax.grad(u_rhs_fn))
 
+    # generate rotations and translations
+    sample_size = (n_steps // sampling_frequency) + 1
+    rotation_samples = sample_multiple_rotations(rotation_restr_kb, sample_size)
+    covariance = np.eye(3)/(2*BETA*translation_restr_kb)
+    translation_samples = np.random.multivariate_normal((0,0,0), covariance, sample_size)
+
     start = time.time()
     for step in range(n_steps):
         du_dx = rhs_du_dx_fn(x_t)
@@ -248,14 +276,19 @@ def run(trial):
         if step % sampling_frequency == 0 and step > equilibrium_steps:
             # align the two conformers
             x_a, x_b = bonded.rmsd_align(x_t, restr_group_idxs_a, restr_group_idxs_b, mol_a.GetNumAtoms())
-            covariance = np.eye(3)/(2*BETA*translation_restr_kb)
-            translation = np.random.multivariate_normal((0,0,0), covariance)
+
             # if sign is positive, then x_b is inverted
-            rotation = sample_rotation(rotation_restr_kb)
+            translation = translation_samples[step // sampling_frequency]
+            rotation = rotation_samples[step // sampling_frequency]
             x_t_new = np.concatenate([x_a, x_b@rotation.T + translation])
             rmsds.append(np.mean(np.linalg.norm(x_t_new[restr_group_idxs_a] - x_b[restr_group_idxs_b], axis=1)))
             writer_mc.write(make_conformer(mol_a, mol_b, x_t_new))
             rhs_du.append(delta_u_fn(x_t_new))
+
+    rhs_du = np.array(rhs_du)
+
+    print("trial", trial, "lhs amin amax", np.amin(lhs_du), np.amax(lhs_du))
+    print("trial", trial, "rhs amin amax", np.amin(rhs_du), np.amax(rhs_du))
 
     plt.clf()
     plt.title("BAR")
@@ -272,6 +305,12 @@ def run(trial):
     return
 
 if __name__ == "__main__":
+
+    # start = time.time()
+    # rotations = sample_multiple_rotations(10.0, 5000)
+    # print(ti//me.time() - start)
+    # print(rotations.shape)
+    # assert 0
     # for trial in range(100):
         # run(trial)
     # assert 0
