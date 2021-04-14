@@ -36,8 +36,7 @@ class RBFEModel():
         solvent_topology: np.ndarray,
         equil_steps: int,
         prod_steps: int,
-        k_translation: float,
-        k_rotation: float):
+        k_core: float):
 
         self.complex_system = complex_system
         self.complex_coords = complex_coords
@@ -53,8 +52,9 @@ class RBFEModel():
         self.ff = ff
         self.equil_steps = equil_steps
         self.prod_steps = prod_steps
-        self.k_translation = k_translation
-        self.k_rotation = k_rotation
+        self.k_core = k_core
+        # self.k_translation = k_translation
+        # self.k_rotation = k_rotation
 
     def predict(self,
         ff_params: list,
@@ -122,23 +122,30 @@ class RBFEModel():
                 restr_group_idxs_a = core[:, 0] + num_host_atoms
                 restr_group_idxs_b = core[:, 1] + num_host_atoms + mol_a.GetNumAtoms()
 
-                unbound_potentials.append(potentials.RMSDRestraint(
-                    np.stack([restr_group_idxs_a, restr_group_idxs_b], axis=1),
-                    coords.shape[0],
-                    self.k_rotation
+                # restraint potential
+                restraint_idxs = np.stack([restr_group_idxs_a, restr_group_idxs_b], axis=1)
+                restraint_params = np.array([self.k_core, 0]*len(restraint_idxs), dtype=np.float64)
+                unbound_potentials.append(potentials.HarmonicBond(
+                    restraint_idxs,
                 ))
-                sys_params.append(np.array([], dtype=np.float64))
+                sys_params.append(restraint_params)
 
-                unbound_potentials.append(potentials.CentroidRestraint(
-                    restr_group_idxs_a,
-                    restr_group_idxs_b,
-                    self.k_translation,
-                    0.0
-                ))
 
-                sys_params.append(np.array([], dtype=np.float64))
+                # unbound_potentials.append(potentials.RMSDRestraint(
+                #     np.stack([restr_group_idxs_a, restr_group_idxs_b], axis=1),
+                #     coords.shape[0],
+                #     self.k_rotation
+                # ))
+                # sys_params.append(np.array([], dtype=np.float64))
 
-            # add restraining potentials
+                # unbound_potentials.append(potentials.CentroidRestraint(
+                #     restr_group_idxs_a,
+                #     restr_group_idxs_b,
+                #     self.k_translation,
+                #     0.0
+                # ))
+                # sys_params.append(np.array([], dtype=np.float64))
+
             x0 = coords
             v0 = np.zeros_like(coords)
             box = np.eye(3, dtype=np.float64)*100 # note: box unused

@@ -29,6 +29,10 @@ def centroid_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, kb, 
         kb * delta**2
     )
 
+def psi(rotation, k):
+    term = (np.trace(rotation) - 1)/2 - 1
+    nrg = k*term*term
+    return nrg
 
 def restraint(conf, lamb, params, lamb_flags, box, bond_idxs):
     """
@@ -85,10 +89,38 @@ def restraint(conf, lamb, params, lamb_flags, box, bond_idxs):
 
 def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k):
     """
-    Compute a rigid RMSD restraint using two groups of atoms. group_a_idxs and group_b_idxs must have the same
-    size. This function will automatically recenter the two groups of atoms as needed.
+    Compute a rigid RMSD restraint using two groups of atoms. group_a_idxs and group_b_idxs
+    must have the same size. a and b can have duplicate indices and need not be necessarily
+    disjoint. This function will automatically recenter the two groups of atoms before computing
+    the rotation matrix. For relative binding free energy calculations, this restraint
+    does not need to be turned off.
 
-    The zero point energy of this function is attained when the two structures are perfectly aligned. 
+    Note that you should add a center of mass restraint as well to accomodate for the translational
+    component.
+
+    Parameters
+    ----------
+    conf: np.ndarray
+        N x 3 coordinates
+
+    params: Any
+        Unused dummy variable for API consistency
+
+    box: Any
+        Unused dummy variable for API consistency
+
+    lamb: Any
+        Unused dummy variable for API consistency
+
+    group_a_idxs: list of int
+        idxs for the first group of atoms
+
+    group_b_idxs: list of int
+        idxs for the second group of atoms
+
+    k: float
+        force constant
+
     """
     assert len(group_a_idxs) == len(group_b_idxs)
 
@@ -97,16 +129,10 @@ def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k):
     # recenter
     x1 = x1 - np.mean(x1, axis=0)
     x2 = x2 - np.mean(x2, axis=0)
-    # rotate x2 unto x1
+
     correlation_matrix = np.dot(x2.T, x1)
     U, S, V_tr = np.linalg.svd(correlation_matrix, full_matrices=False)
-
-    epsilon = 1e-8
-    if np.any(S < epsilon):
-        return 0.0
-
     is_reflection = (np.linalg.det(U) * np.linalg.det(V_tr)) < 0.0
-
     U = jax.ops.index_update(U,
         jax.ops.index[:, -1],
         np.where(is_reflection, -U[:, -1], U[:, -1])
@@ -114,9 +140,38 @@ def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k):
 
     rotation = np.dot(U, V_tr)
 
-    cos_angle = (np.trace(rotation) - 1)/2 - 1
+    return psi(rotation, k)
 
-    return k*cos_angle*cos_angle
+def rmsd_align(x_t, a_idxs, b_idxs, NA):
+    """
+    RMSD takes in a conformation x_t, a set of indices a_idxs and b_idxs,
+    a split NA, and returns two conformers x_a and x_b, aligned on the
+    idxs a_idxs and b_idxs
+    """
+    x1 = x_t[a_idxs]
+    x2 = x_t[b_idxs]
+
+    com1 = np.mean(x1, axis=0)
+    com2 = np.mean(x2, axis=0)
+
+    x1 = x1 - com1
+    x2 = x2 - com2
+
+    # x1 and x2 must be already mean aligned.
+    correlation_matrix = np.dot(x2.T, x1)
+    U, S, V_tr = np.linalg.svd(correlation_matrix, full_matrices=False)
+    is_reflection = (np.linalg.det(U) * np.linalg.det(V_tr)) < 0.0
+    U = jax.ops.index_update(U,
+        jax.ops.index[:, -1],
+        np.where(is_reflection, -U[:, -1], U[:, -1])
+    )
+    rotation = np.dot(U, V_tr)
+
+    xa = x_t[:NA] - com1
+    xb = x_t[NA:] - com2
+    xb = xb@rotation
+
+    return xa, xb
 
 
 # lamb is *not used* it is used in the alchemical stuff after
@@ -170,7 +225,8 @@ def harmonic_bond(conf, params, box, lamb, bond_idxs, lamb_mult=None, lamb_offse
     dij = np.sqrt(d2ij)
     kbs = params[:, 0]
     r0s = params[:, 1]
-    prefactor = (lamb_offset + lamb_mult * lamb)
+
+    prefactor = 1.0
 
     # this is here to prevent a numerical instability
     # when b0 == 0 and dij == 0
@@ -246,7 +302,8 @@ def harmonic_angle(conf, params, box, lamb, angle_idxs, lamb_mult=None, lamb_off
 
     tb = top/bot
 
-    prefactor = (lamb_offset + lamb_mult * lamb)
+    # prefactor = (lamb_offset + lamb_mult * lamb)
+    prefactor = 1.0
     # (ytz): we use the squared version so that the energy is strictly positive
     if cos_angles:
         energies = prefactor*kas/2*np.power(tb - np.cos(a0s), 2)

@@ -107,18 +107,12 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--k_translation",
+        "--k_core",
         type=float,
-        help="Force constant for translational restraint",
+        help="Force constant for core restraint",
         required=True
     )
 
-    parser.add_argument(
-        "--k_rotation",
-        type=float,
-        help="Force constant for rotational restraint",
-        required=True
-    )
 
     cmd_args = parser.parse_args()
 
@@ -171,8 +165,7 @@ if __name__ == "__main__":
         solvent_topology,
         cmd_args.num_equil_steps,
         cmd_args.num_prod_steps,
-        cmd_args.k_translation,
-        cmd_args.k_rotation
+        cmd_args.k_core
     )
 
 
