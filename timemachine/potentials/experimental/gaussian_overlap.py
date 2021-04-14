@@ -29,7 +29,14 @@ def best_fit_gaussian(x: Coords, eps: float = 1e-2) -> Gaussian:
 
 
 def log_kl_div(a: Gaussian, b: Gaussian) -> float:
-    """ from eq 2 of https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.148.2502&rep=rep1&type=pdf """
+    """ Expression for KL div between two Gaussians from eq 2 of
+    https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.148.2502&rep=rep1&type=pdf
+
+    Notes
+    -----
+    * This is log (KL) , rather than just KL, since we don't want the gradient of resulting restraining potentials to
+        vanish when a and b are far away from each other.
+    """
 
     dim = len(a.mean)
 
@@ -59,8 +66,9 @@ def restraint_potential(x: Coords, y: Coords) -> float:
     Notes
     -----
     * While intuitive, this is unsuitable for use as a rigid-body restraint, since it will be sensitive
-        to global scaling of x and y. In other words, grad(restraint_potential)(x, y) will distort x, not just
-        rigidly translate / rotate it.
+        to global scaling of x and y.
+        In other words, grad(restraint_potential)(x, y) will distort x by scaling x, not just
+        rigidly translating / rotating it.
     """
     a, b = best_fit_gaussian(x), best_fit_gaussian(y)
     return log_kl_div(a, b) + log_kl_div(b, a)  # symmetrize
@@ -180,7 +188,8 @@ def restraint_using_key_points(x: Coords, y: Coords, x_weights: np.ndarray, y_we
     return log_kl_div(a, b) + log_kl_div(b, a)
 
 
-def gaussian_from_rigidified_key_points(z, weights, eigvals, eps=1e-2) -> Gaussian:
+def gaussian_from_rigidified_key_points(z: Coords, weights: np.ndarray, eigvals: np.ndarray,
+                                        eps: float = 1e-2) -> Gaussian:
     """construct a Gaussian from z by:
     * getting approximate PMI vectors from weighted combinations of z (using constant, precomputed weights)
     * normalizing each PMI vector, and then scaling its contribution (using constant, precomputed eigvals)
@@ -210,18 +219,57 @@ def gaussian_from_rigidified_key_points(z, weights, eigvals, eps=1e-2) -> Gaussi
     return Gaussian(mean, cov)
 
 
-def rigid_restraint(x, y, x_weights, y_weights, x_vals, y_vals) -> float:
+def rigid_restraint_with_rigid_key_points(x, y, x_weights, y_weights, x_vals, y_vals) -> float:
     """ log( kl(x_rigid, y_rigid) ) + log ( kl(y_rigid, x_rigid ) )
 
-    where x_rigid is a Gaussian summary of x computed in such a way that its
+    where x_rigid is a Gaussian summary of x computed in such a way that it is mostly "rigid"
 
     Notes
     -----
     * Mostly addresses the x, y distortion issues with previous attempts
-        (restraint_potential, restraint_potential_with volume, and restraint_using_key_points)
+        (restraint_potential, restraint_potential_with_volume, and restraint_using_key_points)
     """
 
     a = gaussian_from_rigidified_key_points(x, x_weights, x_vals)
     b = gaussian_from_rigidified_key_points(y, y_weights, y_vals)
+
+    return log_kl_div(a, b) + log_kl_div(b, a)
+
+
+def gaussian_with_scale_hints(z: Coords, eigval_hints: np.ndarray, eps: float = 1e-2) -> Gaussian:
+    """construct a Gaussian from z by:
+    * computing g = best_fit_gaussian(z)
+    * computing evals, evecs = np.linalg.eigh(g.cov)
+    * reconstructing cov using eigval_hints rather than evals
+
+    Notes
+    -----
+    * This is intended to give the reconstructed Gaussian a prescribed shape
+    """
+
+    mean = np.mean(z, axis=0)
+    g = best_fit_gaussian(z, eps)
+    evals, evecs = np.linalg.eigh(g.cov)
+    assert min(evals) >= eps
+    assert (eigval_hints[1:] >= eigval_hints[:-1]).all()  # assume sorted in same order as np.linalg.eigh
+
+    rescaled_cov = np.sum(np.array([val * np.outer(vec, vec) for (val, vec) in zip(eigval_hints, evecs)]), axis=0)
+
+    return Gaussian(mean, rescaled_cov)
+
+
+def rigid_restraint_with_scale_hints(x: Coords, y: Coords, x_scales: np.ndarray, y_scales: np.ndarray) -> float:
+    """ log( kl(x_rigid, y_rigid) ) + log ( kl(y_rigid, x_rigid ) )
+
+    where x_rigid is a Gaussian summary of x computed in such a way that it is mostly "rigid"
+
+    Notes
+    -----
+    * Similar goal as in rigid_restraint_with_rigid_key_points, but achieved by rescaling best-fit-Gaussian covariance matrix
+        rather than by reconstructing a Gaussian using key points...
+    """
+
+    a = gaussian_with_scale_hints(x, x_scales)
+    b = gaussian_with_scale_hints(y, y_scales)
 
     return log_kl_div(a, b) + log_kl_div(b, a)
