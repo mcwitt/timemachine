@@ -83,6 +83,15 @@ def restraint(conf, lamb, params, lamb_flags, box, bond_idxs):
 
     return energy
 
+# X@np.eye(3)
+# X@np.eye(3)*-1
+
+@jax.jit
+def psi(rotation, k):
+    term = (np.trace(rotation) - 1)/2 - 1
+    nrg = k*term*term
+    return nrg
+
 def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k):
     """
     Compute a rigid RMSD restraint using two groups of atoms. group_a_idxs and group_b_idxs
@@ -128,27 +137,48 @@ def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k):
 
     correlation_matrix = np.dot(x2.T, x1)
     U, S, V_tr = np.linalg.svd(correlation_matrix, full_matrices=False)
-
     is_reflection = (np.linalg.det(U) * np.linalg.det(V_tr)) < 0.0
-    rotation = np.dot(U, V_tr)
-
-    epsilon = 1e-8
-
-    cond = np.any(S < epsilon)
-    # if matrix is not full rank we skip, SVD is underdetermined
-    if np.any(S < epsilon):
-        return 0.0
-
-    term = np.where(is_reflection,
-        (np.trace(rotation) + 1)/2 - 1,
-        (np.trace(rotation) - 1)/2 - 1
+    U = jax.ops.index_update(U,
+        jax.ops.index[:, -1],
+        np.where(is_reflection, -U[:, -1], U[:, -1])
     )
 
-    term = np.where(cond, 0.0, term)
+    rotation = np.dot(U, V_tr)
 
-    nrg = k*term*term
+    return psi(rotation, k)
 
-    return nrg
+
+def rmsd_align(x_t, a_idxs, b_idxs, NA):
+    """
+    RMSD takes in a conformation x_t, a set of indices a_idxs and b_idxs,
+    a split NA, and returns two conformers x_a and x_b, aligned on the
+    idxs a_idxs and b_idxs
+    """
+    x1 = x_t[a_idxs]
+    x2 = x_t[b_idxs]
+
+    com1 = np.mean(x1, axis=0)
+    com2 = np.mean(x2, axis=0)
+
+    x1 = x1 - com1
+    x2 = x2 - com2
+
+    # x1 and x2 must be already mean aligned.
+    correlation_matrix = np.dot(x2.T, x1)
+    U, S, V_tr = np.linalg.svd(correlation_matrix, full_matrices=False)
+    is_reflection = (np.linalg.det(U) * np.linalg.det(V_tr)) < 0.0
+    U = jax.ops.index_update(U,
+        jax.ops.index[:, -1],
+        np.where(is_reflection, -U[:, -1], U[:, -1])
+    )
+    rotation = np.dot(U, V_tr)
+
+    xa = x_t[:NA] - com1
+    xb = x_t[NA:] - com2
+    xb = xb@rotation
+
+    return xa, xb
+
 
 # lamb is *not used* it is used in the alchemical stuff after
 def harmonic_bond(conf, params, box, lamb, bond_idxs, lamb_mult=None, lamb_offset=None):
@@ -201,7 +231,8 @@ def harmonic_bond(conf, params, box, lamb, bond_idxs, lamb_mult=None, lamb_offse
     dij = np.sqrt(d2ij)
     kbs = params[:, 0]
     r0s = params[:, 1]
-    prefactor = (lamb_offset + lamb_mult * lamb)
+
+    prefactor = 1.0
 
     # this is here to prevent a numerical instability
     # when b0 == 0 and dij == 0
@@ -277,7 +308,8 @@ def harmonic_angle(conf, params, box, lamb, angle_idxs, lamb_mult=None, lamb_off
 
     tb = top/bot
 
-    prefactor = (lamb_offset + lamb_mult * lamb)
+    # prefactor = (lamb_offset + lamb_mult * lamb)
+    prefactor = 1.0
     # (ytz): we use the squared version so that the energy is strictly positive
     if cos_angles:
         energies = prefactor*kas/2*np.power(tb - np.cos(a0s), 2)
