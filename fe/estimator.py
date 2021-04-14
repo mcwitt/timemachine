@@ -243,16 +243,7 @@ def endpoint_correction(
     # traj = mdtraj.Trajectory(rhs_xs, md_topology)
     # traj.save_xtc(debug_prefix+"rhs.xtc")
 
-    # left hand state: restrained
-    # lhs_xs = results[-2].xs
     lhs_du = delta_u_batch(lhs_xs)
-    # right hand state: unrestrained
-    # rhs_xs = results[-1].xs
-
-    # not strictly required
-    # assert lhs_xs.shape[0] == rhs_xs.shape[0]
-
-    # n_steps = lhs_xs.shape[0]
 
     sample_size = rhs_xs.shape[0]
     rotation_samples = sample_multiple_rotations(k_rotation, sample_size)
@@ -273,14 +264,8 @@ def endpoint_correction(
     rhs_xs_aligned = np.array(rhs_xs_aligned)
     rhs_du = delta_u_batch(rhs_xs_aligned)
 
-    # print("rhs_du", rhs_du)
-    # import matplotlib.pyplot as plt
-    # plt.hist(lhs_du, alpha=0.5, density=True)
-    # plt.hist(rhs_du, alpha=0.5, density=True)
-    # plt.show()
-
     dG_endpoint = pymbar.BAR(BETA*lhs_du, -BETA*np.array(rhs_du))[0]/BETA
-    return dG_endpoint
+    return dG_endpoint, lhs_du, rhs_du
 
 def rmsd_align(x1, x2):
     com1 = np.mean(x1, axis=0)
@@ -353,7 +338,7 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
     for x, y, z in zip(model.lambda_schedule, mean_du_dls, std_du_dls):
         print(f'{debug_prefix}du_dl_ti lambda {x:5.3f} <du/dl> {y:5.3f} o(du/dl) {z:5.3f}')
     dG_ti = np.trapz(mean_du_dls, model.lambda_schedule)
-    dG_endpoint = endpoint_correction(
+    dG_endpoint, lhs_du, rhs_du = endpoint_correction(
         k_translation=200.0,
         k_rotation=100.0,
         core_idxs=core_restr.get_idxs(),
@@ -361,6 +346,14 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
         lhs_xs=results[-2].xs,
         rhs_xs=results[-1].xs
     )
+
+    import matplotlib.pyplot as plt
+
+    plt.clf()
+    plt.hist(lhs_du, alpha=0.5, density=True, label='lhs')
+    plt.hist(rhs_du, alpha=0.5, density=True, label='rhs')
+    plt.xlim(-100, 10)
+    plt.savefig(debug_prefix+"overlap")
 
     print(debug_prefix, "dG_ti", dG_ti, "dG_endpoint", dG_endpoint)
     dG = dG_ti + dG_endpoint
