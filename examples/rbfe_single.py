@@ -13,7 +13,7 @@ from fe.utils import convert_uIC50_to_kJ_per_mole
 from fe import model
 from md import builders
 
-from testsystems.relative import hif2a_ligand_pair
+from testsystems import relative
 
 from ff.handlers.serialize import serialize_handlers
 from ff.handlers.nonbonded import AM1CCCHandler, LennardJonesHandler
@@ -118,21 +118,24 @@ if __name__ == "__main__":
 
     client = CUDAPoolClient(max_workers=cmd_args.num_gpus)
 
+    mol_a, mol_b, core, forcefield = relative._setup_hif2a_ligand_pair()
+
     # fetch mol_a, mol_b, core, forcefield from testsystem
-    mol_a, mol_b, core = hif2a_ligand_pair.mol_a, hif2a_ligand_pair.mol_b, hif2a_ligand_pair.core
-    forcefield = hif2a_ligand_pair.ff
+    # mol_a, mol_b, core = hif2a_ligand_pair.mol_a, hif2a_ligand_pair.mol_b, hif2a_ligand_pair.core
+    # forcefield = hif2a_ligand_pair.ff
 
     # compute ddG label from mol_a, mol_b
     # TODO: add label upon testsystem construction
     # (ytz): these are *binding* free energies, i.e. values that are less than zero.
-    label_dG_a = convert_uIC50_to_kJ_per_mole(float(mol_a.GetProp("IC50[uM](SPA)")))
-    label_dG_b = convert_uIC50_to_kJ_per_mole(float(mol_b.GetProp("IC50[uM](SPA)")))
-    label_ddG = label_dG_b - label_dG_a  # complex - solvent
+    # label_dG_a = convert_uIC50_to_kJ_per_mole(float(mol_a.GetProp("IC50[uM](SPA)")))
+    # label_dG_b = convert_uIC50_to_kJ_per_mole(float(mol_b.GetProp("IC50[uM](SPA)")))
+    # label_ddG = label_dG_b - label_dG_a  # complex - solvent
+    # label_dd
 
-    print("binding dG_a", label_dG_a)
-    print("binding dG_b", label_dG_b)
+    # print("binding dG_a", label_dG_a)
+    # print("binding dG_b", label_dG_b)
 
-    hif2a_ligand_pair.label = label_ddG
+    # hif2a_ligand_pair.label = label_ddG
 
     # construct lambda schedules for complex and solvent
     complex_schedule = construct_lambda_schedule(cmd_args.num_complex_windows)

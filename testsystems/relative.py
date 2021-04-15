@@ -2,6 +2,8 @@
 import numpy as np
 from rdkit import Chem
 
+import copy
+
 from fe import free_energy, topology
 from ff import Forcefield
 from ff.handlers.deserialize import deserialize_handlers
@@ -27,45 +29,67 @@ def _setup_hif2a_ligand_pair(ff='ff/params/smirnoff_1_1_0_ccc.py'):
 
     suppl = Chem.SDMolSupplier(path_to_ligand, removeHs=False)
     all_mols = [x for x in suppl]
-    mol_a = all_mols[1]
-    mol_b = all_mols[1]
+    mol_a = copy.deepcopy(all_mols[1])
+    mol_b = copy.deepcopy(all_mols[1])
+
+    # print(Chem.MolToMolBlock(mol_a))
+    # print(Chem.MolToSmiles(mol_b))
+
 
     # core = np.stack([
     #     np.arange(mol_a.GetNumAtoms()),
     #     np.arange(mol_a.GetNumAtoms())
     # ], axis=1).astype(np.int32)
 
-    core = np.array([[0, 0],
-                     [2, 2],
-                     [1, 1],
-                     [6, 6],
-                     [5, 5],
-                     [4, 4],
-                     [3, 3],
-                     [15, 15],
-                     [16, 16],
-                     [17, 17],
-                     [18, 18],
-                     [19, 19],
-                     [20, 20],
-                     [32, 32],
-                     [26, 26],
-                     [27, 27],
-                     [7, 7],
-                     [8, 8],
-                     [9, 9],
-                     [10, 10],
-                     [29, 29],
-                     [11, 11],
-                     [12, 12],
-                     [14, 14],
-                     [31, 31],
-                     [13, 13],
-                     [23, 23],
-                     [30, 30],
-                     [28, 28],
-                     [21, 21]]
-                    , dtype=np.int32)
+    core = []
+
+    Chem.FastFindRings(mol_a)
+
+    for a in mol_a.GetAtoms():
+        if a.IsInRing():
+            # print(a.GetIdx())
+            core.append((a.GetIdx(), a.GetIdx()))
+
+    core = np.array(core, dtype=np.int32)
+
+    return mol_a, mol_b, core, forcefield
+
+    print(core)
+
+    # assert 0
+
+    # core = np.array([[0, 0],
+    #                  [2, 2],
+    #                  [1, 1],
+    #                  [6, 6],
+    #                  [5, 5],
+    #                  [4, 4],
+    #                  [3, 3],
+    #                  [15, 15],
+    #                  [16, 16],
+    #                  [17, 17],
+    #                  [18, 18],
+    #                  [19, 19],
+    #                  [20, 20],
+    #                  [32, 32],
+    #                  [26, 26],
+    #                  [27, 27],
+    #                  [7, 7],
+    #                  [8, 8],
+    #                  [9, 9],
+    #                  [10, 10],
+    #                  [29, 29],
+    #                  [11, 11],
+    #                  [12, 12],
+    #                  [14, 14],
+    #                  [31, 31],
+    #                  [13, 13],
+    #                  [23, 23],
+    #                  [30, 30],
+    #                  [28, 28],
+    #                  [21, 21]]
+    #                 , dtype=np.int32)
+
 
     # core = np.array([[0, 0],
     #                  [2, 2],
@@ -99,9 +123,9 @@ def _setup_hif2a_ligand_pair(ff='ff/params/smirnoff_1_1_0_ccc.py'):
     #                  [21, 22]]
     #                 , dtype=np.int32)
 
-    single_topology = topology.SingleTopology(mol_a, mol_b, core, forcefield)
-    rfe = free_energy.RelativeFreeEnergy(single_topology)
+    # single_topology = topology.SingleTopology(mol_a, mol_b, core, forcefield)
+    # rfe = free_energy.RelativeFreeEnergy(single_topology)
 
-    return rfe
+    # return ref
 
 hif2a_ligand_pair = _setup_hif2a_ligand_pair()

@@ -364,21 +364,21 @@ class DualTopology():
 
             # A is being turned on.
             # charges go from  0 to 1
-            # lj goes from 1.0 to 1.0
+            # lj goes from 0.5 to 1.0
             q_params_a_src = q_params_a*0.0
-            lj_params_a_src = jax.ops.index_update(lj_params_a, jax.ops.index[:, 1], lj_params_a[:, 1]*1.0)
+            lj_params_a_src = jax.ops.index_update(lj_params_a, jax.ops.index[:, 1], lj_params_a[:, 1]*0.5)
 
             q_params_a_dst = q_params_a*1.0
             lj_params_a_dst = jax.ops.index_update(lj_params_a, jax.ops.index[:, 1], lj_params_a[:, 1]*1.0)
 
             # B is being pulled out
             # charges go from 0 to 0
-            # lj goes from 1.0 to 1.0
+            # lj goes from 0.5 to 0.3
             q_params_b_src = q_params_b*0.0
-            lj_params_b_src = jax.ops.index_update(lj_params_b, jax.ops.index[:, 1], lj_params_b[:, 1]*1.0)
+            lj_params_b_src = jax.ops.index_update(lj_params_b, jax.ops.index[:, 1], lj_params_b[:, 1]*0.5)
 
             q_params_b_dst = q_params_b*0.0
-            lj_params_b_dst = jax.ops.index_update(lj_params_b, jax.ops.index[:, 1], lj_params_b[:, 1]*1.0)
+            lj_params_b_dst = jax.ops.index_update(lj_params_b, jax.ops.index[:, 1], lj_params_b[:, 1]*0.3)
 
             q_params_src = jnp.concatenate([q_params_a_src, q_params_b_src])
             lj_params_src = jnp.concatenate([lj_params_a_src, lj_params_b_src])
@@ -440,6 +440,7 @@ class SingleTopology():
         SingleTopology combines two molecules through a common core. The combined mol has
         atom indices laid out such that mol_a is identically mapped to the combined mol indices.
         The atoms in the mol_b's R-group is then glued on to resulting molecule.
+
         Parameters
         ----------
         mol_a: ROMol
@@ -450,6 +451,7 @@ class SingleTopology():
             Atom mapping from mol_a to to mol_b
         ff: ff.Forcefield
             Forcefield to be used for parameterization.
+
         """
         self.mol_a = mol_a
         self.mol_b = mol_b
@@ -554,6 +556,7 @@ class SingleTopology():
         TODO: add a reference to Boresch paper describing the assumption being checked
         """
         offending_core_indices = self._identify_offending_core_indices()
+        print(offending_core_indices)
         num_problems = len(offending_core_indices)
         if num_problems > 0:
 
