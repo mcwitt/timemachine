@@ -221,7 +221,7 @@ class BaseTopology():
         beta = _BETA
         cutoff = _CUTOFF # solve for this analytically later
 
-        LJ_FRACTION = 0.25
+        LJ_FRACTION = 1.0
 
         qlj_params = jnp.concatenate([
             jnp.reshape(q_params, (-1, 1)),
@@ -233,7 +233,6 @@ class BaseTopology():
             dst_guest_qlj = jax.ops.index_update(guest_qlj, jax.ops.index[:, 0], 0)
             dst_guest_qlj = jax.ops.index_update(guest_qlj, jax.ops.index[:, 2], guest_qlj[:, 2]*LJ_FRACTION)
             qlj_params = jnp.concatenate([src_guest_qlj, dst_guest_qlj])
-
             return hg_nb_params, potentials.NonbondedInterpolated(
                 exclusion_idxs,
                 scale_factors,
