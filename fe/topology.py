@@ -209,8 +209,14 @@ class BaseTopology():
 
         N = len(q_params)
 
-        lambda_plane_idxs = np.zeros(N, dtype=np.int32)
-        lambda_offset_idxs = np.ones(N, dtype=np.int32)
+        if stage == 'complex0':
+            # never do 4D decouple, just pull
+            lambda_plane_idxs = np.zeros(N, dtype=np.int32)
+            lambda_offset_idxs = np.zeros(N, dtype=np.int32)
+        else:
+            # decouple for complex1 and solvent
+            lambda_plane_idxs = np.zeros(N, dtype=np.int32)
+            lambda_offset_idxs = np.ones(N, dtype=np.int32)
 
         beta = _BETA
         cutoff = _CUTOFF # solve for this analytically later
