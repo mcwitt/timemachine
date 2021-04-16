@@ -106,7 +106,7 @@ class ABFEModel():
             top = topology.BaseTopology(mol, self.ff)
 
 
-            functools.partial(top.parameterize_nonbonded, stage=stage)
+            top.parameterize_nonbonded = functools.partial(top.parameterize_nonbonded, stage=stage)
             # NA = mol.GetNumAtoms()
 
             # combined_lambda_plane_idxs = np.zeros(NA, dtype=np.int32)

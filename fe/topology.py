@@ -138,9 +138,6 @@ class HostGuestTopology():
         hg_lambda_plane_idxs = np.concatenate([self.host_nonbonded.get_lambda_plane_idxs(), guest_p.get_lambda_plane_idxs()])
 
         if is_interpolated:
-
-            assert 0
-            # with parameter interpolation
             hg_nb_params_src = jnp.concatenate([self.host_nonbonded.params, guest_qlj[:num_guest_atoms]])
             hg_nb_params_dst = jnp.concatenate([self.host_nonbonded.params, guest_qlj[num_guest_atoms:]])
             hg_nb_params = jnp.concatenate([hg_nb_params_src, hg_nb_params_dst])
@@ -156,14 +153,6 @@ class HostGuestTopology():
 
             return hg_nb_params, nb
         else:
-            # no parameter interpolation
-
-            # lj_params_a_src = jax.ops.index_update(lj_params_a, jax.ops.index[:, 1], lj_params_a[:, 1]*0.5)
-            # assert 0
-            guest_qlj = jax.ops.index_update(guest_qlj, jax.ops.index[:, 0], 0)
-            guest_qlj = jax.ops.index_update(guest_qlj, jax.ops.index[:, 2], guest_qlj[:, 2]*0.25)
-
-
             hg_nb_params = jnp.concatenate([self.host_nonbonded.params, guest_qlj])
 
             return hg_nb_params, potentials.Nonbonded(
@@ -221,7 +210,7 @@ class BaseTopology():
         beta = _BETA
         cutoff = _CUTOFF # solve for this analytically later
 
-        LJ_FRACTION = 1.0
+        LJ_FRACTION = 0.25
 
         qlj_params = jnp.concatenate([
             jnp.reshape(q_params, (-1, 1)),
@@ -229,11 +218,11 @@ class BaseTopology():
         ], axis=1)
 
         if stage == 'complex0' or stage == 'solvent':
-            src_guest_qlj = jnp.array(guest_qlj)
-            dst_guest_qlj = jax.ops.index_update(guest_qlj, jax.ops.index[:, 0], 0)
-            dst_guest_qlj = jax.ops.index_update(guest_qlj, jax.ops.index[:, 2], guest_qlj[:, 2]*LJ_FRACTION)
-            qlj_params = jnp.concatenate([src_guest_qlj, dst_guest_qlj])
-            return hg_nb_params, potentials.NonbondedInterpolated(
+            src_qlj_params = jnp.array(qlj_params)
+            dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
+            dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], qlj_params[:, 2]*LJ_FRACTION)
+            qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
+            return qlj_params, potentials.NonbondedInterpolated(
                 exclusion_idxs,
                 scale_factors,
                 lambda_plane_idxs,
@@ -243,10 +232,10 @@ class BaseTopology():
             )
 
         elif stage == 'complex1':
-            guest_qlj = jax.ops.index_update(guest_qlj, jax.ops.index[:, 0], 0)
-            guest_qlj = jax.ops.index_update(guest_qlj, jax.ops.index[:, 2], guest_qlj[:, 2]*LJ_FRACTION)
+            qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
+            qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], qlj_params[:, 2]*LJ_FRACTION)
 
-            return guest_qlj, potentials.Nonbonded(
+            return qlj_params, potentials.Nonbonded(
                 exclusion_idxs,
                 scale_factors,
                 lambda_plane_idxs,
