@@ -138,6 +138,8 @@ class HostGuestTopology():
         hg_lambda_plane_idxs = np.concatenate([self.host_nonbonded.get_lambda_plane_idxs(), guest_p.get_lambda_plane_idxs()])
 
         if is_interpolated:
+
+            assert 0
             # with parameter interpolation
             hg_nb_params_src = jnp.concatenate([self.host_nonbonded.params, guest_qlj[:num_guest_atoms]])
             hg_nb_params_dst = jnp.concatenate([self.host_nonbonded.params, guest_qlj[num_guest_atoms:]])
@@ -155,6 +157,15 @@ class HostGuestTopology():
             return hg_nb_params, nb
         else:
             # no parameter interpolation
+
+            # lj_params_a_src = jax.ops.index_update(lj_params_a, jax.ops.index[:, 1], lj_params_a[:, 1]*0.5)
+
+
+            # assert 0
+            guest_qlj = jax.ops.index_update(guest_qlj, jax.ops.index[:, 0], 0)
+            guest_qlj = jax.ops.index_update(guest_qlj, jax.ops.index[:, 2], guest_qlj[:, 2]*0.25)
+
+
             hg_nb_params = jnp.concatenate([self.host_nonbonded.params, guest_qlj])
 
             return hg_nb_params, potentials.Nonbonded(

@@ -332,12 +332,17 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
     std_du_dls = []
     all_grads = []
 
+    import mdtraj
+
     for lamb_idx, result in enumerate(results[:-1]):
         # (ytz): figure out what to do with stddev(du_dl) later
         # print(debug_prefix+"lambda_idx_"+str(lamb_idx), "lambda", model.lambda_schedule[lamb_idx], "avg du_dl", np.mean(result.du_dls), "std du_dl", np.std(result.du_dls))
         mean_du_dls.append(np.mean(result.du_dls))
         std_du_dls.append(np.std(result.du_dls))
         all_grads.append(result.du_dps)
+
+        traj = mdtraj.Trajectory(result.xs, mdtraj.Topology.from_openmm(model.topology))
+        traj.save_xtc(debug_prefix+"lambda_"+str(lamb_idx)+".xtc")
 
     core_restr = bound_potentials[-1]
     for x, y, z in zip(model.lambda_schedule, mean_du_dls, std_du_dls):
@@ -353,7 +358,7 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
     )
 
 
-    import mdtraj
+
     traj = mdtraj.Trajectory(lhs_xs, mdtraj.Topology.from_openmm(model.topology))
     traj.save_xtc(debug_prefix+"lhs.xtc")
     traj = mdtraj.Trajectory(rhs_xs, mdtraj.Topology.from_openmm(model.topology))
