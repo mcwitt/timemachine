@@ -344,7 +344,6 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
         traj = mdtraj.Trajectory(result.xs, mdtraj.Topology.from_openmm(model.topology))
         traj.save_xtc(debug_prefix+"lambda_"+str(lamb_idx)+".xtc")
 
-    core_restr = bound_potentials[-1]
     for x, y, z in zip(model.lambda_schedule, mean_du_dls, std_du_dls):
         print(f'{debug_prefix}du_dl_ti lambda {x:5.3f} <du/dl> {y:5.3f} o(du/dl) {z:5.3f}')
     dG_ti = np.trapz(mean_du_dls, model.lambda_schedule)
@@ -353,6 +352,8 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
     dG = dG_ti
 
     if model.stage == 'complex1':
+
+        core_restr = bound_potentials[-1]
         dG_endpoint, lhs_du, rhs_du, lhs_xs, rhs_xs = endpoint_correction(
             k_translation=200.0,
             k_rotation=100.0,
@@ -361,7 +362,6 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
             lhs_xs=results[-2].xs,
             rhs_xs=results[-1].xs
         )
-
 
         traj = mdtraj.Trajectory(lhs_xs, mdtraj.Topology.from_openmm(model.topology))
         traj.save_xtc(debug_prefix+"lhs.xtc")
