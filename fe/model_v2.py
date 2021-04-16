@@ -35,7 +35,8 @@ class ABFEModel():
         complex_system: openmm.System,
         complex_coords: np.ndarray,
         complex_box: np.ndarray,
-        complex_schedule: np.ndarray,
+        complex0_schedule: np.ndarray,
+        complex1_schedule: np.ndarray,
         complex_topology: np.ndarray,
         solvent_system: openmm.System,
         solvent_coords: np.ndarray,
@@ -49,7 +50,8 @@ class ABFEModel():
         self.complex_system = complex_system
         self.complex_coords = complex_coords
         self.complex_box = complex_box
-        self.complex_schedule = complex_schedule
+        self.complex0_schedule = complex0_schedule
+        self.complex1_schedule = complex1_schedule
         self.complex_topology = complex_topology
         self.solvent_system = solvent_system
         self.solvent_coords = solvent_coords
@@ -93,8 +95,8 @@ class ABFEModel():
         stage_results = []
 
         for stage, host_system, host_coords, host_box, lambda_schedule, leg_topology in [
-            ("complex0", self.complex_system, self.complex_coords, self.complex_box, self.complex_schedule, self.complex_topology),
-            ("complex1", self.complex_system, self.complex_coords, self.complex_box, self.complex_schedule, self.complex_topology),
+            ("complex0", self.complex_system, self.complex_coords, self.complex_box, self.complex0_schedule, self.complex_topology),
+            ("complex1", self.complex_system, self.complex_coords, self.complex_box, self.complex1_schedule, self.complex_topology),
             ("solvent", self.solvent_system, self.solvent_coords, self.solvent_box, self.solvent_schedule, self.solvent_topology)]:
 
             print(f"Minimizing the {stage} host structure to remove clashes.")

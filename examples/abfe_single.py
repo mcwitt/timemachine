@@ -162,8 +162,8 @@ if __name__ == "__main__":
     # hif2a_ligand_pair.label = label_ddG
 
     # construct lambda schedules for complex and solvent
-    complex_schedule = construct_lambda_schedule(cmd_args.num_complex_windows)
-    solvent_schedule = construct_lambda_schedule(cmd_args.num_solvent_windows)
+    complex1_schedule, complex0_schedule = construct_lambda_schedule(cmd_args.num_complex_windows)
+    solvent_schedule, _ = construct_lambda_schedule(cmd_args.num_solvent_windows)
 
     # build the protein system.
     complex_system, complex_coords, _, _, complex_box, complex_topology = builders.build_protein_system(
@@ -188,7 +188,8 @@ if __name__ == "__main__":
         complex_system,
         complex_coords,
         complex_box,
-        complex_schedule,
+        complex0_schedule,
+        complex1_schedule,
         complex_topology,
         solvent_system,
         solvent_coords,

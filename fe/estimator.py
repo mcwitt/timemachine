@@ -116,6 +116,7 @@ def simulate(debug_file_info, lamb, box, x0, v0, final_potentials, integrator, e
     )
 
     # equilibration
+    # print("lamb", lamb)
     equil_schedule = np.ones(equil_steps)*lamb
     ctxt.multiple_steps(equil_schedule)
 
@@ -309,6 +310,8 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
     debug_prefix = model.debug_info + "_stage_" + model.stage + "_"
 
     x_interval = 50
+
+    print("model.lambda_schedule", model.lambda_schedule)
 
     if model.client is None:
         assert 0
