@@ -169,6 +169,7 @@ class ABFEModel():
                 for core_i, protein_j in zip(row_idxs, col_idxs):
                     core_idxs.append((core[core_i] + num_host_atoms, pocket_atoms[protein_j]))
                     core_params.append((self.k_core, 0.0))
+                    # core_params.append((self.k_core, dij_pocket[core_i, protein_j]))
 
                 core_idxs = np.array(core_idxs, dtype=np.int32)
                 core_params = np.array(core_params, dtype=np.float64)

@@ -177,7 +177,10 @@ if __name__ == "__main__":
     complex_topology = generate_topology([complex_topology, mol], complex_coords, "complex.pdb")
     solvent_topology = generate_topology([solvent_topology, mol], solvent_coords, "solvent.pdb")
 
-    k_core = 30.0
+    k_core = 50.0
+
+    print("k_core", k_core)
+    # k_core = 10000.0
 
     binding_model = model_v2.ABFEModel(
         client,

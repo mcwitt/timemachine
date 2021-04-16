@@ -159,8 +159,6 @@ class HostGuestTopology():
             # no parameter interpolation
 
             # lj_params_a_src = jax.ops.index_update(lj_params_a, jax.ops.index[:, 1], lj_params_a[:, 1]*0.5)
-
-
             # assert 0
             guest_qlj = jax.ops.index_update(guest_qlj, jax.ops.index[:, 0], 0)
             guest_qlj = jax.ops.index_update(guest_qlj, jax.ops.index[:, 2], guest_qlj[:, 2]*0.25)
