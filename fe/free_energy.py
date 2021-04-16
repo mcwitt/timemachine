@@ -57,7 +57,7 @@ class BaseFreeEnergy():
 # this class is serializable.
 class AbsoluteFreeEnergy(BaseFreeEnergy):
 
-    def __init__(self, mol, ff):
+    def __init__(self, mol, top):
         """
         Compute the absolute free energy of a molecule via 4D decoupling.
         Parameters
@@ -68,8 +68,7 @@ class AbsoluteFreeEnergy(BaseFreeEnergy):
             Ligand forcefield
         """
         self.mol = mol
-        self.ff = ff
-        self.top = topology.BaseTopology(mol, ff)
+        self.top = top
 
 
     def prepare_host_edge(self, ff_params, host_system, host_coords):
@@ -238,8 +237,8 @@ def construct_lambda_schedule(num_windows):
 
     # REMOVE ME
     # lambda_schedule = np.ones(num_windows) * 0.99
-    # if num_windows == 2:
-        # lambda_schedule = np.array([0.0, 1.0])
+    if num_windows == 2:
+        lambda_schedule = np.array([0.0, 1.0])
 
     assert lambda_schedule[0] == 0.0
     assert lambda_schedule[-1] == 1.0

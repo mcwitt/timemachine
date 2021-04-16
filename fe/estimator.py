@@ -364,7 +364,7 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
     plt.clf()
     plt.hist(lhs_du, alpha=0.5, density=True, label='lhs', bins=25)
     plt.hist(rhs_du, alpha=0.5, density=True, label='rhs', bins=25)
-    plt.xlim(-40, 40)
+    # plt.xlim(-40, 40)
     plt.savefig(debug_prefix+"overlap")
 
     print(debug_prefix, "dG_ti", dG_ti, "dG_endpoint", dG_endpoint)
