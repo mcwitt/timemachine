@@ -194,7 +194,7 @@ class BaseTopology():
     def get_num_atoms(self):
         return self.mol.GetNumAtoms()
 
-    def parameterize_nonbonded(self, ff_q_params, ff_lj_params):
+    def parameterize_nonbonded(self, ff_q_params, ff_lj_params, stage=None):
         q_params = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol)
         lj_params = self.ff.lj_handle.partial_parameterize(ff_lj_params, self.mol)
 
@@ -215,21 +215,52 @@ class BaseTopology():
         beta = _BETA
         cutoff = _CUTOFF # solve for this analytically later
 
-        nb = potentials.Nonbonded(
-            exclusion_idxs,
-            scale_factors,
-            lambda_plane_idxs,
-            lambda_offset_idxs,
-            beta,
-            cutoff
-        ) 
+        LJ_FRACTION = 0.25
 
-        params = jnp.concatenate([
+        qlj_params = jnp.concatenate([
             jnp.reshape(q_params, (-1, 1)),
             jnp.reshape(lj_params, (-1, 2))
         ], axis=1)
 
-        return params, nb
+        if stage == 'complex0' or stage == 'solvent':
+            src_guest_qlj = jnp.array(guest_qlj)
+            dst_guest_qlj = jax.ops.index_update(guest_qlj, jax.ops.index[:, 0], 0)
+            dst_guest_qlj = jax.ops.index_update(guest_qlj, jax.ops.index[:, 2], guest_qlj[:, 2]*LJ_FRACTION)
+            qlj_params = jnp.concatenate([src_guest_qlj, dst_guest_qlj])
+
+            return hg_nb_params, potentials.NonbondedInterpolated(
+                exclusion_idxs,
+                scale_factors,
+                lambda_plane_idxs,
+                lambda_offset_idxs,
+                beta,
+                cutoff
+            )
+
+        elif stage == 'complex1':
+            guest_qlj = jax.ops.index_update(guest_qlj, jax.ops.index[:, 0], 0)
+            guest_qlj = jax.ops.index_update(guest_qlj, jax.ops.index[:, 2], guest_qlj[:, 2]*LJ_FRACTION)
+
+            return guest_qlj, potentials.Nonbonded(
+                exclusion_idxs,
+                scale_factors,
+                lambda_plane_idxs,
+                lambda_offset_idxs,
+                beta,
+                cutoff
+            )
+
+        else:
+            nb = potentials.Nonbonded(
+                exclusion_idxs,
+                scale_factors,
+                lambda_plane_idxs,
+                lambda_offset_idxs,
+                beta,
+                cutoff
+            )
+
+            return qlj_params, nb
 
     def parameterize_harmonic_bond(self, ff_params):
         params, idxs = self.ff.hb_handle.partial_parameterize(ff_params, self.mol)

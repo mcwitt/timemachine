@@ -93,8 +93,9 @@ class ABFEModel():
         stage_results = []
 
         for stage, host_system, host_coords, host_box, lambda_schedule, leg_topology in [
-            ("complex", self.complex_system, self.complex_coords, self.complex_box, self.complex_schedule, self.complex_topology)]:
-            # ("solvent", self.solvent_system, self.solvent_coords, self.solvent_box, self.solvent_schedule, self.solvent_topology)]:
+            ("complex0", self.complex_system, self.complex_coords, self.complex_box, self.complex_schedule, self.complex_topology),
+            ("complex1", self.complex_system, self.complex_coords, self.complex_box, self.complex_schedule, self.complex_topology),
+            ("solvent", self.solvent_system, self.solvent_coords, self.solvent_box, self.solvent_schedule, self.solvent_topology)]:
 
             print(f"Minimizing the {stage} host structure to remove clashes.")
             # (ytz): this isn't strictly symmetric, and we should modify minimize later on remove
@@ -102,25 +103,27 @@ class ABFEModel():
             # to remove the randomness completely from the minimization.
             min_host_coords = minimizer.minimize_host_4d([mol], host_system, host_coords, self.ff, host_box)
 
-            # single_topology = topology.SingleTopology(mol_a, mol_b, core, self.ff)
-            if True:
-                top = topology.BaseTopology(mol, self.ff)
+            top = topology.BaseTopology(mol, self.ff)
 
-                # NA = mol.GetNumAtoms()
 
-                # combined_lambda_plane_idxs = np.zeros(NA, dtype=np.int32)
-                # combined_lambda_offset_idxs = np.concatenate([
-                #     np.zeros(NA, dtype=np.int32),
-                #     np.ones(NB, dtype=np.int32)
-                # ])
+            functools.partial(top.parameterize_nonbonded, stage=stage)
+            # NA = mol.GetNumAtoms()
 
-                # top.parameterize_nonbonded = functools.partial(top.parameterize_nonbonded,
-                    # minimize=False,
-                # )
+            # combined_lambda_plane_idxs = np.zeros(NA, dtype=np.int32)
+            # combined_lambda_offset_idxs = np.concatenate([
+            #     np.zeros(NA, dtype=np.int32),
+            #     np.ones(NB, dtype=np.int32)
+            # ])
 
-                rfe = free_energy.AbsoluteFreeEnergy(mol, top)
-                unbound_potentials, sys_params, masses, coords = rfe.prepare_host_edge(ff_params, host_system, min_host_coords)
+            # top.parameterize_nonbonded = functools.partial(top.parameterize_nonbonded,
+                # minimize=False,
+            # )
 
+            rfe = free_energy.AbsoluteFreeEnergy(mol, top)
+            unbound_potentials, sys_params, masses, coords = rfe.prepare_host_edge(ff_params, host_system, min_host_coords)
+
+            # setup restraints
+            if stage != "solvent":
                 ligand_coords = get_romol_conf(mol)
                 ri = np.expand_dims(ligand_coords, 1)
                 rj = np.expand_dims(host_coords, 0)
@@ -132,6 +135,7 @@ class ABFEModel():
                 _, host_masses = openmm_deserializer.deserialize_system(host_system, cutoff=1.2)
 
                 atom_names = [a.name for a in leg_topology.atoms()]
+
 
                 def is_alpha_carbon(idx):
                     return atom_names[idx] == 'CA'
@@ -174,8 +178,21 @@ class ABFEModel():
                 core_idxs = np.array(core_idxs, dtype=np.int32)
                 core_params = np.array(core_params, dtype=np.float64)
 
+                B = core_idxs.shape[0]
+
+                if stage == "complex0":
+                    core_lambda_mult = np.ones(B)
+                    core_lambda_offset = np.zeros(B)
+                elif stage == "complex1":
+                    core_lambda_mult = np.zeros(B)
+                    core_lambda_offset = np.ones(B)
+                else:
+                    assert 0
+
                 unbound_potentials.append(potentials.HarmonicBond(
                     core_idxs,
+                    core_lambda_mult.astype(np.int32),
+                    core_lambda_offset.astype(np.int32)
                 ))
                 sys_params.append(core_params)
 
