@@ -224,8 +224,8 @@ class BaseTopology():
 
         if stage == 'complex0' or stage == 'solvent':
             # REMOVE ME
-            src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-            # src_qlj_params = qlj_params
+            # src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
+            src_qlj_params = qlj_params
             dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
             dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], safe_sigmas)
             dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], safe_epsilons)
