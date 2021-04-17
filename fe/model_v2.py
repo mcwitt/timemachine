@@ -236,7 +236,7 @@ class ABFEModel():
 
         # complex - solvent
         pred = (stage_dGs[0] + stage_dGs[1]) - stage_dGs[2]
-         # - stage_dGs[1]
+
 
         return pred, stage_results
 

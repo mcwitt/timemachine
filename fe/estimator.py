@@ -306,6 +306,8 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
         for lamb_idx, lamb in enumerate(model.lambda_schedule):
             results.append(simulate(debug_prefix+"lambda_idx_"+str(lamb_idx), lamb, model.box, model.x0, model.v0, bound_potentials, model.integrator, model.equil_steps, model.prod_steps, x_interval))
     else:
+
+
         futures = []
         for lamb_idx, lamb in enumerate(model.lambda_schedule):
             args = (debug_prefix+"lambda_idx_"+str(lamb_idx), lamb, model.box, model.x0, model.v0, bound_potentials, model.integrator, model.equil_steps, model.prod_steps, x_interval)
@@ -313,6 +315,8 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
 
         # add an unrestrained simulation for the end-point correction
         # endpoint-correction has the restraint turned off
+        # JANKY, extra simulation discarded in complex0 and solvent
+        # if model.stage == 'complex1':
         args = (debug_prefix+"lambda_idx_independent_restraint", 1.0, model.box, model.x0, model.v0, bound_potentials[:-1], model.integrator, model.equil_steps, model.prod_steps, x_interval)
         futures.append(model.client.submit(simulate, *args))
 

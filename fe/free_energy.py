@@ -228,19 +228,20 @@ def construct_lambda_schedule(num_windows):
     lambda_schedule_1 = np.linspace(0, 1, num_windows)
 
     # REMOVE ME
-    # lambda_schedule = np.ones(num_windows) * 0.99
-    if num_windows == 2:
-        lambda_schedule = np.array([0.0, 1.0])
+    lambda_schedule_1 = np.ones(num_windows) * 0.99
+    lambda_schedule_2 = np.ones(num_windows) * 0.99
+    # if num_windows == 2:
+        # lambda_schedule = np.array([0.0, 1.0])
     # lambda_schedule = [0.195]*num_windows
     # lambda_schedule[-1] = 1.0
 
     # print(lambda_schedule)
 
-    assert lambda_schedule_0[0] == 0.0
-    assert lambda_schedule_0[-1] == 1.0
+    # assert lambda_schedule_0[0] == 0.0
+    # assert lambda_schedule_0[-1] == 1.0
 
-    assert lambda_schedule_1[0] == 0.0
-    assert lambda_schedule_1[-1] == 1.0
+    # assert lambda_schedule_1[0] == 0.0
+    # assert lambda_schedule_1[-1] == 1.0
 
     assert len(lambda_schedule_0) == num_windows
     assert len(lambda_schedule_1) == num_windows

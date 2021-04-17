@@ -138,6 +138,7 @@ class HostGuestTopology():
         hg_lambda_plane_idxs = np.concatenate([self.host_nonbonded.get_lambda_plane_idxs(), guest_p.get_lambda_plane_idxs()])
 
         if is_interpolated:
+
             hg_nb_params_src = jnp.concatenate([self.host_nonbonded.params, guest_qlj[:num_guest_atoms]])
             hg_nb_params_dst = jnp.concatenate([self.host_nonbonded.params, guest_qlj[num_guest_atoms:]])
             hg_nb_params = jnp.concatenate([hg_nb_params_src, hg_nb_params_dst])
@@ -218,18 +219,17 @@ class BaseTopology():
 
         # interpolate every atom down to the same epsilon before we decouple
         safe_sigmas = qlj_params[:, 1]
-        safe_sigmas = jnp.ones_like(safe_sigmas)*0.15
+        safe_sigmas = jnp.ones_like(safe_sigmas)*0.125 # half sigma
         safe_epsilons = qlj_params[:, 2]
-        safe_epsilons = jnp.ones_like(safe_epsilons)*0.3
+        safe_epsilons = jnp.ones_like(safe_epsilons)*0.25
 
         if stage == 'complex0' or stage == 'solvent':
-            # REMOVE ME
-            # src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
             src_qlj_params = qlj_params
             dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-            dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], safe_sigmas)
-            dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], safe_epsilons)
+            dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], safe_sigmas)
+            dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], safe_epsilons)
             qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
+
             return qlj_params, potentials.NonbondedInterpolated(
                 exclusion_idxs,
                 scale_factors,
@@ -241,8 +241,8 @@ class BaseTopology():
 
         elif stage == 'complex1':
             qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-            dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], safe_sigmas)
-            dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], safe_epsilons)
+            qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], safe_sigmas)
+            qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], safe_epsilons)
 
             return qlj_params, potentials.Nonbonded(
                 exclusion_idxs,
@@ -254,6 +254,7 @@ class BaseTopology():
             )
 
         else:
+
             nb = potentials.Nonbonded(
                 exclusion_idxs,
                 scale_factors,

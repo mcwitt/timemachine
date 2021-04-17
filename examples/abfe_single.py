@@ -209,7 +209,7 @@ if __name__ == "__main__":
 
         pred, aux = binding_model.predict(ordered_params, mol, core, epoch)
 
-        print(pred)
+        print("prediction", pred)
 
         continue
 
