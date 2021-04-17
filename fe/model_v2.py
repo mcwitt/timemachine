@@ -234,7 +234,8 @@ class ABFEModel():
             stage_dGs.append(dG)
             stage_results.append((stage, results))
 
-        pred = stage_dGs[0]
+        # complex - solvent
+        pred = (stage_dGs[0] + stage_dGs[1]) - stage_dGs[2]
          # - stage_dGs[1]
 
         return pred, stage_results

@@ -225,10 +225,7 @@ def construct_lambda_schedule(num_windows):
         np.linspace(0.35, 1.0, B, endpoint=True),
     ])
 
-    lambda_schedule_1 = np.concatenate([
-        np.linspace(0.0, 0.65, B, endpoint=False),
-        np.linspace(0.65, 1.0, A, endpoint=True),
-    ])
+    lambda_schedule_1 = np.linspace(0, 1, num_windows)
 
     # REMOVE ME
     # lambda_schedule = np.ones(num_windows) * 0.99

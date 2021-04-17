@@ -103,9 +103,9 @@ def simulate(debug_file_info, lamb, box, x0, v0, final_potentials, integrator, e
         "du_dl_interval": du_dl_interval
     }
 
-    pickle.dump(binary,
-        open("initial_state_"+debug_file_info+".pkl", "wb")
-    )
+    # pickle.dump(binary,
+        # open("initial_state_"+debug_file_info+".pkl", "wb")
+    # )
 
     ctxt = custom_ops.Context(
         x0,
@@ -245,19 +245,6 @@ def endpoint_correction(
     rhs_xs_aligned = []
     rhs_du = []
 
-    # import mdtraj
-    # md_topology = mdtraj.Topology.from_openmm(model.topology)
-    # traj = mdtraj.Trajectory(lhs_xs, md_topology)
-    # traj.save_xtc(debug_prefix+"lhs.xtc")
-
-    # md_topology = mdtraj.Topology.from_openmm(model.topology)
-    # traj = mdtraj.Trajectory(rhs_xs, md_topology)
-    # traj.save_xtc(debug_prefix+"rhs.xtc")
-
-
-    # print(restr_group_idxs_a)
-    # print(restr_group_idxs_b)
-
     for x, r, t in zip(rhs_xs, rotation_samples, translation_samples):
         x_a, x_b = rmsd_align(x[restr_group_idxs_a], x[restr_group_idxs_b])
         x_b = x_b@r.T + t
@@ -344,8 +331,8 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
         std_du_dls.append(np.std(result.du_dls))
         all_grads.append(result.du_dps)
 
-        traj = mdtraj.Trajectory(result.xs, mdtraj.Topology.from_openmm(model.topology))
-        traj.save_xtc(debug_prefix+"lambda_"+str(lamb_idx)+".xtc")
+        # traj = mdtraj.Trajectory(result.xs, mdtraj.Topology.from_openmm(model.topology))
+        # traj.save_xtc(debug_prefix+"lambda_"+str(lamb_idx)+".xtc")
 
     for x, y, z in zip(model.lambda_schedule, mean_du_dls, std_du_dls):
         print(f'{debug_prefix}du_dl_ti lambda {x:5.3f} <du/dl> {y:5.3f} o(du/dl) {z:5.3f}')
@@ -366,10 +353,10 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
             rhs_xs=results[-1].xs
         )
 
-        traj = mdtraj.Trajectory(lhs_xs, mdtraj.Topology.from_openmm(model.topology))
-        traj.save_xtc(debug_prefix+"lhs.xtc")
-        traj = mdtraj.Trajectory(rhs_xs, mdtraj.Topology.from_openmm(model.topology))
-        traj.save_xtc(debug_prefix+"rhs.xtc")
+        # traj = mdtraj.Trajectory(lhs_xs, mdtraj.Topology.from_openmm(model.topology))
+        # traj.save_xtc(debug_prefix+"lhs.xtc")
+        # traj = mdtraj.Trajectory(rhs_xs, mdtraj.Topology.from_openmm(model.topology))
+        # traj.save_xtc(debug_prefix+"rhs.xtc")
 
         import matplotlib.pyplot as plt
 
