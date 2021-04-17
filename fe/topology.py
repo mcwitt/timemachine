@@ -210,7 +210,7 @@ class BaseTopology():
         beta = _BETA
         cutoff = _CUTOFF # solve for this analytically later
 
-        LJ_FRACTION = 0.25
+        LJ_FRACTION = 0.35
 
         qlj_params = jnp.concatenate([
             jnp.reshape(q_params, (-1, 1)),
