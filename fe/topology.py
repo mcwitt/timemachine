@@ -218,7 +218,7 @@ class BaseTopology():
 
         # interpolate every atom down to the same epsilon before we decouple
         safe_epsilons = qlj_params[:, 2]
-        safe_epsilons = jnp.ones_like(safe_epsilons)*0.1
+        safe_epsilons = jnp.ones_like(safe_epsilons)*0.25
 
         if stage == 'complex0' or stage == 'solvent':
             # REMOVE ME
