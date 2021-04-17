@@ -210,18 +210,21 @@ class BaseTopology():
         beta = _BETA
         cutoff = _CUTOFF # solve for this analytically later
 
-        LJ_FRACTION = 0.25
 
         qlj_params = jnp.concatenate([
             jnp.reshape(q_params, (-1, 1)),
             jnp.reshape(lj_params, (-1, 2))
         ], axis=1)
 
+        # interpolate every atom down to the same epsilon before we decouple
+        safe_epsilons = qlj_params[:, 2]
+        safe_epsilons = jnp.ones_like(safe_epsilons)*0.1
+
         if stage == 'complex0' or stage == 'solvent':
             # REMOVE ME
             src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
             dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-            dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], qlj_params[:, 2]*LJ_FRACTION)
+            dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], safe_epsilons)
             qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
             return qlj_params, potentials.NonbondedInterpolated(
                 exclusion_idxs,
@@ -234,7 +237,7 @@ class BaseTopology():
 
         elif stage == 'complex1':
             qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-            qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], qlj_params[:, 2]*LJ_FRACTION)
+            qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], safe_epsilons)
 
             return qlj_params, potentials.Nonbonded(
                 exclusion_idxs,
