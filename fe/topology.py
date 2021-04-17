@@ -218,7 +218,8 @@ class BaseTopology():
         ], axis=1)
 
         if stage == 'complex0' or stage == 'solvent':
-            src_qlj_params = jnp.array(qlj_params)
+            # REMOVE ME
+            src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
             dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
             dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], qlj_params[:, 2]*LJ_FRACTION)
             qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
