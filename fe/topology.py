@@ -217,6 +217,8 @@ class BaseTopology():
         ], axis=1)
 
         # interpolate every atom down to the same epsilon before we decouple
+        safe_sigmas = qlj_params[:, 1]
+        safe_sigmas = jnp.ones_like(safe_sigmas)*0.1
         safe_epsilons = qlj_params[:, 2]
         safe_epsilons = jnp.ones_like(safe_epsilons)*0.25
 
@@ -225,6 +227,7 @@ class BaseTopology():
             src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
             # src_qlj_params = qlj_params
             dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
+            dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], safe_sigmas)
             dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], safe_epsilons)
             qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
             return qlj_params, potentials.NonbondedInterpolated(
@@ -238,7 +241,8 @@ class BaseTopology():
 
         elif stage == 'complex1':
             qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-            qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], safe_epsilons)
+            dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], safe_sigmas)
+            dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], safe_epsilons)
 
             return qlj_params, potentials.Nonbonded(
                 exclusion_idxs,
