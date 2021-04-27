@@ -138,6 +138,9 @@ class TestInterpolatedPotential(GradientTest):
             def transform_e(lamb):
                 return jnp.cos(lamb*np.pi/2)
 
+            def transform_w(lamb):
+                return (1-lamb*lamb)
+
             def interpolate_params(lamb, qlj_src, qlj_dst):
                 new_q = (1-transform_q(lamb))*qlj_src[:, 0] + transform_q(lamb)*qlj_dst[:, 0]
                 new_s = (1-transform_s(lamb))*qlj_src[:, 1] + transform_s(lamb)*qlj_dst[:, 1]
@@ -145,6 +148,10 @@ class TestInterpolatedPotential(GradientTest):
                 return jnp.stack([new_q, new_s, new_e], axis=1)
 
             def u_reference(x, params, box, lamb):
+                d4 = cutoff*(lambda_plane_idxs + lambda_offset_idxs*transform_w(lamb))
+                d4 = jnp.expand_dims(d4, axis=-1)
+                x = jnp.concatenate((x, d4), axis=1)
+
                 qlj_src = params[:len(params)//2]
                 qlj_dst = params[len(params)//2:]
                 qlj = interpolate_params(lamb, qlj_src, qlj_dst)
@@ -161,6 +168,7 @@ class TestInterpolatedPotential(GradientTest):
                     args.append("lambda*lambda")
                     args.append("sin(lambda*PI/2)")
                     args.append("cos(lambda*PI/2)")
+                    args.append("1-lambda*lambda")
 
                     test_interpolated_potential = potentials.NonbondedInterpolated(
                         *args,
