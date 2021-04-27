@@ -1,6 +1,5 @@
 #pragma once
 
-// #include "jitify.hpp"
 #include "neighborlist.hpp"
 #include "potential.hpp"
 #include <vector>
@@ -80,8 +79,6 @@ private:
     );
 
     std::string permute_kernel_src_;
-    // jitify::KernelInstantiation permute_kernel_;
-    // jitify::Program program_;
 
 public:
 
