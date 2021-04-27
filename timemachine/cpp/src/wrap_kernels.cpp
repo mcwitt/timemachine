@@ -2,6 +2,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 #include <numeric>
+#include <regex>
 
 #include "context.hpp"
 #include "potential.hpp"
@@ -857,6 +858,16 @@ void declare_periodic_torsion(py::module &m, const char *typestr) {
 
 // }
 
+
+// stackoverflow
+std::string dirname(const std::string& fname) {
+     size_t pos = fname.find_last_of("\\/");
+     return (std::string::npos == pos)
+         ? ""
+         : fname.substr(0, pos);
+}
+
+
 template <typename RealType, bool Interpolated>
 void declare_nonbonded(py::module &m, const char *typestr) {
 
@@ -894,6 +905,16 @@ void declare_nonbonded(py::module &m, const char *typestr) {
         std::vector<int> lambda_offset_idxs(lambda_offset_idxs_i.size());
         std::memcpy(lambda_offset_idxs.data(), lambda_offset_idxs_i.data(), lambda_offset_idxs_i.size()*sizeof(int));
 
+
+        std::string dir_path = dirname(__FILE__);
+        std::string src_path = dir_path + "/kernels/k_lambda_transformer_jit.cuh";
+        std::ifstream t(src_path);
+        std::string source_str((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
+        source_str = std::regex_replace(source_str, std::regex("CUSTOM_EXPRESSION_CHARGE"), transform_lambda_charge);
+        source_str = std::regex_replace(source_str, std::regex("CUSTOM_EXPRESSION_SIGMA"), transform_lambda_sigma);
+        source_str = std::regex_replace(source_str, std::regex("CUSTOM_EXPRESSION_EPSILON"), transform_lambda_epsilon);
+        source_str = std::regex_replace(source_str, std::regex("CUSTOM_EXPRESSION_W"), transform_lambda_w);
+
         return new timemachine::Nonbonded<RealType, Interpolated>(
             exclusion_idxs,
             scales,
@@ -901,10 +922,7 @@ void declare_nonbonded(py::module &m, const char *typestr) {
             lambda_offset_idxs,
             beta,
             cutoff,
-            transform_lambda_charge,
-            transform_lambda_sigma,
-            transform_lambda_epsilon,
-            transform_lambda_w
+            source_str
         );
     }),
     py::arg("exclusion_i"),

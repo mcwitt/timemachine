@@ -1,5 +1,6 @@
 #pragma once
 
+#include "jitify.hpp"
 #include "neighborlist.hpp"
 #include "potential.hpp"
 #include <vector>
@@ -81,7 +82,9 @@ private:
         cudaStream_t stream
     );
 
-    std::string permute_kernel_src_;
+    jitify::KernelInstantiation compute_w_coords_instance_;
+    jitify::KernelInstantiation compute_permute_interpolated_;
+    jitify::KernelInstantiation compute_add_ull_to_real_interpolated_;
 
 public:
 
@@ -96,10 +99,7 @@ public:
         const std::vector<int> &lambda_offset_idxs, // N
         const double beta,
         const double cutoff,
-        const std::string &transform_lambda_charge="lambda",
-        const std::string &transform_lambda_sigma="lambda",
-        const std::string &transform_lambda_epsilon="lambda",
-        const std::string &transform_lambda_w="lambda"
+        const std::string &kernel_src
     );
 
     ~Nonbonded();

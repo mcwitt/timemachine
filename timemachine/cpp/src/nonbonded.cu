@@ -6,7 +6,6 @@
 #include <complex>
 #include <cstdlib>
 #include <cub/cub.cuh>
-#include <regex>
 #include "jitify.hpp"
 
 #include "nonbonded.hpp"
@@ -24,14 +23,6 @@ namespace timemachine {
 static jitify::JitCache kernel_cache;
 
 
-// stackoverflow
-std::string dirname(const std::string& fname) {
-     size_t pos = fname.find_last_of("\\/");
-     return (std::string::npos == pos)
-         ? ""
-         : fname.substr(0, pos);
-}
-
 template <typename RealType, bool Interpolated>
 Nonbonded<RealType, Interpolated>::Nonbonded(
     const std::vector<int> &exclusion_idxs, // [E,2]
@@ -40,10 +31,11 @@ Nonbonded<RealType, Interpolated>::Nonbonded(
     const std::vector<int> &lambda_offset_idxs, // [N]
     const double beta,
     const double cutoff,
-    const std::string &transform_lambda_charge,
-    const std::string &transform_lambda_sigma,
-    const std::string &transform_lambda_epsilon,
-    const std::string &transform_lambda_w
+    const std::string &kernel_src
+    // const std::string &transform_lambda_charge,
+    // const std::string &transform_lambda_sigma,
+    // const std::string &transform_lambda_epsilon,
+    // const std::string &transform_lambda_w
 ) :  N_(lambda_offset_idxs.size()),
     cutoff_(cutoff),
     E_(exclusion_idxs.size()/2),
@@ -76,7 +68,10 @@ Nonbonded<RealType, Interpolated>::Nonbonded(
         &k_nonbonded_unified<RealType, 1, 1, 0, 1>,
         &k_nonbonded_unified<RealType, 1, 1, 1, 0>,
         &k_nonbonded_unified<RealType, 1, 1, 1, 1>
-    }) {
+    }),
+    compute_w_coords_instance_(kernel_cache.program(kernel_src.c_str()).kernel("k_compute_w_coords").instantiate()),
+    compute_permute_interpolated_(kernel_cache.program(kernel_src.c_str()).kernel("k_permute_interpolated").instantiate()),
+    compute_add_ull_to_real_interpolated_(kernel_cache.program(kernel_src.c_str()).kernel("k_add_ull_to_real_interpolated").instantiate()) {
 
     if(lambda_offset_idxs.size() != N_) {
         throw std::runtime_error("lambda offset idxs need to have size N");
@@ -165,20 +160,7 @@ Nonbonded<RealType, Interpolated>::Nonbonded(
     );
 
     gpuErrchk(cudaPeekAtLastError());
-
     gpuErrchk(cudaMalloc(&d_sort_storage_, d_sort_storage_bytes_));
-
-    std::string dir_path = dirname(__FILE__);
-    std::string src_path = dir_path + "/kernels/k_lambda_transformer_jit.cuh";
-    // std::cout << src_path << std::endl;
-    std::ifstream t(src_path);
-    std::string source_str((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
-    source_str = std::regex_replace(source_str, std::regex("CUSTOM_EXPRESSION_CHARGE"), transform_lambda_charge);
-    source_str = std::regex_replace(source_str, std::regex("CUSTOM_EXPRESSION_SIGMA"), transform_lambda_sigma);
-    source_str = std::regex_replace(source_str, std::regex("CUSTOM_EXPRESSION_EPSILON"), transform_lambda_epsilon);
-    source_str = std::regex_replace(source_str, std::regex("CUSTOM_EXPRESSION_W"), transform_lambda_w);
-
-    permute_kernel_src_ = source_str;
 
 };
 
@@ -370,10 +352,7 @@ void Nonbonded<RealType, Interpolated>::execute_device(
 
     // do parameter interpolation here
     if(Interpolated) {
-        auto exec = kernel_cache.program(permute_kernel_src_.c_str());
-        auto result = exec.kernel("k_permute_interpolated")
-        .instantiate()
-        .configure(dimGrid, 32, 0, stream)
+        CUresult result = compute_permute_interpolated_.configure(dimGrid, 32, 0, stream)
         .launch(
             lambda,
             N,
@@ -401,11 +380,8 @@ void Nonbonded<RealType, Interpolated>::execute_device(
     }
 
     // update new w coordinates
-    // cache lambda value for equilibrium calculations
-    auto exec = kernel_cache.program(permute_kernel_src_.c_str());
-    auto result = exec.kernel("k_compute_w_coords")
-    .instantiate()
-    .configure(B, tpb, 0, stream)
+    // (tbd): cache lambda value for equilibrium calculations
+    CUresult result = compute_w_coords_instance_.configure(B, tpb, 0, stream)
     .launch(
         N,
         lambda,
@@ -507,10 +483,7 @@ void Nonbonded<RealType, Interpolated>::execute_device(
 
     if(d_du_dp) {
         if(Interpolated) {
-            auto exec = kernel_cache.program(permute_kernel_src_.c_str());
-            auto result = exec.kernel("k_add_ull_to_real_interpolated")
-            .instantiate()
-            .configure(dimGrid, tpb, 0, stream)
+            CUresult result = compute_add_ull_to_real_interpolated_.configure(dimGrid, tpb, 0, stream)
             .launch(
                 lambda,
                 N,
