@@ -170,7 +170,7 @@ Nonbonded<RealType, Interpolated>::Nonbonded(
 
     std::string dir_path = dirname(__FILE__);
     std::string src_path = dir_path + "/kernels/k_lambda_transformer_jit.cuh";
-    std::cout << src_path << std::endl;
+    // std::cout << src_path << std::endl;
     std::ifstream t(src_path);
     std::string source_str((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
     source_str = std::regex_replace(source_str, std::regex("CUSTOM_EXPRESSION_CHARGE"), transform_lambda_charge);
