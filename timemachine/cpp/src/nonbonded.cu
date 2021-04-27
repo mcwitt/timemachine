@@ -6,6 +6,8 @@
 #include <complex>
 #include <cstdlib>
 #include <cub/cub.cuh>
+#include <regex>
+#include "jitify.hpp"
 
 #include "nonbonded.hpp"
 #include "hilbert.h"
@@ -15,14 +17,65 @@
 
 namespace timemachine {
 
+
+#include <string>
+#include <fstream>
+#include <streambuf>
+
+
+#define CHECK_CUDA(call)                                                  \
+  do {                                                                    \
+    if (call != CUDA_SUCCESS) {                                           \
+      const char* str;                                                    \
+      cuGetErrorName(call, &str);                                         \
+      std::cout << "(CUDA) returned " << str;                             \
+      std::cout << " (" << __FILE__ << ":" << __LINE__ << ":" << __func__ \
+                << "())" << std::endl;                                    \
+      return false;                                                       \
+    }                                                                     \
+  } while (0)
+
+
+static jitify::JitCache kernel_cache;
+
+// const char * permute_kernel = R"V0G0N(mytemplate <typename RealType>
+// void __global__ k_permute_interpolated(
+//     const double lambda,
+//     const int N,
+//     const unsigned int * __restrict__ perm,
+//     const RealType * __restrict__ d_p,
+//     RealType * __restrict__ d_sorted_p,
+//     RealType * __restrict__ d_sorted_dp_dl) {
+
+//     int idx = blockIdx.x*blockDim.x + threadIdx.x;
+//     int stride = gridDim.y;
+//     int stride_idx = blockIdx.y;
+
+//     if(idx >= N) {
+//         return;
+//     }
+
+//     int size = N*stride;
+
+//     int source_idx = idx*stride+stride_idx;
+//     int target_idx = perm[idx]*stride+stride_idx;
+
+//     d_sorted_p[source_idx] = (1-lambda)*d_p[target_idx] + lambda*d_p[size+target_idx];
+//     d_sorted_dp_dl[source_idx] = d_p[size+target_idx] - d_p[target_idx];
+// })V0G0N";
+
+
 template <typename RealType, bool Interpolated>
 Nonbonded<RealType, Interpolated>::Nonbonded(
     const std::vector<int> &exclusion_idxs, // [E,2]
     const std::vector<double> &scales, // [E, 2]
     const std::vector<int> &lambda_plane_idxs, // [N]
     const std::vector<int> &lambda_offset_idxs, // [N]
-    double beta,
-    double cutoff
+    const double beta,
+    const double cutoff,
+    const std::string &transform_lambda_charge,
+    const std::string &transform_lambda_sigma,
+    const std::string &transform_lambda_epsilon
 ) :  N_(lambda_offset_idxs.size()),
     cutoff_(cutoff),
     E_(exclusion_idxs.size()/2),
@@ -55,7 +108,7 @@ Nonbonded<RealType, Interpolated>::Nonbonded(
         &k_nonbonded_unified<RealType, 1, 1, 0, 1>,
         &k_nonbonded_unified<RealType, 1, 1, 1, 0>,
         &k_nonbonded_unified<RealType, 1, 1, 1, 1>
-    }){
+    }) {
 
     if(lambda_offset_idxs.size() != N_) {
         throw std::runtime_error("lambda offset idxs need to have size N");
@@ -144,6 +197,14 @@ Nonbonded<RealType, Interpolated>::Nonbonded(
 
     gpuErrchk(cudaMalloc(&d_sort_storage_, d_sort_storage_bytes_));
 
+
+    std::ifstream t("/home/yutong/Code/timemachine/timemachine/cpp/src/kernels/k_lambda_transformer_jit.cuh");
+    std::string source_str((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
+    source_str = std::regex_replace(source_str, std::regex("CUSTOM_EXPRESSION_CHARGE"), transform_lambda_charge);
+    source_str = std::regex_replace(source_str, std::regex("CUSTOM_EXPRESSION_SIGMA"), transform_lambda_sigma);
+    source_str = std::regex_replace(source_str, std::regex("CUSTOM_EXPRESSION_EPSILON"), transform_lambda_epsilon);
+
+    permute_kernel_src_ = source_str;
 
 };
 
@@ -340,7 +401,11 @@ void Nonbonded<RealType, Interpolated>::execute_device(
 
     // do parameter interpolation here
     if(Interpolated) {
-        k_permute_interpolated<<<dimGrid, tpb, 0, stream>>>(
+        auto exec = kernel_cache.program(permute_kernel_src_.c_str());
+        auto result = exec.kernel("k_permute_interpolated")
+        .instantiate()
+        .configure(dimGrid, 32, 0, stream)
+        .launch(
             lambda,
             N,
             d_perm_,
@@ -348,7 +413,6 @@ void Nonbonded<RealType, Interpolated>::execute_device(
             d_sorted_p_,
             d_sorted_dp_dl_
         );
-        gpuErrchk(cudaPeekAtLastError());
     } else {
         k_permute<<<dimGrid, tpb, 0, stream>>>(N, d_perm_, d_p, d_sorted_p_);
         gpuErrchk(cudaPeekAtLastError());

@@ -1,5 +1,6 @@
 #pragma once
 
+// #include "jitify.hpp"
 #include "neighborlist.hpp"
 #include "potential.hpp"
 #include <vector>
@@ -78,6 +79,10 @@ private:
         cudaStream_t stream
     );
 
+    std::string permute_kernel_src_;
+    // jitify::KernelInstantiation permute_kernel_;
+    // jitify::Program program_;
+
 public:
 
     // these are marked public but really only intended for testing.
@@ -89,8 +94,11 @@ public:
         const std::vector<double> &scales, // [E, 2]
         const std::vector<int> &lambda_plane_idxs, // N
         const std::vector<int> &lambda_offset_idxs, // N
-        double beta,
-        double cutoff
+        const double beta,
+        const double cutoff,
+        const std::string &transform_lambda_charge="lambda",
+        const std::string &transform_lambda_sigma="lambda",
+        const std::string &transform_lambda_epsilon="lambda"
     );
 
     ~Nonbonded();

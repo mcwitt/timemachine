@@ -350,6 +350,8 @@ class TestNonbonded(GradientTest):
             impl = nb_bp.unbound_impl(precision)
             du_dx, du_dp, du_dl, u = impl.execute(x_t, nb_bp.params, box, lamb)
 
+            # assert 0
+
             uimpl2 = nb_bp.unbound_impl(precision)
 
             uimpl2.disable_hilbert_sort()
