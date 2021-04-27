@@ -879,7 +879,8 @@ void declare_nonbonded(py::module &m, const char *typestr) {
         const double cutoff,
         const std::string &transform_lambda_charge="lambda",
         const std::string &transform_lambda_sigma="lambda",
-        const std::string &transform_lambda_epsilon="lambda") {
+        const std::string &transform_lambda_epsilon="lambda",
+        const std::string &transform_lambda_w="lambda") {
 
         std::vector<int> exclusion_idxs(exclusion_i.size());
         std::memcpy(exclusion_idxs.data(), exclusion_i.data(), exclusion_i.size()*sizeof(int));
@@ -902,7 +903,8 @@ void declare_nonbonded(py::module &m, const char *typestr) {
             cutoff,
             transform_lambda_charge,
             transform_lambda_sigma,
-            transform_lambda_epsilon
+            transform_lambda_epsilon,
+            transform_lambda_w
         );
     }),
     py::arg("exclusion_i"),
@@ -913,7 +915,8 @@ void declare_nonbonded(py::module &m, const char *typestr) {
     py::arg("cutoff"),
     py::arg("transform_lambda_charge")="lambda",
     py::arg("transform_lambda_sigma")="lambda",
-    py::arg("transform_lambda_epsilon")="lambda");
+    py::arg("transform_lambda_epsilon")="lambda",
+    py::arg("transform_lambda_w")="lambda");
 
 }
 
