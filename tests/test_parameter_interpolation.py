@@ -165,10 +165,10 @@ class TestInterpolatedPotential(GradientTest):
                     print("lambda", lamb, "cutoff", cutoff, "precision", precision, "xshape", coords.shape)
 
                     args = copy.deepcopy(test_potential.args)
-                    args.append("lambda*lambda")
-                    args.append("sin(lambda*PI/2)")
-                    args.append("cos(lambda*PI/2)")
-                    args.append("1-lambda*lambda")
+                    args.append("lambda*lambda") # transform q
+                    args.append("sin(lambda*PI/2)") # transform sigma
+                    args.append("cos(lambda*PI/2)") # transform epsilon
+                    args.append("1-lambda*lambda") # transform w
 
                     test_interpolated_potential = potentials.NonbondedInterpolated(
                         *args,

@@ -23,6 +23,15 @@ namespace timemachine {
 
 static jitify::JitCache kernel_cache;
 
+
+// stackoverflow
+std::string dirname(const std::string& fname) {
+     size_t pos = fname.find_last_of("\\/");
+     return (std::string::npos == pos)
+         ? ""
+         : fname.substr(0, pos);
+}
+
 template <typename RealType, bool Interpolated>
 Nonbonded<RealType, Interpolated>::Nonbonded(
     const std::vector<int> &exclusion_idxs, // [E,2]
@@ -159,8 +168,10 @@ Nonbonded<RealType, Interpolated>::Nonbonded(
 
     gpuErrchk(cudaMalloc(&d_sort_storage_, d_sort_storage_bytes_));
 
-
-    std::ifstream t("/home/yutong/Code/timemachine/timemachine/cpp/src/kernels/k_lambda_transformer_jit.cuh");
+    std::string dir_path = dirname(__FILE__);
+    std::string src_path = dir_path + "/k_lambda_transformer_jit.cuh";
+    std::cout << src_path << std::endl;
+    std::ifstream t(src_path);
     std::string source_str((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
     source_str = std::regex_replace(source_str, std::regex("CUSTOM_EXPRESSION_CHARGE"), transform_lambda_charge);
     source_str = std::regex_replace(source_str, std::regex("CUSTOM_EXPRESSION_SIGMA"), transform_lambda_sigma);
@@ -415,15 +426,7 @@ void Nonbonded<RealType, Interpolated>::execute_device(
     if(result != 0) {
         throw std::runtime_error("Driver call to k_compute_w_coords");
     }
-    // k_compute_w_coords<<<B, tpb, 0, stream>>>(
-    //     N,
-    //     lambda,
-    //     cutoff_,
-    //     d_lambda_plane_idxs_,
-    //     d_lambda_offset_idxs_,
-    //     d_w_,
-    //     d_dw_dl_
-    // );
+
     gpuErrchk(cudaPeekAtLastError());
     k_permute<<<B, tpb, 0, stream>>>(N, d_perm_, d_w_, d_sorted_w_);
     gpuErrchk(cudaPeekAtLastError());
