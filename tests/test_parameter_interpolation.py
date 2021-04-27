@@ -89,8 +89,9 @@ class TestInterpolatedPotential(GradientTest):
 
     def test_nonbonded_advanced(self):
 
-        # we test nonbonded terms to ensure that we're doing the chain rule with du_dl correctly since
-        # bonded terms do not depend on lambda.
+        # This test checks that we can supply arbitrary transformations of lambda to
+        # the nonbonded potential, and that the resulting derivatives (both du/dp and du/dl)
+        # are correct.
 
         np.random.seed(4321)
         D = 3
