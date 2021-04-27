@@ -1,6 +1,7 @@
 jit_program
 
 #include "timemachine/cpp/src/kernels/surreal.cuh"
+#include "timemachine/cpp/src/kernels/k_fixed_point.cuh"
 
 #define PI 3.141592653589793115997963468544185161
 
@@ -61,5 +62,39 @@ void __global__ k_permute_interpolated(
 
     d_sorted_p[source_idx] = (1-f_lambda)*d_p[target_idx] + f_lambda*d_p[size+target_idx];
     d_sorted_dp_dl[source_idx] = f_lambda_grad*(d_p[size+target_idx] - d_p[target_idx]);
+
+}
+
+void __global__ k_add_ull_to_real_interpolated(
+    const double lambda,
+    const int N,
+    const unsigned long long * __restrict__ ull_array,
+    double * __restrict__ real_array) {
+
+    int idx = blockIdx.x*blockDim.x + threadIdx.x;
+    int stride = gridDim.y;
+    int stride_idx = blockIdx.y;
+
+    if(idx >= N) {
+        return;
+    }
+
+    int size = N*stride;
+    int target_idx = idx*stride+stride_idx;
+
+    // handle charges, sigmas, epsilons with different exponents
+    if(stride_idx == 0) {
+        double f_lambda = transform_lambda_charge(lambda);
+        real_array[target_idx] += (1-f_lambda)*FIXED_TO_FLOAT_DU_DP<double, FIXED_EXPONENT_DU_DCHARGE>(ull_array[target_idx]);
+        real_array[size+target_idx] += f_lambda*FIXED_TO_FLOAT_DU_DP<double, FIXED_EXPONENT_DU_DCHARGE>(ull_array[target_idx]);
+    } else if(stride_idx == 1) {
+        double f_lambda = transform_lambda_sigma(lambda);
+        real_array[target_idx] += (1-f_lambda)*FIXED_TO_FLOAT_DU_DP<double, FIXED_EXPONENT_DU_DSIG>(ull_array[target_idx]);
+        real_array[size+target_idx] += f_lambda*FIXED_TO_FLOAT_DU_DP<double, FIXED_EXPONENT_DU_DSIG>(ull_array[target_idx]);
+    } else if(stride_idx == 2) {
+        double f_lambda = transform_lambda_epsilon(lambda);
+        real_array[target_idx] += (1-f_lambda)*FIXED_TO_FLOAT_DU_DP<double, FIXED_EXPONENT_DU_DEPS>(ull_array[target_idx]);
+        real_array[size+target_idx] += f_lambda*FIXED_TO_FLOAT_DU_DP<double, FIXED_EXPONENT_DU_DEPS>(ull_array[target_idx]);
+    }
 
 }

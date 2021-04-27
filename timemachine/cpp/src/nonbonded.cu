@@ -480,12 +480,25 @@ void Nonbonded<RealType, Interpolated>::execute_device(
 
     if(d_du_dp) {
         if(Interpolated) {
-            k_add_ull_to_real_interpolated<<<dimGrid, tpb, 0, stream>>>(
+            // k_add_ull_to_real_interpolated<<<dimGrid, tpb, 0, stream>>>(
+                // lambda,
+                // N,
+                // d_du_dp_buffer_,
+                // d_du_dp
+            // );
+            auto exec = kernel_cache.program(permute_kernel_src_.c_str());
+            auto result = exec.kernel("k_add_ull_to_real_interpolated")
+            .instantiate()
+            .configure(dimGrid, tpb, 0, stream)
+            .launch(
                 lambda,
                 N,
                 d_du_dp_buffer_,
                 d_du_dp
             );
+            if(result != 0) {
+                throw std::runtime_error("Driver call failed");
+            }
         } else {
             k_add_ull_to_real<<<dimGrid, tpb, 0, stream>>>(
                 N,

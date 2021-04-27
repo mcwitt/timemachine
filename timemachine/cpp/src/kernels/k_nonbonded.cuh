@@ -9,11 +9,6 @@
 #define PI 3.141592653589793115997963468544185161
 #define TWO_OVER_SQRT_PI 1.128379167095512595889238330988549829708
 
-// we need to use a different level of precision for parameter derivatives
-#define FIXED_EXPONENT_DU_DCHARGE 0x1000000000
-#define FIXED_EXPONENT_DU_DSIG    0x2000000000
-#define FIXED_EXPONENT_DU_DEPS    0x4000000000 // this is just getting silly
-
 
 // generate kv values from coordinates to be radix sorted
 void __global__ k_coords_to_kv(
@@ -224,38 +219,6 @@ void __global__ k_add_ull_to_real(
         real_array[idx*stride+stride_idx] += FIXED_TO_FLOAT_DU_DP<RealType, FIXED_EXPONENT_DU_DSIG>(ull_array[idx*stride+stride_idx]);
     } else if(stride_idx == 2) {
         real_array[idx*stride+stride_idx] += FIXED_TO_FLOAT_DU_DP<RealType, FIXED_EXPONENT_DU_DEPS>(ull_array[idx*stride+stride_idx]);
-    }
-
-}
-
-template <typename RealType>
-void __global__ k_add_ull_to_real_interpolated(
-    const double lambda,
-    const int N,
-    const unsigned long long * __restrict__ ull_array,
-    RealType * __restrict__ real_array) {
-
-    int idx = blockIdx.x*blockDim.x + threadIdx.x;
-    int stride = gridDim.y;
-    int stride_idx = blockIdx.y;
-
-    if(idx >= N) {
-        return;
-    }
-
-    int size = N*stride;
-    int target_idx = idx*stride+stride_idx;
-
-    // handle charges, sigmas, epsilons with different exponents
-    if(stride_idx == 0) {
-        real_array[target_idx] += (1-lambda)*FIXED_TO_FLOAT_DU_DP<RealType, FIXED_EXPONENT_DU_DCHARGE>(ull_array[target_idx]);
-        real_array[size+target_idx] += lambda*FIXED_TO_FLOAT_DU_DP<RealType, FIXED_EXPONENT_DU_DCHARGE>(ull_array[target_idx]);
-    } else if(stride_idx == 1) {
-        real_array[target_idx] += (1-lambda)*FIXED_TO_FLOAT_DU_DP<RealType, FIXED_EXPONENT_DU_DSIG>(ull_array[target_idx]);
-        real_array[size+target_idx] += lambda*FIXED_TO_FLOAT_DU_DP<RealType, FIXED_EXPONENT_DU_DSIG>(ull_array[target_idx]);
-    } else if(stride_idx == 2) {
-        real_array[target_idx] += (1-lambda)*FIXED_TO_FLOAT_DU_DP<RealType, FIXED_EXPONENT_DU_DEPS>(ull_array[target_idx]);
-        real_array[size+target_idx] += lambda*FIXED_TO_FLOAT_DU_DP<RealType, FIXED_EXPONENT_DU_DEPS>(ull_array[target_idx]);
     }
 
 }
