@@ -904,7 +904,16 @@ void declare_nonbonded(py::module &m, const char *typestr) {
             transform_lambda_sigma,
             transform_lambda_epsilon
         );
-    }));
+    }),
+    py::arg("exclusion_i"),
+    py::arg("scales_i"),
+    py::arg("lambda_plane_idxs_i"),
+    py::arg("lambda_offset_idxs_i"),
+    py::arg("beta"),
+    py::arg("cutoff"),
+    py::arg("transform_lambda_charge")="lambda",
+    py::arg("transform_lambda_sigma")="lambda",
+    py::arg("transform_lambda_epsilon")="lambda");
 
 }
 
