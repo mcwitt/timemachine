@@ -543,7 +543,6 @@ void __device__ v_nonbonded_unified(
 
             if(COMPUTE_DU_DL && ALCHEMICAL) {
                 // needed for cancellation of nans (if one term blows up)
-                // real_du_dl += delta_w*cutoff*delta_prefactor*(lambda_offset_i - lambda_offset_j);
                 real_du_dl += delta_w*delta_prefactor*(dw_dl_i - dw_dl_j);
                 real_du_dl += inv_dij*ebd*fix_nvidia_fmad(qj, dq_dl_i, qi, dq_dl_j);
                 du_dl += FLOAT_TO_FIXED_NONBONDED(real_du_dl);
@@ -648,8 +647,6 @@ void __global__ k_nonbonded_unified(
     const double * __restrict__ coords_w, // 4D coords
     const double * __restrict__ dw_dl, // 4D derivatives
     const double lambda,
-    // const int * __restrict__ lambda_plane_idxs, // 0 or 1, shift
-    // const int * __restrict__ lambda_offset_idxs, // 0 or 1, how much we offset from the plane by cutoff
     const double beta,
     const double cutoff,
     const int * __restrict__ ixn_tiles,
@@ -662,8 +659,6 @@ void __global__ k_nonbonded_unified(
     int tile_idx = blockIdx.x;
     int row_block_idx = ixn_tiles[tile_idx];
     int atom_i_idx = row_block_idx*32 + threadIdx.x;
-    // int lambda_offset_i = atom_i_idx < N ? lambda_offset_idxs[atom_i_idx] : 0;
-    // int lambda_plane_i = atom_i_idx < N ? lambda_plane_idxs[atom_i_idx] : 0;
 
     RealType dq_dl_i = atom_i_idx < N ? dp_dl[atom_i_idx*3+0] : 0;
     RealType dsig_dl_i = atom_i_idx < N ? dp_dl[atom_i_idx*3+1] : 0;
@@ -671,8 +666,6 @@ void __global__ k_nonbonded_unified(
     RealType cw_i = atom_i_idx < N ? coords_w[atom_i_idx] : 0;
 
     int atom_j_idx = ixn_atoms[tile_idx*32 + threadIdx.x];
-    // int lambda_offset_j = atom_j_idx < N ? lambda_offset_idxs[atom_j_idx] : 0;
-    // int lambda_plane_j = atom_j_idx < N ? lambda_plane_idxs[atom_j_idx] : 0;
 
     RealType dq_dl_j = atom_j_idx < N ? dp_dl[atom_j_idx*3+0] : 0;
     RealType dsig_dl_j = atom_j_idx < N ? dp_dl[atom_j_idx*3+1] : 0;
@@ -702,8 +695,6 @@ void __global__ k_nonbonded_unified(
             coords_w,
             dw_dl,
             lambda,
-            // lambda_plane_idxs,
-            // lambda_offset_idxs,
             beta,
             cutoff,
             ixn_tiles,
@@ -723,8 +714,6 @@ void __global__ k_nonbonded_unified(
             coords_w,
             dw_dl,
             lambda,
-            // lambda_plane_idxs,
-            // lambda_offset_idxs,
             beta,
             cutoff,
             ixn_tiles,
@@ -750,8 +739,6 @@ void __global__ k_nonbonded_exclusions(
     const double * __restrict__ coords_w, // 4D coords
     const double * __restrict__ dw_dl, // 4D derivatives
     const double lambda,
-    // const int * __restrict__ lambda_plane_idxs, // 0 or 1, shift
-    // const int * __restrict__ lambda_offset_idxs, // 0 or 1, if we alolw this atom to be decoupled
     const int * __restrict__ exclusion_idxs, // [E, 2] pair-list of atoms to be excluded
     const double * __restrict__ scales, // [E]
     const double beta,
@@ -774,8 +761,6 @@ void __global__ k_nonbonded_exclusions(
     }
 
     int atom_i_idx = exclusion_idxs[e_idx*2 + 0];
-    // int lambda_offset_i = lambda_offset_idxs[atom_i_idx];
-    // int lambda_plane_i = lambda_plane_idxs[atom_i_idx];
 
     RealType ci_x = coords[atom_i_idx*3+0];
     RealType ci_y = coords[atom_i_idx*3+1];
@@ -804,8 +789,6 @@ void __global__ k_nonbonded_exclusions(
     unsigned long long g_epsi = 0;
 
     int atom_j_idx = exclusion_idxs[e_idx*2 + 1];
-    // int lambda_offset_j = lambda_offset_idxs[atom_j_idx];
-    // int lambda_plane_j = lambda_plane_idxs[atom_j_idx];
 
     RealType cj_x = coords[atom_j_idx*3+0];
     RealType cj_y = coords[atom_j_idx*3+1];
@@ -857,8 +840,6 @@ void __global__ k_nonbonded_exclusions(
     delta_x -= box_x*nearbyint(delta_x*inv_box_x);
     delta_y -= box_y*nearbyint(delta_y*inv_box_y);
     delta_z -= box_z*nearbyint(delta_z*inv_box_z);
-
-    // RealType delta_w = (lambda_plane_i - lambda_plane_j)*real_cutoff + (lambda_offset_i - lambda_offset_j)*real_lambda*real_cutoff;
 
     RealType delta_w = ci_w - cj_w;
     RealType d2ij = delta_x*delta_x + delta_y*delta_y + delta_z*delta_z + delta_w*delta_w;
@@ -942,7 +923,6 @@ void __global__ k_nonbonded_exclusions(
         g_qi -= FLOAT_TO_FIXED_DU_DP<RealType, FIXED_EXPONENT_DU_DCHARGE>(charge_scale*qj*inv_dij*ebd);
         g_qj -= FLOAT_TO_FIXED_DU_DP<RealType, FIXED_EXPONENT_DU_DCHARGE>(charge_scale*qi*inv_dij*ebd);
 
-        // real_du_dl -= delta_w*cutoff*delta_prefactor*(lambda_offset_i - lambda_offset_j);
         real_du_dl -= delta_w*delta_prefactor*(dw_dl_i - dw_dl_j);
         real_du_dl -= charge_scale*inv_dij*ebd*fix_nvidia_fmad(qj, dq_dl_i, qi, dq_dl_j);
 
