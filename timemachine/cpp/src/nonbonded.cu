@@ -169,7 +169,7 @@ Nonbonded<RealType, Interpolated>::Nonbonded(
     gpuErrchk(cudaMalloc(&d_sort_storage_, d_sort_storage_bytes_));
 
     std::string dir_path = dirname(__FILE__);
-    std::string src_path = dir_path + "/k_lambda_transformer_jit.cuh";
+    std::string src_path = dir_path + "/kernels/k_lambda_transformer_jit.cuh";
     std::cout << src_path << std::endl;
     std::ifstream t(src_path);
     std::string source_str((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
@@ -205,15 +205,11 @@ Nonbonded<RealType, Interpolated>::~Nonbonded() {
     gpuErrchk(cudaFree(d_sorted_dp_dl_));
     gpuErrchk(cudaFree(d_sorted_du_dx_));
     gpuErrchk(cudaFree(d_sorted_du_dp_));
-    // gpuErrchk(cudaFree(d_sorted_lambda_plane_idxs_));
-    // gpuErrchk(cudaFree(d_sorted_lambda_offset_idxs_));
 
     gpuErrchk(cudaFree(d_sort_keys_in_));
     gpuErrchk(cudaFree(d_sort_keys_out_));
     gpuErrchk(cudaFree(d_sort_vals_in_));
     gpuErrchk(cudaFree(d_sort_storage_));
-
-    // gpuErrchk(cudaFree(d_sum_storage_));
 
     gpuErrchk(cudaFreeHost(p_ixn_count_));
 
@@ -354,10 +350,6 @@ void Nonbonded<RealType, Interpolated>::execute_device(
         // compute new coordinates, new lambda_idxs, new_plane_idxs
         k_permute<<<dimGrid, tpb, 0, stream>>>(N, d_perm_, d_x, d_sorted_x_);
         gpuErrchk(cudaPeekAtLastError());
-        // k_permute<<<B, tpb, 0, stream>>>(N, d_perm_, d_lambda_plane_idxs_, d_sorted_lambda_plane_idxs_);
-        // gpuErrchk(cudaPeekAtLastError());
-        // k_permute<<<B, tpb, 0, stream>>>(N, d_perm_, d_lambda_offset_idxs_, d_sorted_lambda_offset_idxs_);
-        // gpuErrchk(cudaPeekAtLastError());
         nblist_.build_nblist_device(
             N,
             d_sorted_x_,
@@ -477,7 +469,6 @@ void Nonbonded<RealType, Interpolated>::execute_device(
     // exclusions use the non-sorted version
     if(E_ > 0) {
 
-        // throw std::runtime_error("debug mode");
         const int tpb = 32;
         dim3 dimGridExclusions((E_+tpb-1)/tpb, 1, 1);
 
@@ -502,8 +493,6 @@ void Nonbonded<RealType, Interpolated>::execute_device(
             d_w_,
             d_dw_dl_,
             lambda,
-            // d_lambda_plane_idxs_,
-            // d_lambda_offset_idxs_,
             d_exclusion_idxs_,
             d_scales_,
             beta_,
@@ -518,12 +507,6 @@ void Nonbonded<RealType, Interpolated>::execute_device(
 
     if(d_du_dp) {
         if(Interpolated) {
-            // k_add_ull_to_real_interpolated<<<dimGrid, tpb, 0, stream>>>(
-                // lambda,
-                // N,
-                // d_du_dp_buffer_,
-                // d_du_dp
-            // );
             auto exec = kernel_cache.program(permute_kernel_src_.c_str());
             auto result = exec.kernel("k_add_ull_to_real_interpolated")
             .instantiate()
