@@ -905,7 +905,6 @@ void declare_nonbonded(py::module &m, const char *typestr) {
         std::vector<int> lambda_offset_idxs(lambda_offset_idxs_i.size());
         std::memcpy(lambda_offset_idxs.data(), lambda_offset_idxs_i.data(), lambda_offset_idxs_i.size()*sizeof(int));
 
-
         std::string dir_path = dirname(__FILE__);
         std::string src_path = dir_path + "/kernels/k_lambda_transformer_jit.cuh";
         std::ifstream t(src_path);
