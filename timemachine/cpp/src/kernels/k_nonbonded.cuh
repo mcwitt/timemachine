@@ -122,58 +122,6 @@ void __global__ k_check_rebuild_coords_and_box(
 
 }
 
-
-// __global__ void k_interpolate_parameters(
-//     const double lambda,
-//     const int P_base,
-//     const double * __restrict__ params_src,
-//     const double * __restrict__ params_dst,
-//     double *params_out) {
-
-//     int idx = blockIdx.x*blockDim.x + threadIdx.x;
-
-//     if(idx >= P_base) {
-//         return;
-//     }
-
-//     params_out[idx] = (1-lambda)*params_src[idx] + lambda*params_dst[idx];
-// }
-
-
-// template <typename RealType>
-// void __global__ k_permute_interpolated(
-//     const double lambda,
-//     const int N,
-//     const unsigned int * __restrict__ perm,
-//     const RealType * __restrict__ d_p,
-//     RealType * __restrict__ d_sorted_p,
-//     RealType * __restrict__ d_sorted_dp_dl) {
-
-//     int idx = blockIdx.x*blockDim.x + threadIdx.x;
-//     int stride = gridDim.y;
-//     int stride_idx = blockIdx.y;
-
-//     if(idx >= N) {
-//         return;
-//     }
-
-//     int size = N*stride;
-
-//     int source_idx = idx*stride+stride_idx;
-//     int target_idx = perm[idx]*stride+stride_idx;
-
-//     // f_lambda = transform_lambda(lambda);
-//     // df_dlambda_grad = transform_lambda(lambda);
-//     printf("%d %d %d %d\n", blockDim.x, blockDim.y, gridDim.x, gridDim.y);
-//     // printf("!! %d lambda %f N %d tgt %f src %f \n", idx, lambda, N, d_p[target_idx], d_p[size+target_idx]);
-//     d_sorted_p[source_idx] = (1-lambda)*d_p[target_idx] + lambda*d_p[size+target_idx];
-//     d_sorted_dp_dl[source_idx] = d_p[size+target_idx] - d_p[target_idx];
-
-// }
-
-
-
-
 template <typename RealType>
 void __global__ k_permute(
     const int N,
