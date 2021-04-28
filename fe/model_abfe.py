@@ -134,15 +134,6 @@ class AbsoluteModel():
         self.equil_steps = equil_steps
         self.prod_steps = prod_steps
 
-    # def setup_host_1_stage(self,
-    #     ff_params,
-    #     mol,
-    #     restraint):
-    #     """
-    #     4D decouple the ligand from the binding pocket, possibly performing an endpoint correction if restraints are present
-    #     """
-    # def stage_decouple()
-
     def predict(self,
         ff_params,
         mol,
@@ -150,8 +141,8 @@ class AbsoluteModel():
         prefix):
 
         print(f"Minimizing the host structure to remove clashes.")
-        min_host_coords = minimizer.minimize_host_4d([mol], self.host_system, self.host_coords, self.ff, self.host_box)
-        # min_host_coords = self.host_coords
+        # min_host_coords = minimizer.minimize_host_4d([mol], self.host_system, self.host_coords, self.ff, self.host_box)
+        min_host_coords = self.host_coords
 
         # top = topology.BaseTopology(mol, self.ff)
         afe = free_energy.AbsoluteFreeEnergy(mol, self.ff)
@@ -233,16 +224,6 @@ class AbsoluteModel():
         dG, results = estimator_abfe.deltaG(model, sys_params)
 
         return dG, results
-        # dG0, grads0 = self.stage_0(ff_params, mol, restraint)
-        # dG1, grads1 = self.stage_1(ff_params, mol, restraint)
-
-        # model = estimator.FreeEnergyModel(
-            # [dG0, dG1],
-            # [grads0, grads1]
-        # )
-
-        # dG = estimator.deltaG(model, sys_params)
-        # not clear what the derivative is quite yet
 
 
 
