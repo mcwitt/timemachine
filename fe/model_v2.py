@@ -95,8 +95,8 @@ class ABFEModel():
         stage_results = []
 
         for stage, host_system, host_coords, host_box, lambda_schedule, leg_topology in [
-            ("complex0", self.complex_system, self.complex_coords, self.complex_box, self.complex0_schedule, self.complex_topology),
-            ("complex1", self.complex_system, self.complex_coords, self.complex_box, self.complex1_schedule, self.complex_topology),
+            # ("complex0", self.complex_system, self.complex_coords, self.complex_box, self.complex0_schedule, self.complex_topology),
+            # ("complex1", self.complex_system, self.complex_coords, self.complex_box, self.complex1_schedule, self.complex_topology),
             ("solvent", self.solvent_system, self.solvent_coords, self.solvent_box, self.solvent_schedule, self.solvent_topology)]:
 
             print(f"Minimizing the {stage} host structure to remove clashes.")
