@@ -141,8 +141,8 @@ class AbsoluteModel():
         prefix):
 
         print(f"Minimizing the host structure to remove clashes.")
-        # min_host_coords = minimizer.minimize_host_4d([mol], self.host_system, self.host_coords, self.ff, self.host_box)
-        min_host_coords = self.host_coords
+        min_host_coords = minimizer.minimize_host_4d([mol], self.host_system, self.host_coords, self.ff, self.host_box)
+        # min_host_coords = self.host_coords
 
         # top = topology.BaseTopology(mol, self.ff)
         afe = free_energy.AbsoluteFreeEnergy(mol, self.ff)
