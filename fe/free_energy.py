@@ -246,7 +246,8 @@ def construct_lambda_schedule(num_windows):
     # assert len(lambda_schedule_0) == num_windows
     # assert len(lambda_schedule_1) == num_windows
 
-    lambda_schedule_0 = np.array([0.11, 0.12, 0.13, 0.14, 0.15,0.16, 0.17])
-    lambda_schedule_1 = np.array([0.11, 0.12, 0.13, 0.14, 0.15,0.16, 0.17])
+    lambda_schedule_0 = np.linspace(0.1, 0.25, num_windows)
+    lambda_schedule_1 = np.linspace(0.1, 0.25, num_windows)
+    # lambda_schedule_1 = np.array([0.11, 0.12, 0.13, 0.14, 0.15,0.16, 0.17])
 
     return lambda_schedule_0, lambda_schedule_1
