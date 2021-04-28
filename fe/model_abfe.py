@@ -142,9 +142,7 @@ class AbsoluteModel():
 
         print(f"Minimizing the host structure to remove clashes.")
         min_host_coords = minimizer.minimize_host_4d([mol], self.host_system, self.host_coords, self.ff, self.host_box)
-        # min_host_coords = self.host_coords
 
-        # top = topology.BaseTopology(mol, self.ff)
         afe = free_energy.AbsoluteFreeEnergy(mol, self.ff)
 
         unbound_potentials, sys_params, masses, coords = afe.prepare_host_edge(
@@ -154,7 +152,7 @@ class AbsoluteModel():
         )
 
         # setup lambda transformations
-        transform_qlj = "lambda < 0.5 ? sin(lambda*PI)*sin(lambda*PI) : 0"
+        transform_qlj = "lambda < 0.5 ? sin(lambda*PI)*sin(lambda*PI) : 1"
         transform_w = "lambda < 0.5 ? 0.0 : sin((lambda+0.5)*PI)*sin((lambda+0.5)*PI)"
 
         nonbonded = unbound_potentials[-1]
