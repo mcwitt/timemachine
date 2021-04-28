@@ -152,9 +152,12 @@ class HostGuestTopology():
                 guest_p.get_cutoff()
             )
 
+
             return hg_nb_params, nb
         else:
             hg_nb_params = jnp.concatenate([self.host_nonbonded.params, guest_qlj])
+
+            print("FINAL", hg_nb_params)
 
             return hg_nb_params, potentials.Nonbonded(
                 hg_exclusion_idxs,
@@ -219,7 +222,7 @@ class BaseTopology():
 
         # interpolate every atom down to the same epsilon before we decouple
         safe_sigmas = qlj_params[:, 1]
-        safe_sigmas = jnp.ones_like(safe_sigmas)*0.2 # half sigma
+        safe_sigmas = jnp.ones_like(safe_sigmas)*0.15 # half sigma
         safe_epsilons = qlj_params[:, 2]
         safe_epsilons = jnp.ones_like(safe_epsilons)*0.25
 
