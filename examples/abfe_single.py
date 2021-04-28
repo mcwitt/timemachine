@@ -188,8 +188,8 @@ if __name__ == "__main__":
     for epoch in range(1000):
         epoch_params = serialize_handlers(ordered_handles)
 
-        dG_complex, results = binding_model_complex.predict(ordered_params, mol, restraints=True, prefix='complex_'+str(epoch))
         dG_solvent, results = binding_model_solvent.predict(ordered_params, mol, restraints=False, prefix='solvent_'+str(epoch))
+        dG_complex, results = binding_model_complex.predict(ordered_params, mol, restraints=True, prefix='complex_'+str(epoch))
 
         print("epoch", epoch, "dG_complex", dG_complex, "dG_solvent", dG_solvent)
 
