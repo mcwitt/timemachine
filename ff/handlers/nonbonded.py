@@ -393,7 +393,7 @@ class AM1CCCHandler(SerializableMixIn):
         decremented = ops.index_add(incremented, bond_idxs[:, 1], -deltas)
 
         # REMOVE ME
-        q_params = decremented*0
+        q_params = decremented
         assert (q_params.shape[0] == mol.GetNumAtoms()) # check that return shape is consistent with input mol
 
         return q_params
