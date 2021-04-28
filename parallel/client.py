@@ -118,7 +118,7 @@ class CUDAPoolClient(ProcessPoolClient):
     @staticmethod
     def wrapper(idx, fn, *args):
         print("SETTING CUDA VISIBLE DEVICES TO", str(idx))
-        os.environ['CUDA_VISIBLE_DEVICES'] = str(idx)
+        # os.environ['CUDA_VISIBLE_DEVICES'] = str(idx)
         return fn(*args)
 
     def submit(self, task_fn, *args):
