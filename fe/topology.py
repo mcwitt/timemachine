@@ -243,8 +243,8 @@ class BaseTopology():
         elif stage == 'complex1' or stage == 'solvent':
             print("DEBUG")
             qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-            # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], safe_sigmas)
-            # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], safe_epsilons)
+            qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], safe_sigmas)
+            qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], safe_epsilons)
 
             return qlj_params, potentials.Nonbonded(
                 exclusion_idxs,
