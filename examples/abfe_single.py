@@ -71,6 +71,8 @@ if __name__ == "__main__":
 
     cmd_args = parser.parse_args()
 
+    print("NUM_GPUS", cmd_args.num_gpus)
+
     client = CUDAPoolClient(max_workers=cmd_args.num_gpus)
 
     # fetch mol_a, mol_b, core, forcefield from testsystem
