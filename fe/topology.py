@@ -266,6 +266,10 @@ class BaseTopology():
         dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], safe_epsilons)
         qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
 
+        # print("src_qlj_params", src_qlj_params)
+        # print("dst_qlj_params", dst_qlj_params)
+        # print("qlj_params", qlj_params)
+
         return qlj_params, potentials.NonbondedInterpolated(
             exclusion_idxs,
             scale_factors,
