@@ -78,20 +78,14 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
 
     """
 
-    # print("SIMULATING WITH DEVICE", os.environ['CUDA_VISIBLE_DEVICES'])
+    print("SIMULATING WITH DEVICE", os.environ['CUDA_VISIBLE_DEVICES'])
     all_impls = []
-    bonded_impls = []
-    nonbonded_impls = []
 
     # set up observables for du_dps here as well.
     du_dp_obs = []
 
     for bp in final_potentials:
         impl = bp.bound_impl(np.float32)
-        if isinstance(bp, potentials.Nonbonded):
-            nonbonded_impls.append(impl)
-        else:
-            bonded_impls.append(impl)
         all_impls.append(impl)
         du_dp_obs.append(custom_ops.AvgPartialUPartialParam(impl, 5))
 
