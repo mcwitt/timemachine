@@ -154,8 +154,11 @@ class AbsoluteModel():
         )
 
         # setup lambda transformations
-        transform_qlj = "lambda < 0.5 ? 2*lambda : 1.0"
-        transform_w = "lambda < 0.5 ? 0.0 : 2*lambda-1"
+        # transform_qlj = "lambda < 0.5 ? 2*lambda : 1.0"
+        # transform_w = "lambda < 0.5 ? 0.0 : 2*lambda-1"
+
+        transform_qlj = "lambda"
+        transform_w = "lambda"
 
         nonbonded = unbound_potentials[-1]
         nonbonded.args.extend([
