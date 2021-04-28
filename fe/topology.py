@@ -224,7 +224,7 @@ class BaseTopology():
         safe_sigmas = qlj_params[:, 1]
         safe_sigmas = jnp.ones_like(safe_sigmas)*0.15 # half sigma
         safe_epsilons = qlj_params[:, 2]
-        safe_epsilons = jnp.ones_like(safe_epsilons)*0.25
+        safe_epsilons = jnp.ones_like(safe_epsilons)*0.0
 
         # if stage == 'complex0' or stage == 'solvent':
         if stage == 'complex0':
