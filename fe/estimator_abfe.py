@@ -78,7 +78,6 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
 
     """
 
-    print("SIMULATING WITH DEVICE", os.environ['CUDA_VISIBLE_DEVICES'])
     all_impls = []
 
     # set up observables for du_dps here as well.
