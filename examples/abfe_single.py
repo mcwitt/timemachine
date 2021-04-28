@@ -24,10 +24,14 @@ from typing import Union, Optional, Iterable, Any, Tuple, Dict
 
 from optimize.step import truncated_step
 
+import multiprocessing
+
 array = Union[np.array, jnp.array]
 Handler = Union[AM1CCCHandler, LennardJonesHandler] # TODO: do these all inherit from a Handler class already?
 
 if __name__ == "__main__":
+
+    multiprocessing.set_start_method('spawn')
 
     parser = argparse.ArgumentParser(
         description="Relative Binding Free Energy Testing",
