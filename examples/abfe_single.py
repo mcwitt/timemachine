@@ -191,8 +191,9 @@ if __name__ == "__main__":
         dG_complex, results = binding_model_complex.predict(ordered_params, mol, restraints=True, prefix='complex_'+str(epoch))
         dG_solvent, results = binding_model_solvent.predict(ordered_params, mol, restraints=False, prefix='solvent_'+str(epoch))
 
-        print("dG_complex", dG_complex)
-        print("dG_solvent", dG_solvent)
+        print("epoch", epoch, "dG_complex", dG_complex, "dG_solvent", dG_solvent)
+
+        continue
 
         assert 0
 

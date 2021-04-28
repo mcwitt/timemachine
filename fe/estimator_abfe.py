@@ -153,7 +153,6 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
         bound_potentials.append(bp)
 
     # if endpoint-correction is turned on, it is assumed that the last unbound_potential corresponds to the restraining potential
-
     if model.client is None:
         assert 0
         results = []
