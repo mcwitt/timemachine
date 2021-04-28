@@ -269,12 +269,12 @@ class BaseTopology():
 
         # no charges, and no epsilons either
         src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-        src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 1], 0.1)
-        src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], 0.1)
+        # src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 1], 0.1)
+        # src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], 0.1)
 
         dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], 0.1)
-        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], 0.1)
+        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], 0.1)
+        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], 0.1)
 
         qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
 
