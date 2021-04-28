@@ -178,7 +178,6 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
     all_grads = []
 
     if model.endpoint_correct:
-        endpoint_results = results[-1]
         ti_results = results[:-1]
     else:
         ti_results = results
