@@ -256,9 +256,9 @@ class BaseTopology():
 
         # interpolate every atom down to the same epsilon before we decouple
         safe_sigmas = qlj_params[:, 1]
-        safe_sigmas = jnp.ones_like(safe_sigmas)*0.125 # half sigma
+        safe_sigmas = jnp.ones_like(safe_sigmas)*0.1 # half sigma
         safe_epsilons = qlj_params[:, 2]
-        safe_epsilons = jnp.ones_like(safe_epsilons)*0.25
+        safe_epsilons = jnp.ones_like(safe_epsilons)*0.1
 
         src_qlj_params = qlj_params
         src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
