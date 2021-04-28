@@ -260,21 +260,21 @@ class BaseTopology():
         safe_epsilons = qlj_params[:, 2]
         safe_epsilons = jnp.ones_like(safe_epsilons)*0.1
 
-        src_qlj_params = qlj_params
-        dst_qlj_params = qlj_params
+        # src_qlj_params = qlj_params
+        # dst_qlj_params = qlj_params
         # src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
         # dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
         # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], safe_sigmas)
         # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], safe_epsilons)
 
         # no charges, and no epsilons either
-        # src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-        # src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 1], 0.1)
-        # src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], 0.1)
+        src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
+        src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 1], 0.1)
+        src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], 0.1)
 
-        # dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], 0.1)
-        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], 0.1)
+        dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
+        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], 0.1)
+        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], 0.1)
 
         qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
 
