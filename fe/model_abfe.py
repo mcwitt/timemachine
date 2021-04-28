@@ -7,7 +7,7 @@ from rdkit import Chem
 
 from timemachine import constants
 
-from md import minimizer, simulate
+from md import minimizer
 from timemachine.lib import LangevinIntegrator
 from timemachine.lib import potentials
 from fe import free_energy, topology, estimator_abfe
