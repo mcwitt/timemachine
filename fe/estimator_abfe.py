@@ -15,6 +15,8 @@ from typing import Tuple, List, Any
 import dataclasses
 import jax.numpy as jnp
 
+import os
+
 @dataclasses.dataclass
 class SimulationResult:
    xs: np.array
@@ -75,6 +77,8 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
         Results of the simulation.
 
     """
+
+    print("SIMULATING WITH DEVICE", os.environ['CUDA_VISIBLE_DEVICES'])
     all_impls = []
     bonded_impls = []
     nonbonded_impls = []
