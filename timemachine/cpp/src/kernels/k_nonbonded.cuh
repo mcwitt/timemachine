@@ -46,7 +46,7 @@ void __global__ k_coords_to_kv(
 
     keys[atom_idx] = bin_to_idx[bin_x*256*256+bin_y*256+bin_z];
     // uncomment below if you want to perserve the atom ordering
-    // keys[atom_idx] = atom_idx;
+    keys[atom_idx] = atom_idx;
     vals[atom_idx] = atom_idx;
 
 }

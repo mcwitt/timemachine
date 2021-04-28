@@ -84,6 +84,7 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
     du_dp_obs = []
 
     for bp in final_potentials:
+
         impl = bp.bound_impl(np.float32)
         all_impls.append(impl)
         du_dp_obs.append(custom_ops.AvgPartialUPartialParam(impl, 5))

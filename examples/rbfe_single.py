@@ -184,7 +184,7 @@ if __name__ == "__main__":
 
         step_lower_bound = loss * relative_improvement_bound
         theta_increment = truncated_step(flat_theta, loss, flat_loss_grad, step_lower_bound=step_lower_bound)
-        param_increments= unflatten_theta(theta_increment)
+        param_increments = unflatten_theta(theta_increment)
 
         # for any parameter handler types being updated, update in place
         for handle in ordered_handles:

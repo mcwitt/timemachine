@@ -268,6 +268,8 @@ def construct_lambda_schedule(num_windows):
         np.linspace(0.75, 1.0, C, endpoint=True)
     ])
 
+    # lambda_schedule = 0.589*np.ones(num_windows)
+
     assert len(lambda_schedule) == num_windows
 
     return lambda_schedule

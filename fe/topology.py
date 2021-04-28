@@ -255,21 +255,29 @@ class BaseTopology():
         ], axis=1)
 
         # interpolate every atom down to the same epsilon before we decouple
-        safe_sigmas = qlj_params[:, 1]
-        safe_sigmas = jnp.ones_like(safe_sigmas)*0.125 # half sigma
-        safe_epsilons = qlj_params[:, 2]
-        safe_epsilons = jnp.ones_like(safe_epsilons)*0.25
+        safe_sigmas = jnp.ones_like(qlj_params[:, 1])*0.1 # half sigma
+        safe_epsilons = jnp.ones_like(qlj_params[:, 2])*0.1
 
-        src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-        # src_qlj_params = qlj_params
+        src_qlj_params = qlj_params
         dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
         dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], safe_sigmas)
         dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], safe_epsilons)
-        qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
+
+        # no charges, and no epsilons either
+        # src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
+        # src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 1], 0.1)
+        # src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], 0.1)
+
+        # dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
+        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], 0.1)
+        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], 0.1)
+
+        # qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
 
         # print("src_qlj_params", src_qlj_params)
         # print("dst_qlj_params", dst_qlj_params)
         # print("qlj_params", qlj_params)
+        # assert 0
 
         return qlj_params, potentials.NonbondedInterpolated(
             exclusion_idxs,
