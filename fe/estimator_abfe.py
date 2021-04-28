@@ -1,3 +1,6 @@
+
+import pymbar
+from fe import endpoint_correction
 from collections import namedtuple
 
 import functools
@@ -28,7 +31,7 @@ def unflatten(aux_data, children):
 jax.tree_util.register_pytree_node(SimulationResult, flatten, unflatten)
 
 def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_steps,
-    x_interval=1000, du_dl_interval=5):
+    x_interval=50, du_dl_interval=5):
     """
     Run a simulation and collect relevant statistics for this simulation.
 
@@ -125,7 +128,9 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
 
 FreeEnergyModel = namedtuple(
     "FreeEnergyModel",
-    ["unbound_potentials",
+    [
+     "unbound_potentials",
+     "endpoint_correct",
      "client",
      "box",
      "x0",
@@ -133,7 +138,9 @@ FreeEnergyModel = namedtuple(
      "integrator",
      "lambda_schedule",
      "equil_steps",
-     "prod_steps"
+     "prod_steps",
+     "beta",
+     "prefix"
     ]
 )
 
@@ -148,14 +155,24 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
         bp = unbound_pot.bind(np.asarray(params))
         bound_potentials.append(bp)
 
+    # if endpoint-correction is turned on, it is assumed that the last unbound_potential corresponds to the restraining potential
+
     if model.client is None:
         results = []
         for lamb in model.lambda_schedule:
             results.append(simulate(lamb, model.box, model.x0, model.v0, bound_potentials, model.integrator, model.equil_steps, model.prod_steps))
+
+        if model.endpoint_correct:
+            results.append(simulate(1.0, model.box, model.x0, model.v0, bound_potentials[:-1], model.integrator, model.equil_steps, model.prod_steps))
+
     else:
         futures = []
         for lamb in model.lambda_schedule:
             args = (lamb, model.box, model.x0, model.v0, bound_potentials, model.integrator, model.equil_steps, model.prod_steps)
+            futures.append(model.client.submit(simulate, *args))
+
+        if model.endpoint_correct:
+            args = (1.0, model.box, model.x0, model.v0, bound_potentials, model.integrator, model.equil_steps, model.prod_steps)
             futures.append(model.client.submit(simulate, *args))
 
         results = [x.result() for x in futures]
@@ -163,8 +180,15 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
     mean_du_dls = []
     all_grads = []
 
-    for result in results:
+    if model.endpoint_correct:
+        endpoint_results = results[-1]
+        ti_results = results[:-1]
+    else:
+        ti_results = results
+
+    for lambda_window, result in zip(model.lambda_schedule, ti_results):
         # (ytz): figure out what to do with stddev(du_dl) later
+        print(f"{model.prefix} lambda {lambda_window:.3f} <du/dl> {np.mean(result.du_dls):.3f} o(du/dl) {np.std(result.du_dls):.3f}")
         mean_du_dls.append(np.mean(result.du_dls))
         all_grads.append(result.du_dps)
 
@@ -172,6 +196,22 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
     dG_grad = []
     for rhs, lhs in zip(all_grads[-1], all_grads[0]):
         dG_grad.append(rhs - lhs)
+
+    if model.endpoint_correct:
+        core_restr = bound_potentials[-1]
+        lhs_du, rhs_du, _, _ = endpoint_correction.estimate_delta_us(
+            k_translation=200.0,
+            k_rotation=100.0,
+            core_idxs=core_restr.get_idxs(),
+            core_params=core_restr.params.reshape((-1,2)),
+            beta=model.beta,
+            lhs_xs=results[-2].xs,
+            rhs_xs=results[-1].xs
+        )
+        dG_endpoint = pymbar.BAR(model.beta*lhs_du, model.beta*np.array(rhs_du))[0]/model.beta
+        overlap = endpoint_correction.overlap_from_cdf(lhs_du, rhs_du)
+        print(f"{model.prefix} dG_endpoint {dG_endpoint:.3f} overlap {overlap:.3f}")
+        dG += dG_endpoint
 
     return (dG, results), dG_grad
 
