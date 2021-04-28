@@ -274,7 +274,7 @@ class BaseTopology():
         # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], 0.1)
         # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], 0.1)
 
-        # qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
+        qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
 
         return qlj_params, potentials.NonbondedInterpolated(
             exclusion_idxs,
