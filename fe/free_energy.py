@@ -256,16 +256,16 @@ def construct_lambda_schedule(num_windows):
     """
 
     A = int(0.33 * num_windows)
-    B = int(0.33 * num_windows)
+    B = int(0.5 * num_windows)
     C = num_windows - A - B
 
     # Empirically, we see the largest variance in std <du/dl> near the endpoints in the nonbonded
     # terms. Bonded terms are roughly linear. So we add more lambda windows at the endpoint to
     # help improve convergence.
     lambda_schedule = np.concatenate([
-        np.linspace(0.0, 0.5, A, endpoint=False),
-        np.linspace(0.5, 0.75, B, endpoint=False),
-        np.linspace(0.75, 1.0, C, endpoint=True)
+        np.linspace(0.0, 0.50, A, endpoint=False),
+        np.linspace(0.50, 0.67, B, endpoint=False),
+        np.linspace(0.67, 1.0, C, endpoint=True)
     ])
 
     # lambda_schedule = [0.14,0.15,0.18,0.19,0.20,0.21,0.22]
