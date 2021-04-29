@@ -197,15 +197,7 @@ if __name__ == "__main__":
     for epoch in range(1000):
         epoch_params = serialize_handlers(ordered_handles)
 
-        # loss, (complex_results, solvent_results) = loss_fn(ordered_params, mol, epoch, complex_results, solvent_results)
         (loss, (complex_results, solvent_results)), loss_grad = vg_fn(ordered_params, mol, epoch, complex_results, solvent_results)
-
-        continue
-
-        assert 0
-
-        (loss, aux), loss_grad = vg_fn(ordered_params, mol_a, mol_b, core, label_ddG)
-
         print("epoch", epoch, "loss", loss)
 
         # note: unflatten_grad and unflatten_theta have identical definitions for now

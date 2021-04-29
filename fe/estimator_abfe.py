@@ -179,19 +179,29 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
             model.prod_steps
         ))
 
-    # print(len(all_args), model.cache_results)
-
     assert len(all_args) == len(model.cache_results)
 
-    # serial implementation first
-    results = []
-    for args, cache in zip(all_args, model.cache_results):
-        if cache is None or args[0] <= 0.5:
-            print("doing simulation")
-            results.append(simulate(*args))
-        else:
-            print("appending cache")
-            results.append(cache)
+    if model.client is None:
+        results = []
+        for args, cache in zip(all_args, model.cache_results):
+            if cache is None or args[0] <= 0.5:
+                results.append(simulate(*args))
+            else:
+                results.append(cache)
+    else:
+        futures = []
+        for args, cache in zip(all_args, model.cache_results):
+            if cache is None or args[0] <= 0.5:
+                futures.append(model.client.submit(simulate, *args))
+            else:
+                futures.append(None)
+
+        results = []
+        for future, cache in zip(futures, model.cache_results):
+            if future is None:
+                results.append(cache)
+            else:
+                results.append(future.result())
 
     # if endpoint-correction is turned on, it is assumed that the last unbound_potential corresponds to the restraining potential
     # if model.client is None:
