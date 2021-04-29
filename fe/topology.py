@@ -255,27 +255,26 @@ class BaseTopology():
         ], axis=1)
 
         # interpolate every atom down to the same epsilon before we decouple
-        safe_sigmas = qlj_params[:, 1]
-        safe_sigmas = jnp.ones_like(safe_sigmas)*0.1 # half sigma
-        safe_epsilons = qlj_params[:, 2]
-        safe_epsilons = jnp.ones_like(safe_epsilons)*0.1 # sqrt(eps)
+        safe_sigmas = jnp.ones_like(qlj_params[:, 1])*0.1 # half sigma
+        safe_epsilons = jnp.ones_like(qlj_params[:, 2])*0.1 # sqrt(eps)
 
 
         # src_qlj_params = qlj_params
         # dst_qlj_params = qlj_params
-        # src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-        # dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], safe_sigmas)
-        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], safe_epsilons)
-
-        # no charges, and no epsilons either
         src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-        src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 1], 0.1)
-        src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], 0.1)
 
         dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], 0.1)
-        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], 0.1)
+        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], safe_sigmas)
+        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], safe_epsilons)
+
+        # no charges, and no epsilons either
+        # src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
+        # src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 1], 0.1)
+        # src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], 0.1)
+
+        # dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
+        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], 0.1)
+        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], 0.1)
 
         qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
 
@@ -288,20 +287,20 @@ class BaseTopology():
             cutoff
         )
 
-        nb = potentials.Nonbonded(
-            exclusion_idxs,
-            scale_factors,
-            lambda_plane_idxs,
-            lambda_offset_idxs,
-            beta,
-            cutoff
-        )
+        # nb = potentials.Nonbonded(
+        #     exclusion_idxs,
+        #     scale_factors,
+        #     lambda_plane_idxs,
+        #     lambda_offset_idxs,
+        #     beta,
+        #     cutoff
+        # )
 
-        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], 0.1)
-        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], 0.1)
+        # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
+        # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], 0.1)
+        # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], 0.1)
 
-        return qlj_params, nb
+        # return qlj_params, nb
 
     def parameterize_harmonic_bond(self, ff_params):
         params, idxs = self.ff.hb_handle.partial_parameterize(ff_params, self.mol)
