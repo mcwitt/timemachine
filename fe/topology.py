@@ -222,9 +222,9 @@ class BaseTopology():
 
         # interpolate every atom down to the same epsilon before we decouple
         safe_sigmas = qlj_params[:, 1]
-        safe_sigmas = jnp.ones_like(safe_sigmas)*0.15 # half sigma
+        safe_sigmas = jnp.ones_like(safe_sigmas)*0.1 # half sigma
         safe_epsilons = qlj_params[:, 2]
-        safe_epsilons = jnp.ones_like(safe_epsilons)*0.0
+        safe_epsilons = jnp.ones_like(safe_epsilons)*0.1
 
         # if stage == 'complex0' or stage == 'solvent':
         if stage == 'complex0':
