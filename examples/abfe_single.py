@@ -183,16 +183,22 @@ if __name__ == "__main__":
     flat_grad_traj = []
     loss_traj = []
 
-    # vg_fn = jax.value_and_grad(binding_model.loss, argnums=0, has_aux=True)
+
+    def loss_fn(params, mol, epoch, cr, sr):
+        dG_complex, cr = binding_model_complex.predict(params, mol, restraints=True, prefix='complex_'+str(epoch), cache_results=cr)
+        dG_solvent, sr = binding_model_solvent.predict(params, mol, restraints=False, prefix='solvent_'+str(epoch), cache_results=sr)
+        return dG_complex - dG_solvent, (cr, sr)
+
+    vg_fn = jax.value_and_grad(loss_fn, argnums=0, has_aux=True)
+
+    complex_results = None
+    solvent_results = None
 
     for epoch in range(1000):
         epoch_params = serialize_handlers(ordered_handles)
 
-        dG_complex, results = binding_model_complex.predict(ordered_params, mol, restraints=True, prefix='complex_'+str(epoch))
-        dG_solvent, results = binding_model_solvent.predict(ordered_params, mol, restraints=False, prefix='solvent_'+str(epoch))
-
-        # print("epoch", epoch, "dG_solvent", dG_solvent)
-        print("epoch", epoch, "dG_complex", dG_complex, "dG_solvent", dG_solvent)
+        # loss, (complex_results, solvent_results) = loss_fn(ordered_params, mol, epoch, complex_results, solvent_results)
+        (loss, (complex_results, solvent_results)), loss_grad = vg_fn(ordered_params, mol, epoch, complex_results, solvent_results)
 
         continue
 

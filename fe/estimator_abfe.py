@@ -138,7 +138,8 @@ FreeEnergyModel = namedtuple(
      "equil_steps",
      "prod_steps",
      "beta",
-     "prefix"
+     "prefix",
+     "cache_results"
     ]
 )
 
@@ -153,27 +154,66 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
         bp = unbound_pot.bind(np.asarray(params))
         bound_potentials.append(bp)
 
+    all_args = []
+    for lamb in model.lambda_schedule:
+        all_args.append((
+            lamb,
+            model.box,
+            model.x0,
+            model.v0,
+            bound_potentials,
+            model.integrator,
+            model.equil_steps,
+            model.prod_steps
+        ))
+
+    if model.endpoint_correct:
+        all_args.append((
+            1.0,
+            model.box,
+            model.x0,
+            model.v0,
+            bound_potentials[:-1],
+            model.integrator,
+            model.equil_steps,
+            model.prod_steps
+        ))
+
+    # print(len(all_args), model.cache_results)
+
+    assert len(all_args) == len(model.cache_results)
+
+    # serial implementation first
+    results = []
+    for args, cache in zip(all_args, model.cache_results):
+        if cache is None or args[0] <= 0.5:
+            print("doing simulation")
+            results.append(simulate(*args))
+        else:
+            print("appending cache")
+            results.append(cache)
+
     # if endpoint-correction is turned on, it is assumed that the last unbound_potential corresponds to the restraining potential
-    if model.client is None:
-        assert 0
-        results = []
-        for lamb in model.lambda_schedule:
-            results.append(simulate(lamb, model.box, model.x0, model.v0, bound_potentials, model.integrator, model.equil_steps, model.prod_steps))
+    # if model.client is None:
+    #     assert 0
+    #     results = []
+    #     for lamb in model.lambda_schedule:
+    #         results.append(simulate(lamb, model.box, model.x0, model.v0, bound_potentials, model.integrator, model.equil_steps, model.prod_steps))
 
-        if model.endpoint_correct:
-            results.append(simulate(1.0, model.box, model.x0, model.v0, bound_potentials[:-1], model.integrator, model.equil_steps, model.prod_steps))
+    #     if model.endpoint_correct:
+    #         results.append(simulate(1.0, model.box, model.x0, model.v0, bound_potentials[:-1], model.integrator, model.equil_steps, model.prod_steps))
 
-    else:
-        futures = []
-        for lamb in model.lambda_schedule:
-            args = (lamb, model.box, model.x0, model.v0, bound_potentials, model.integrator, model.equil_steps, model.prod_steps)
-            futures.append(model.client.submit(simulate, *args))
+    # else:
+    #     futures = []
+    #     for lamb in model.lambda_schedule:
+    #         args = (lamb, model.box, model.x0, model.v0, bound_potentials, model.integrator, model.equil_steps, model.prod_steps)
+    #         futures.append(model.client.submit(simulate, *args))
 
-        if model.endpoint_correct:
-            args = (1.0, model.box, model.x0, model.v0, bound_potentials, model.integrator, model.equil_steps, model.prod_steps)
-            futures.append(model.client.submit(simulate, *args))
+    #     if model.endpoint_correct:
+    #         args = (1.0, model.box, model.x0, model.v0, bound_potentials, model.integrator, model.equil_steps, model.prod_steps)
+    #         futures.append(model.client.submit(simulate, *args))
 
-        results = [x.result() for x in futures]
+        # results = [x.result() for x in futures]
 
     mean_du_dls = []
     all_grads = []
@@ -185,7 +225,7 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
 
     for lambda_window, result in zip(model.lambda_schedule, ti_results):
         # (ytz): figure out what to do with stddev(du_dl) later
-        print(f"{model.prefix} lambda {lambda_window:.3f} <du/dl> {np.mean(result.du_dls):.3f} o(du/dl) {np.std(result.du_dls):.3f}")
+        print(f"{model.prefix} lambda {lambda_window:.5f} <du/dl> {np.mean(result.du_dls):.5f} o(du/dl) {np.std(result.du_dls):.5f}")
         mean_du_dls.append(np.mean(result.du_dls))
         all_grads.append(result.du_dps)
 

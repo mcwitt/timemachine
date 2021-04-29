@@ -138,7 +138,8 @@ class AbsoluteModel():
         ff_params,
         mol,
         restraints,
-        prefix):
+        prefix,
+        cache_results=None):
 
         print(f"Minimizing the host structure to remove clashes.")
         min_host_coords = minimizer.minimize_host_4d([mol], self.host_system, self.host_coords, self.ff, self.host_box)
@@ -206,6 +207,11 @@ class AbsoluteModel():
         x0 = coords
         v0 = np.zeros_like(coords)
 
+        if cache_results is None:
+            cache_results = [None]*len(self.host_schedule)
+            if endpoint_correct:
+                cache_results.append(None)
+
         model = estimator_abfe.FreeEnergyModel(
             unbound_potentials,
             endpoint_correct,
@@ -218,7 +224,8 @@ class AbsoluteModel():
             self.equil_steps,
             self.prod_steps,
             beta,
-            prefix
+            prefix,
+            cache_results
         )
 
         dG, results = estimator_abfe.deltaG(model, sys_params)
