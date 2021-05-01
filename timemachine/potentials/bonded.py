@@ -120,14 +120,16 @@ def harmonic_bond(conf, params, box, lamb, bond_idxs, lamb_mult=None, lamb_offse
     """
     assert params.shape == bond_idxs.shape
 
-    if lamb_mult is None or lamb_offset is None or lamb is None:
-        assert lamb_mult is None
-        assert lamb_offset is None
-        prefactor = 1.0
-    else:
-        assert lamb_mult is not None
-        assert lamb_offset is not None
-        prefactor = (lamb_offset + lamb_mult * lamb)
+    # if lamb_mult is None or lamb_offset is None or lamb is None:
+    #     assert lamb_mult is None
+    #     assert lamb_offset is None
+    #     prefactor = 1.0
+    # else:
+    #     assert lamb_mult is not None
+    #     assert lamb_offset is not None
+    #     prefactor = (lamb_offset + lamb_mult * lamb)
+
+    prefactor = 1.0
 
     ci = conf[bond_idxs[:, 0]]
     cj = conf[bond_idxs[:, 1]]
@@ -138,6 +140,13 @@ def harmonic_bond(conf, params, box, lamb, bond_idxs, lamb_mult=None, lamb_offse
     dij = np.sqrt(d2ij)
     kbs = params[:, 0]
     r0s = params[:, 1]
+
+    if lamb_mult is None:
+        lamb_mult = np.zeros(len(bond_idxs))
+
+    lamb_eff = lamb_mult*lamb
+
+    r0s = (1-lamb_eff)*r0s + (lamb)*0
 
     # this is here to prevent a numerical instability
     # when b0 == 0 and dij == 0

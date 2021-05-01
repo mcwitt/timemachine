@@ -36,17 +36,26 @@ void __global__ k_harmonic_bond(
     int b0_idx = b_idx*2+1;
 
     RealType kb = params[kb_idx];
-    RealType b0 = params[b0_idx];
+    RealType b0_src = params[b0_idx];
+    RealType b0_dst = 0.0;
+
+    // RealType lambda_eff = lambda_offset[b_idx] + lambda_mult[b_idx]*lambda;
+    RealType lambda_eff = lambda_mult[b_idx]*lambda;
+
+    RealType b0_interpolated = (1-lambda_eff)*b0_src + lambda_eff*b0_dst;
+    RealType db0_interpolated_dlambda_eff = b0_dst - b0_src;
+    RealType dlambda_eff_dlambda = lambda_mult[b_idx];
 
     RealType dij = sqrt(d2ij);
-    RealType db = dij - b0;
+    RealType db = dij - b0_interpolated;
 
-    RealType prefactor = lambda_offset[b_idx] + lambda_mult[b_idx]*lambda;
+    // RealType prefactor = lambda_offset[b_idx] + lambda_mult[b_idx]*lambda;
+    RealType prefactor = 1.0;
 
     if(du_dx) {
         for(int d=0; d < 3; d++) {
             RealType grad_delta;
-            if(b0 != 0) {
+            if(b0_interpolated != 0) {
                 grad_delta = kb*db*dx[d]/dij;
             } else{
                 grad_delta = kb*dx[d];
@@ -57,8 +66,8 @@ void __global__ k_harmonic_bond(
     }
 
     if(du_dp) {
-        atomicAdd(du_dp + kb_idx, 0.5*db*db*prefactor);
-        atomicAdd(du_dp + b0_idx, -kb*db*prefactor);
+        atomicAdd(du_dp + kb_idx, 0.5*db*db*prefactor*(1-lambda_eff));
+        atomicAdd(du_dp + b0_idx, -kb*db*prefactor*(1-lambda_eff));
     }
 
     if(u) {
@@ -66,7 +75,8 @@ void __global__ k_harmonic_bond(
     }
 
     if(du_dl) {
-        atomicAdd(du_dl + src_idx, FLOAT_TO_FIXED_BONDED<RealType>(lambda_mult[b_idx]*kb/2*db*db));
+        atomicAdd(du_dl + src_idx, FLOAT_TO_FIXED_BONDED<RealType>(-kb*db*db0_interpolated_dlambda_eff*dlambda_eff_dlambda));
+        // atomicAdd(du_dl + src_idx, FLOAT_TO_FIXED_BONDED<RealType>(lambda_mult[b_idx]*kb/2*db*db));
     }
 
 }

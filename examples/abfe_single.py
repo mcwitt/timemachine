@@ -184,19 +184,19 @@ if __name__ == "__main__":
     loss_traj = []
 
 
-    def loss_fn(params, mol, epoch, cr, sr):
-        dG_complex, cr = binding_model_complex.predict(params, mol, restraints=True, prefix='complex_'+str(epoch), cache_results=cr)
-        dG_solvent, sr = binding_model_solvent.predict(params, mol, restraints=False, prefix='solvent_'+str(epoch), cache_results=sr)
-        print("dG_complex", dG_complex, "dG_solvent", dG_solvent)
-        return dG_complex - dG_solvent, (cr, sr)
-
-    # def solvent_loss_fn(params, mol, epoch, cr, sr):
+    # def loss_fn(params, mol, epoch, cr, sr):
+    #     dG_complex, cr = binding_model_complex.predict(params, mol, restraints=True, prefix='complex_'+str(epoch), cache_results=cr)
     #     dG_solvent, sr = binding_model_solvent.predict(params, mol, restraints=False, prefix='solvent_'+str(epoch), cache_results=sr)
-    #     print("dG_solvent", dG_solvent)
-    #     return dG_solvent, (cr, sr)
+    #     print("dG_complex", dG_complex, "dG_solvent", dG_solvent)
+    #     return dG_complex - dG_solvent, (cr, sr)
+
+    def solvent_loss_fn(params, mol, epoch, cr, sr):
+        dG_solvent, sr = binding_model_solvent.predict(params, mol, restraints=False, prefix='solvent_'+str(epoch), cache_results=sr)
+        print("dG_solvent", dG_solvent)
+        return dG_solvent, (cr, sr)
 
 
-    vg_fn = jax.value_and_grad(loss_fn, argnums=0, has_aux=True)
+    vg_fn = jax.value_and_grad(solvent_loss_fn, argnums=0, has_aux=True)
 
     complex_results = None
     solvent_results = None

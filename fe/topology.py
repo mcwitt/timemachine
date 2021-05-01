@@ -228,23 +228,38 @@ class BaseTopology():
 
     #     return params, nb
 
-    def parameterize_nonbonded(self, ff_q_params, ff_lj_params):
+    def parameterize_nonbonded(self, ff_q_params, ff_lj_params, shrink=False):
         q_params = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol)
         lj_params = self.ff.lj_handle.partial_parameterize(ff_lj_params, self.mol)
 
-        exclusion_idxs, scale_factors = nonbonded.generate_exclusion_idxs(
-            self.mol,
-            scale12=_SCALE_12,
-            scale13=_SCALE_13,
-            scale14=_SCALE_14
-        )
-
-        scale_factors = np.stack([scale_factors, scale_factors], axis=1)
+        if shrink == False:
+            exclusion_idxs, scale_factors = nonbonded.generate_exclusion_idxs(
+                self.mol,
+                scale12=_SCALE_12,
+                scale13=_SCALE_13,
+                scale14=_SCALE_14
+            )
+            scale_factors = np.stack([scale_factors, scale_factors], axis=1)
+        else:
+            exclusion_idxs = []
+            scale_factors = []
+            for i in range(self.mol.GetNumAtoms()):
+                for j in range(i+1, self.mol.GetNumAtoms()):
+                    exclusion_idxs.append((i,j))
+                    scale_factors.append((1.0, 1.0))
+            exclusion_idxs = np.array(exclusion_idxs, dtype=np.int32)
+            scale_factors = np.array(scale_factors, dtype=np.float64)
 
         N = len(q_params)
 
-        lambda_plane_idxs = np.zeros(N, dtype=np.int32)
-        lambda_offset_idxs = np.ones(N, dtype=np.int32)
+        if shrink == False:
+            lambda_plane_idxs = np.zeros(N, dtype=np.int32)
+            lambda_offset_idxs = np.ones(N, dtype=np.int32)
+        else:
+            lambda_plane_idxs = np.zeros(N, dtype=np.int32)
+            lambda_offset_idxs = np.zeros(N, dtype=np.int32)
+
+
 
         beta = _BETA
         cutoff = _CUTOFF # solve for this analytically later
@@ -255,18 +270,19 @@ class BaseTopology():
         ], axis=1)
 
         # interpolate every atom down to the same epsilon before we decouple
-        safe_sigmas = jnp.ones_like(qlj_params[:, 1])*0.1 # half sigma
-        safe_epsilons = jnp.ones_like(qlj_params[:, 2])*0.1 # sqrt(eps)
+        # safe_sigmas = jnp.ones_like(qlj_params[:, 1])*0.1 # half sigma
+        # safe_epsilons = jnp.ones_like(qlj_params[:, 2])*0.1 # sqrt(eps)
 
 
         # src_qlj_params = qlj_params
         # dst_qlj_params = qlj_params
         # src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
         src_qlj_params = qlj_params
+        dst_qlj_params = qlj_params
 
-        dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], safe_sigmas)
-        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], safe_epsilons)
+        # dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
+        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], safe_sigmas)
+        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], safe_epsilons)
 
         # no charges, and no epsilons either
         # src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
@@ -303,9 +319,16 @@ class BaseTopology():
 
         # return qlj_params, nb
 
-    def parameterize_harmonic_bond(self, ff_params):
+    def parameterize_harmonic_bond(self, ff_params, shrink=False):
         params, idxs = self.ff.hb_handle.partial_parameterize(ff_params, self.mol)
-        return params, potentials.HarmonicBond(idxs)
+
+        if shrink:
+            B = len(idxs)
+            lambda_offset_idxs = np.zeros(B, dtype=np.int32)
+            lambda_mult_idxs = np.ones(B, dtype=np.int32)
+            return params, potentials.HarmonicBond(idxs, lambda_offset_idxs, lambda_mult_idxs)
+        else:
+            return params, potentials.HarmonicBond(idxs)
 
 
     def parameterize_harmonic_angle(self, ff_params):

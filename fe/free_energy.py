@@ -1,3 +1,4 @@
+import functools
 from jax.config import config; config.update("jax_enable_x64", True)
 
 import jax
@@ -73,6 +74,8 @@ class AbsoluteFreeEnergy(BaseFreeEnergy):
         self.mol = mol
         self.ff = ff
         self.top = topology.BaseTopology(mol, ff)
+        self.top.parameterize_harmonic_bond = functools.partial(self.top.parameterize_harmonic_bond, shrink=True)
+        self.top.parameterize_nonbonded = functools.partial(self.top.parameterize_nonbonded, shrink=True)
 
 
     def prepare_host_edge(self, ff_params, host_system, host_coords):

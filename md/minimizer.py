@@ -59,8 +59,10 @@ def fire_minimize(x0: np.ndarray, u_impls, box: np.ndarray, lamb_sched: np.array
     def force(coords, lamb: float = 1.0, **kwargs):
         forces = np.zeros_like(coords)
         for impl in u_impls:
-            du_dx, _, _ = impl.execute(coords, box, lamb)
+            du_dx, _, u = impl.execute(coords, box, lamb)
+            # print(impl, u)
             forces -= du_dx
+        # assert 0
         return forces
 
     def shift(d, dr, **kwargs):
