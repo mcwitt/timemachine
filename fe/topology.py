@@ -95,7 +95,10 @@ class HostGuestTopology():
             host_params = host_potential.params
             host_idxs = host_potential.get_idxs()
             host_lambda_mult = jnp.zeros(len(host_idxs), dtype=np.int32)
-            host_lambda_offset = jnp.ones(len(host_idxs), dtype=np.int32)
+            if isinstance(host_potential, potentials.HarmonicBond):
+                host_lambda_offset = jnp.zeros(len(host_idxs), dtype=np.int32)
+            else:
+                host_lambda_offset = jnp.ones(len(host_idxs), dtype=np.int32)
         else:
             # (ytz): this extra jank is to work around jnp.concatenate not supporting empty lists.
             host_params = np.array([], dtype=guest_params.dtype).reshape((-1, guest_params.shape[1]))
@@ -333,7 +336,7 @@ class BaseTopology():
         if shrink:
             B = len(idxs)
             lambda_offset_idxs = np.zeros(B, dtype=np.int32)
-            lambda_mult_idxs = np.zeros(B, dtype=np.int32)
+            lambda_mult_idxs = np.ones(B, dtype=np.int32)
             return params, potentials.HarmonicBond(idxs, lambda_mult_idxs, lambda_offset_idxs)
         else:
             return params, potentials.HarmonicBond(idxs)
