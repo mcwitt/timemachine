@@ -333,7 +333,7 @@ class BaseTopology():
         if shrink:
             B = len(idxs)
             lambda_offset_idxs = np.zeros(B, dtype=np.int32)
-            lambda_mult_idxs = np.ones(B, dtype=np.int32)
+            lambda_mult_idxs = np.zeros(B, dtype=np.int32)
             return params, potentials.HarmonicBond(idxs, lambda_mult_idxs, lambda_offset_idxs)
         else:
             return params, potentials.HarmonicBond(idxs)

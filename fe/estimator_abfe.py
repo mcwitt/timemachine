@@ -102,7 +102,7 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
     intg_impl = integrator.impl()
 
     # print("before", x0, x0[6282:])
-    x0[6282:] = scaled_shrink(x0[6282:], 1-lamb)
+    # x0[6282:] = scaled_shrink(x0[6282:], 1-lamb)
     # print("after", x0, x0[6282:])
     # context components: positions, velocities, box, integrator, energy fxns
     ctxt = custom_ops.Context(
