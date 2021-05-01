@@ -153,10 +153,10 @@ class AbsoluteModel():
         )
 
         # setup lambda transformations
-        # transform_qlj = "lambda < 0.5 ? sin(lambda*PI)*sin(lambda*PI) : 1"
-        # transform_w = "lambda < 0.5 ? 0.0 : sin((lambda+0.5)*PI)*sin((lambda+0.5)*PI)"
-        transform_qlj = "lambda"
-        transform_w = "lambda"
+        transform_qlj = "lambda < 0.5 ? sin(lambda*PI)*sin(lambda*PI) : 1"
+        transform_w = "lambda < 0.5 ? 0.0 : sin((lambda+0.5)*PI)*sin((lambda+0.5)*PI)"
+        # transform_qlj = "lambda"
+        # transform_w = "lambda"
 
         nonbonded = unbound_potentials[-1]
         nonbonded.args.extend([

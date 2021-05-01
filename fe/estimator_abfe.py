@@ -184,14 +184,14 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
     if model.client is None:
         results = []
         for args, cache in zip(all_args, model.cache_results):
-            if cache is None or args[0] <= 1.0:
+            if cache is None or args[0] <= 0.5:
                 results.append(simulate(*args))
             else:
                 results.append(cache)
     else:
         futures = []
         for args, cache in zip(all_args, model.cache_results):
-            if cache is None or args[0] <= 1.0:
+            if cache is None or args[0] <= 0.5:
                 futures.append(model.client.submit(simulate, *args))
             else:
                 futures.append(None)
