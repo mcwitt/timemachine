@@ -40,8 +40,8 @@ class BaseFreeEnergy():
 
         ff_tuples = [
             [topology.parameterize_harmonic_bond, (ff_params[0],)],
-            # [topology.parameterize_harmonic_angle, (ff_params[1],)],
-            # [topology.parameterize_periodic_torsion, (ff_params[2], ff_params[3])],
+            [topology.parameterize_harmonic_angle, (ff_params[1],)],
+            [topology.parameterize_periodic_torsion, (ff_params[2], ff_params[3])],
             [topology.parameterize_nonbonded, (ff_params[4], ff_params[5])]
         ]
 

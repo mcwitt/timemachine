@@ -1,5 +1,6 @@
 import numpy as np
 import jax
+import jax.ops
 import jax.numpy as jnp
 
 from timemachine.lib import potentials
@@ -116,10 +117,13 @@ class HostGuestTopology():
         return self._parameterize_bonded_term(guest_params, guest_potential, self.host_harmonic_bond)
 
     def parameterize_harmonic_angle(self, ff_params):
+        ff_params = jax.ops.index_update(ff_params, jax.ops.index[:, 0], 0)
         guest_params, guest_potential = self.guest_topology.parameterize_harmonic_angle(ff_params)
         return self._parameterize_bonded_term(guest_params, guest_potential, self.host_harmonic_angle)
 
     def parameterize_periodic_torsion(self, proper_params, improper_params):
+        proper_params = jax.ops.index_update(proper_params, jax.ops.index[:, 0], 0)
+        improper_params = jax.ops.index_update(improper_params, jax.ops.index[:, 0], 0)
         guest_params, guest_potential = self.guest_topology.parameterize_periodic_torsion(proper_params, improper_params)
         return self._parameterize_bonded_term(guest_params, guest_potential, self.host_periodic_torsion)
 
