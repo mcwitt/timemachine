@@ -32,6 +32,12 @@ def unflatten(aux_data, children):
 
 jax.tree_util.register_pytree_node(SimulationResult, flatten, unflatten)
 
+def scaled_shrink(x0, scale):
+    com = np.mean(x0, axis=0)
+    x0 = x0 - com
+    x0 = x0*scale
+    return x0 + com
+
 def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_steps,
     x_interval=50, du_dl_interval=5):
     """
@@ -94,6 +100,10 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
         integrator.seed = np.random.randint(np.iinfo(np.int32).max)
 
     intg_impl = integrator.impl()
+
+    # print("before", x0, x0[6282:])
+    x0[6282:] = scaled_shrink(x0[6282:], 1-lamb)
+    # print("after", x0, x0[6282:])
     # context components: positions, velocities, box, integrator, energy fxns
     ctxt = custom_ops.Context(
         x0,

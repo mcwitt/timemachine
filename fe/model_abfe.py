@@ -144,8 +144,9 @@ class AbsoluteModel():
         print(f"Minimizing the host structure to remove clashes.")
         min_host_coords = minimizer.minimize_host_4d([mol], self.host_system, self.host_coords, self.ff, self.host_box)
 
-        afe = free_energy.AbsoluteFreeEnergy(mol, self.ff)
+        print("min_host_coords", min_host_coords.shape)
 
+        afe = free_energy.AbsoluteFreeEnergy(mol, self.ff)
         unbound_potentials, sys_params, masses, coords = afe.prepare_host_edge(
             ff_params,
             self.host_system,

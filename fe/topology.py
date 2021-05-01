@@ -80,6 +80,10 @@ class HostGuestTopology():
         guest_lambda_mult = guest_potential.get_lambda_mult()
         guest_lambda_offset = guest_potential.get_lambda_offset()
 
+        # print("GLM", guest_lambda_mult, guest_potential)
+        # print("GLO", guest_lambda_offset, guest_potential)
+        # assert 0
+
         if guest_lambda_mult is None:
             guest_lambda_mult = np.zeros(len(guest_params))
         if guest_lambda_offset is None:
@@ -326,7 +330,7 @@ class BaseTopology():
             B = len(idxs)
             lambda_offset_idxs = np.zeros(B, dtype=np.int32)
             lambda_mult_idxs = np.ones(B, dtype=np.int32)
-            return params, potentials.HarmonicBond(idxs, lambda_offset_idxs, lambda_mult_idxs)
+            return params, potentials.HarmonicBond(idxs, lambda_mult_idxs, lambda_offset_idxs)
         else:
             return params, potentials.HarmonicBond(idxs)
 
