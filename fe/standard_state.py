@@ -11,24 +11,19 @@ def integrate_radial_Z(
     """
     Evaluate the partition function of a radially symmetric
     restraint.
-
     Parameters:
     -----------
     u_fn: f: R -> R
         A radial function that takes in a distance r and returns
         a scalar. This function must be integrable.
-
     beta: float
         1/kT
-
     r_max: float
         upper bound of integration
-
     Returns
     -------
     float
         Free energy associated with release into a 1660A^3 volume.
-
     """
     def integrand(r):
         return 4*np.pi*(r**2)*np.exp(-beta*u_fn(r))
@@ -45,20 +40,16 @@ def standard_state_correction(Z_infty, beta):
     """
     Compute the standard state of releasing a ligand into the standard
     molar volume.
-
     Parameters
     ----------
     Z_infty: float
         Partition function when integrated to infinity
-
     beta: float
         1/kT
-
     Returns
     -------
     dG
         Free energy of releasing into the standard state
-
     """
     return -np.log(1.660/Z_infty)/beta # in kJ/mol
 
@@ -74,21 +65,17 @@ def integrate_radial_Z_exact(k, beta):
 def integrate_rotation_Z(u_fn, beta):
     """
     Compute the partition function a rotational restraint over SO(3)
-
     Parameters
     ----------
     u_fn: f: R->R
         Takes in an arbitrary scalar representing an angle relative
         to the identity transformation and returns an energy.
-
     beta: float
         1/Kt
-
     Returns
     -------
     scalar
         Value of the partition function
-
     """
     # Integrating in the quaternion form requires only two integrals as opposed
     # to three. The general technique is outlined here. See "Average Rotation Angle"
@@ -120,32 +107,24 @@ def integrate_rotation_Z(u_fn, beta):
 def release_orientational_restraints(k_t, k_r, beta):
     """
     Convenience function.
-
     Compute the free energy of releasing orientational restraints
     into the standard state. It assumes that a harmonic translational
     restraint and an rmsd restraint is used. Do not use this function
     if you use any other type of restraint.
-
     The quantity computed is:
-
     dG_release = -1/beta ln(Z_T Z_R)
-
     Parameters
     ----------
     k_t: float
         Force constant of the translational restraint
-
     k_r: float
         Force constant of the rotational restraint
-
     beta: float
         1/kT
-
     Returns
     -------
     float, float
         dG of the translational and rotational restraint
-
     """
 
     def harmonic_restraint(r):

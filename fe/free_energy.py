@@ -54,10 +54,11 @@ class BaseFreeEnergy():
 
         return final_params, final_potentials
 
+import functools
 # this class is serializable.
 class AbsoluteFreeEnergy(BaseFreeEnergy):
 
-    def __init__(self, mol, ff):
+    def __init__(self, mol, ff, dummy=None):
         """
         Compute the absolute free energy of a molecule via 4D decoupling.
 
@@ -72,7 +73,8 @@ class AbsoluteFreeEnergy(BaseFreeEnergy):
         """
         self.mol = mol
         self.ff = ff
-        self.top = topology.BaseTopology(mol, ff)
+        self.top = topology.AbsoluteTopology(mol, ff)
+        self.top.parameterize_nonbonded = functools.partial(self.top.parameterize_nonbonded, dummy=dummy)
 
 
     def prepare_host_edge(self, ff_params, host_system, host_coords):
@@ -115,7 +117,7 @@ class AbsoluteFreeEnergy(BaseFreeEnergy):
 # this class is serializable.
 class RelativeFreeEnergy(BaseFreeEnergy):
 
-    def __init__(self, single_topology: topology.SingleTopology, label=None, complex_path=None):
+    def __init__(self, single_topology: [topology.SingleTopology, topology.DualTopology], label=None, complex_path=None):
         self.top = single_topology
         self.label = label
         self.complex_path = complex_path
@@ -179,7 +181,7 @@ class RelativeFreeEnergy(BaseFreeEnergy):
 
         return final_potentials, final_params, combined_masses, combined_coords
 
-    def prepare_host_edge(self, ff_params, host_system, host_coords):
+    def prepare_host_edge(self, ff_params, host_system):
         """
         Prepares the host-edge system
 
@@ -205,20 +207,20 @@ class RelativeFreeEnergy(BaseFreeEnergy):
         ligand_masses_b = [b.GetMass() for b in self.mol_b.GetAtoms()]
 
         # extract the 0th conformer
-        ligand_coords_a = get_romol_conf(self.mol_a)
-        ligand_coords_b = get_romol_conf(self.mol_b)
+        # ligand_coords_a = get_romol_conf(self.mol_a)
+        # ligand_coords_b = get_romol_conf(self.mol_b)
 
         host_bps, host_masses = openmm_deserializer.deserialize_system(host_system, cutoff=1.2)
-        num_host_atoms = host_coords.shape[0]
+        # num_host_atoms = host_coords.shape[0]
 
         hgt = topology.HostGuestTopology(host_bps, self.top)
 
         final_params, final_potentials = self._get_system_params_and_potentials(ff_params, hgt)
 
-        combined_masses = np.concatenate([host_masses, np.mean(self.top.interpolate_params(ligand_masses_a, ligand_masses_b), axis=0)])
-        combined_coords = np.concatenate([host_coords, np.mean(self.top.interpolate_params(ligand_coords_a, ligand_coords_b), axis=0)])
+        combined_masses = np.concatenate([host_masses, ligand_masses_a, ligand_masses_b])
+        # combined_coords = np.concatenate([host_coords, ligand_coords_a, ligand_coords_b])
 
-        return final_potentials, final_params, combined_masses, combined_coords
+        return final_potentials, final_params, combined_masses
 
 
 def construct_lambda_schedule(num_windows):
@@ -243,5 +245,36 @@ def construct_lambda_schedule(num_windows):
     ])
 
     assert len(lambda_schedule) == num_windows
+
+    return lambda_schedule
+
+
+def construct_absolute_lambda_schedule(num_windows):
+    """Generate a length-num_windows list of lambda values from 0.0 up to 1.0
+
+    Notes
+    -----
+    manually optimized by YTZ
+    """
+
+    A = int(0.33 * num_windows)
+    B = int(0.5 * num_windows)
+    C = num_windows - A - B
+
+    # this is intended for a two stage protocol specific to the transformation
+    # transform_qlj = "lambda < 0.5 ? sin(lambda*PI)*sin(lambda*PI) : 1"
+    # transform_w = "lambda < 0.5 ? 0.0 : sin((lambda+0.5)*PI)*sin((lambda+0.5)*PI)"
+    lambda_schedule = np.concatenate([
+        np.linspace(0.0,  0.50, A, endpoint=False),
+        np.linspace(0.50, 0.72, B, endpoint=False),
+        np.linspace(0.72, 1.0,  C, endpoint=True)
+    ])
+
+    # lambda_schedule = [0.14,0.15,0.18,0.19,0.20,0.21,0.22]
+    # lambda_schedule = np.linspace(0.0, 0.20, num_windows)
+    # lambda_schedule = np.linspace(0.03, 0.03, num_windows)
+    lambda_schedule = np.linspace(0.00, 0.3, num_windows)
+
+    # assert len(lambda_schedule) == num_windows
 
     return lambda_schedule

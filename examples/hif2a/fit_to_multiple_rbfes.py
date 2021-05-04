@@ -240,8 +240,6 @@ if __name__ == "__main__":
 
     if not args.hosts:
         num_gpus = args.num_gpus
-        if num_gpus is None:
-            num_gpus = NUM_GPUS
         # set up multi-GPU client
         client = CUDAPoolClient(max_workers=num_gpus)
     else:

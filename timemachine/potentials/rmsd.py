@@ -30,29 +30,33 @@ def get_optimal_rotation(x1, x2):
 
     return rotation
 
+def get_optimal_translation(x1, x2):
+    return np.mean(x2, axis=0) - np.mean(x1, axis=0)
+
+def get_optimal_rotation_and_translation(x1, x2):
+    t = get_optimal_translation(x1, x2)
+    x1 = x1 - np.mean(x1, axis=0)
+    x2 = x2 - np.mean(x2, axis=0)
+    return get_optimal_rotation(x1, x2), t
+
 def rmsd_align(x1, x2):
     """
     Optimally align x1 and x2 via rigid translation and rotations.
-
     The returned alignment is a proper rotation. Note while it is technically
     possible to find an ever better alignment if we were to allow for reflections,
     there are technical difficulties with defining what the "standard" rotation is,
     i.e. either np.eye(3) or -np.eye(3). We can revisit this at a later time.
-
     Parameters
     ----------
     x1: np.ndarray (N,3)
         conformation 1
-
     x1: np.ndarray (N,3)
         conformation 2
-
     Returns
     -------
     2-tuple
         Return a pair of aligned (N,3) ndarrays. Each conformer has its centroid
         set to the origin.
-
     """
 
     assert x1.shape == x2.shape
@@ -75,33 +79,24 @@ def rmsd_restraint(conf, params, box, lamb, group_a_idxs, group_b_idxs, k):
     disjoint. This function will automatically recenter the two groups of atoms before computing
     the rotation matrix. For relative binding free energy calculations, this restraint
     does not need to be turned off.
-
     Note that you should add a center of mass restraint as well to accomodate for the translational
     component.
-
     Parameters
     ----------
     conf: np.ndarray
         N x 3 coordinates
-
     params: Any
         Unused dummy variable for API consistency
-
     box: Any
         Unused dummy variable for API consistency
-
     lamb: Any
         Unused dummy variable for API consistency
-
     group_a_idxs: list of int
         idxs for the first group of atoms
-
     group_b_idxs: list of int
         idxs for the second group of atoms
-
     k: float
         force constant
-
     """
     assert len(group_a_idxs) == len(group_b_idxs)
 

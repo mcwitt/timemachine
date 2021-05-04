@@ -20,3 +20,23 @@ class LangevinIntegrator():
 
     def impl(self):
         return custom_ops.LangevinIntegrator(self.dt, self.ca, self.cbs, self.ccs, self.seed)
+
+class MonteCarloBarostat():
+
+    def __init__(self, N, group_idxs, pressure, temperature, interval, seed):
+        self.N = N
+        self.group_idxs = group_idxs
+        self.pressure = pressure
+        self.temperature = temperature
+        self.interval = interval
+        self.seed = seed
+
+    def impl(self, u_impls):
+        return custom_ops.MonteCarloBarostat(
+            self.N,
+            self.pressure,
+            self.temperature,
+            self.group_idxs,
+            self.interval,
+            u_impls,
+            self.seed)

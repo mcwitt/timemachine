@@ -84,7 +84,12 @@ if __name__ == '__main__':
     lambdas = np.ones(n_replicates)
 
     for lam in lambdas:
-        thermostat = UnadjustedLangevinMove(integrator_impl, potential_energy_model.all_impls, lam, n_steps=barostat_interval)
+        thermostat = UnadjustedLangevinMove(
+            integrator_impl,
+            potential_energy_model.all_impls,
+            lam,
+            n_steps=barostat_interval
+        )
         barostat = MonteCarloBarostat(partial(reduced_potential_fxn, lam=lam), group_indices, max_delta_volume=3.0)
 
         v_0 = sample_velocities(masses * unit.amu, temperature)

@@ -9,28 +9,31 @@ from ff import Forcefield
 
 from md.fire import fire_descent
 
+
+from md.barostat.utils import get_group_indices, get_bond_list
+
 def get_romol_conf(mol):
     """Coordinates of mol's 0th conformer, in nanometers"""
     conformer = mol.GetConformer(0)
     guest_conf = np.array(conformer.GetPositions(), dtype=np.float64)
     return guest_conf/10 # from angstroms to nm
 
-def bind_potentials(topo, ff):
-    # setup the parameter handlers for the ligand
-    tuples = [
-        [topo.parameterize_harmonic_bond, [ff.hb_handle]],
-        [topo.parameterize_harmonic_angle, [ff.ha_handle]],
-        [topo.parameterize_periodic_torsion, [ff.pt_handle, ff.it_handle]],
-        [topo.parameterize_nonbonded, [ff.q_handle, ff.lj_handle]],
-    ]
+# def bind_potentials(topo, ff):
+#     # setup the parameter handlers for the ligand
+#     tuples = [
+#         [topo.parameterize_harmonic_bond, [ff.hb_handle]],
+#         [topo.parameterize_harmonic_angle, [ff.ha_handle]],
+#         [topo.parameterize_periodic_torsion, [ff.pt_handle, ff.it_handle]],
+#         [topo.parameterize_nonbonded, [ff.q_handle, ff.lj_handle]],
+#     ]
 
-    u_impls = []
+#     u_impls = []
 
-    for fn, handles in tuples:
-        params, potential = fn(*[h.params for h in handles])
-        bp = potential.bind(params)
-        u_impls.append(bp.bound_impl(precision=np.float32))
-    return u_impls
+#     for fn, handles in tuples:
+#         params, potential = fn(*[h.params for h in handles])
+#         bp = potential.bind(params)
+#         u_impls.append(bp.bound_impl(precision=np.float32))
+#     return u_impls
 
 def fire_minimize(x0: np.ndarray, u_impls, box: np.ndarray, lamb_sched: np.array) -> np.ndarray:
     """
@@ -69,6 +72,7 @@ def fire_minimize(x0: np.ndarray, u_impls, box: np.ndarray, lamb_sched: np.array
     init, f = fire_descent(force, shift)
     opt_state = init(x0, lamb=lamb_sched[0])
     for lamb in lamb_sched[1:]:
+        # print("lamb", lamb)
         opt_state = f(opt_state, lamb=lamb)
     return np.asarray(opt_state.position)
 
@@ -126,7 +130,21 @@ def minimize_host_4d(mols, host_system, host_coords, ff, box) -> np.ndarray:
 
     hgt = topology.HostGuestTopology(host_bps, top)
 
-    u_impls = bind_potentials(hgt, ff)
+    tuples = [
+        [hgt.parameterize_harmonic_bond, [ff.hb_handle]],
+        [hgt.parameterize_harmonic_angle, [ff.ha_handle]],
+        [hgt.parameterize_periodic_torsion, [ff.pt_handle, ff.it_handle]],
+        [hgt.parameterize_nonbonded, [ff.q_handle, ff.lj_handle]],
+    ]
+
+    bound_potentials = []
+    u_impls = []
+
+    for fn, handles in tuples:
+        params, potential = fn(*[h.params for h in handles])
+        bound_potentials.append(potential)
+        bp = potential.bind(params)
+        u_impls.append(bp.bound_impl(precision=np.float32))
 
     # this value doesn't matter since we will turn off the noise.
     seed = 0
@@ -159,4 +177,136 @@ def minimize_host_4d(mols, host_system, host_coords, ff, box) -> np.ndarray:
         norm = np.linalg.norm(du_dx, axis=-1)
         assert np.all(norm < 25000)
 
-    return final_coords[:num_host_atoms]
+    bond_list = get_bond_list(bound_potentials[0])
+    group_indices = get_group_indices(bond_list)
+    barostat_interval = 5
+
+    # equilibrate
+    print("Starting equilibration...")
+    temperature = 300.0
+
+    barostat = MonteCarloBarostat(
+        x0.shape[0],
+        group_indices,
+        1.0,
+        temperature,
+        barostat_interval,
+        seed
+    ).impl(u_impls)
+
+    intg = LangevinIntegrator(
+        temperature,
+        1.5e-3,
+        1.0,
+        combined_masses,
+        seed
+    ).impl()
+
+    npt_ctxt = custom_ops.Context(
+        ctxt.get_x_t(),
+        ctxt.get_v_t(),
+        ctxt.get_box(),
+        intg,
+        u_impls,
+        barostat
+    )
+
+    npt_ctxt.multiple_steps(np.zeros(1000000, dtype=np.float64))
+
+
+    return npt_ctxt.get_x_t(), npt_ctxt.get_v_t(), npt_ctxt.get_box()
+
+    # return final_coords[:num_host_atoms]
+
+# def equilibriate_npt(x0, box, bound_potentials):
+
+#     bond_list = np.concatenate([unbound_potentials[0].get_idxs(), core_idxs])
+#     bond_list = list(map(tuple, bond_list))
+#     group_indices = get_group_indices(bond_list)
+#     barostat_interval = 5
+
+#     barostat = MonteCarloBarostat(
+#         coords.shape[0],
+#         group_indices,
+#         1.0,
+#         temperature,
+#         barostat_interval,
+#         seed
+#     )
+
+#     intg = LangevinIntegrator(
+#         0.0,
+#         1.5e-3,
+#         1.0,
+#         combined_masses,
+#         seed
+#     ).impl()
+
+
+from simtk import unit
+
+from functools import partial
+from md.ensembles import PotentialEnergyModel, NPTEnsemble
+# from md.barostat.moves import MonteCarloBarostat
+from md.barostat.utils import get_bond_list, get_group_indices
+from md.states import CoordsVelBox
+from md.utils import simulate_npt_traj
+from md.thermostat.moves import UnadjustedLangevinMove
+from md.thermostat.utils import sample_velocities
+
+from timemachine.lib import LangevinIntegrator, MonteCarloBarostat
+
+def minimize_pressure(x0, box, masses, unbound_potentials, sys_params, lam, pressure, n_moves):
+
+    # n_replicates = 10
+    # initial_waterbox_width = 3.0 * unit.nanometer
+    timestep = 1.5 * unit.femtosecond
+    collision_rate = 1.0 / unit.picosecond
+    # n_moves = 2000
+    barostat_interval = 5
+    seed = 2021
+
+    temperature = 300 * unit.kelvin
+    # pressure = 1.013 * unit.bar
+    # pressure = 10.013 * unit.bar
+
+    potential_energy_model = PotentialEnergyModel(sys_params, unbound_potentials)
+    ensemble = NPTEnsemble(potential_energy_model, temperature, pressure)
+
+    # define a thermostat
+    integrator = LangevinIntegrator(
+        temperature.value_in_unit(unit.kelvin),
+        timestep.value_in_unit(unit.picosecond),
+        collision_rate.value_in_unit(unit.picosecond**-1),
+        masses,
+        seed
+    )
+
+    integrator_impl = integrator.impl()
+
+    # tbd fix me to include restraints as well
+    harmonic_bond_potential = unbound_potentials[0]
+    bond_list = get_bond_list(harmonic_bond_potential)
+    group_indices = get_group_indices(bond_list)
+
+    thermostat = UnadjustedLangevinMove(
+        integrator_impl,
+        potential_energy_model.all_impls,
+        lam,
+        n_steps=barostat_interval
+    )
+
+    def reduced_potential_fxn(x, box, lam):
+        u, du_dx = ensemble.reduced_potential_and_gradient(x, box, lam)
+        return u
+
+    barostat = MonteCarloBarostat(partial(reduced_potential_fxn, lam=lam), group_indices, max_delta_volume=3.0)
+
+    v0 = sample_velocities(masses * unit.amu, temperature)
+    initial_state = CoordsVelBox(x0, v0, box)
+
+    traj, extras = simulate_npt_traj(thermostat, barostat, initial_state, n_moves=n_moves)
+
+    return traj, extras['volume_traj']
+    # print(traj)
+    # volume_trajs.append(extras['volume_traj'])

@@ -256,6 +256,80 @@ class BaseTopology():
         combined_potential = potentials.PeriodicTorsion(combined_idxs)
         return combined_params, combined_potential
 
+class AbsoluteTopology(BaseTopology):
+    # specialized variant of BaseTopology that overrides the nonbonded parameterization
+
+    def parameterize_nonbonded(self, ff_q_params, ff_lj_params, dummy=None):
+        # (ytz): First we convert the ligand to a "neutral state", whereby charges
+        # and epsilons are made into a forcefield independent state by lambda=0.5.
+        # then the ligand is pulled out in 4D, and the results are typically cached
+        # then during training.
+        # one current issue with this protocol is that a vacuum is formed in the solvent
+        # leg when we reach a 4D distance near rmin (2^(1/6) of sigma, a future PR will
+        # attempt to address this better.
+
+        q_params = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol)
+        lj_params = self.ff.lj_handle.partial_parameterize(ff_lj_params, self.mol)
+
+        exclusion_idxs, scale_factors = nonbonded.generate_exclusion_idxs(
+            self.mol,
+            scale12=_SCALE_12,
+            scale13=_SCALE_13,
+            scale14=_SCALE_14
+        )
+
+        scale_factors = np.stack([scale_factors, scale_factors], axis=1)
+
+        N = len(q_params)
+
+        if dummy is None:
+            lambda_plane_idxs = np.zeros(N, dtype=np.int32)
+            lambda_offset_idxs = np.ones(N, dtype=np.int32)
+        else:
+            lambda_plane_idxs = np.zeros(N, dtype=np.int32)
+            lambda_offset_idxs = np.ones(N, dtype=np.int32)
+            lambda_plane_idxs[dummy] = 1
+            lambda_offset_idxs[dummy] = 0
+            # lambda_offset_idxs[core] = 0
+
+        beta = _BETA
+        cutoff = _CUTOFF # solve for this analytically later
+
+        qlj_params = jnp.concatenate([
+            jnp.reshape(q_params, (-1, 1)),
+            jnp.reshape(lj_params, (-1, 2))
+        ], axis=1)
+
+        # interpolate every atom down to the same epsilon before we decouple
+        # this can be bigger than default values (eg. H-O)
+        safe_sigmas = jnp.ones_like(qlj_params[:, 1])*0.1 # half sigma
+        safe_epsilons = jnp.ones_like(qlj_params[:, 2])*0.2 # sqrt(eps)
+
+        # for idx, val in enumerate(qlj_params):
+            # print(idx, val)
+
+        # print(qlj_params)
+
+
+        # ligand is decharged first
+        src_qlj_params = qlj_params
+        dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
+        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], safe_sigmas)
+        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], safe_epsilons)
+
+        # print(src_qlj_params)
+        # print(dst_qlj_params)
+
+        qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
+
+        return qlj_params, potentials.NonbondedInterpolated(
+            exclusion_idxs,
+            scale_factors,
+            lambda_plane_idxs,
+            lambda_offset_idxs,
+            beta,
+            cutoff
+        )
 
 class DualTopology():
 
@@ -283,7 +357,7 @@ class DualTopology():
     def get_num_atoms(self):
         return self.mol_a.GetNumAtoms() + self.mol_b.GetNumAtoms()
 
-    def parameterize_nonbonded(self, ff_q_params, ff_lj_params):
+    def parameterize_nonbonded(self, ff_q_params, ff_lj_params, minimize=False):
         q_params_a = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol_a)
         q_params_b = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol_b)
         lj_params_a = self.ff.lj_handle.partial_parameterize(ff_lj_params, self.mol_a)
@@ -333,10 +407,16 @@ class DualTopology():
         ]).astype(np.float64)
 
         combined_lambda_plane_idxs = np.zeros(NA+NB, dtype=np.int32)
-        combined_lambda_offset_idxs = np.concatenate([
-            np.ones(NA, dtype=np.int32),
-            np.ones(NB, dtype=np.int32)
-        ])
+        if minimize:
+            combined_lambda_offset_idxs = np.concatenate([
+                np.ones(NA, dtype=np.int32),
+                np.ones(NB, dtype=np.int32)
+            ])
+        else:
+            combined_lambda_offset_idxs = np.concatenate([
+                np.zeros(NA, dtype=np.int32),
+                np.ones(NB, dtype=np.int32)
+            ])
 
         beta = _BETA
         cutoff = _CUTOFF # solve for this analytically later
