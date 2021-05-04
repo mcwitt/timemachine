@@ -72,7 +72,7 @@ class AbsoluteFreeEnergy(BaseFreeEnergy):
         """
         self.mol = mol
         self.ff = ff
-        self.top = topology.BaseTopology(mol, ff)
+        self.top = topology.AbsoluteTopology(mol, ff)
 
 
     def prepare_host_edge(self, ff_params, host_system, host_coords):
