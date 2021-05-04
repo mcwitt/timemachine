@@ -20,6 +20,8 @@
 
 namespace timemachine {
 
+// static jitify::JitCache kernel_cache;
+
 template <typename RealType, bool Interpolated>
 Nonbonded<RealType, Interpolated>::Nonbonded(
     const std::vector<int> &exclusion_idxs, // [E,2]
@@ -254,7 +256,7 @@ void Nonbonded<RealType, Interpolated>::execute_device(
         const int P,
         const double *d_x,
         const double *d_p, // 2 * N * 3
-        const double *d_box, // 3 * 3
+        const double *d_box,
         const double lambda,
         unsigned long long *d_du_dx,
         double *d_du_dp,

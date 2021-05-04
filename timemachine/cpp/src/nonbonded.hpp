@@ -82,6 +82,7 @@ private:
         cudaStream_t stream
     );
 
+
     jitify::JitCache kernel_cache_;
     jitify::KernelInstantiation compute_w_coords_instance_;
     jitify::KernelInstantiation compute_permute_interpolated_;

@@ -8,9 +8,9 @@ import numpy as np
 import jax
 from jax import numpy as jnp
 
-from fe.free_energy import construct_lambda_schedule
+from fe.free_energy import construct_absolute_lambda_schedule
 from fe.utils import convert_uIC50_to_kJ_per_mole
-from fe import model
+from fe import model_abfe
 from md import builders
 
 from testsystems.relative import hif2a_ligand_pair
@@ -24,10 +24,14 @@ from typing import Union, Optional, Iterable, Any, Tuple, Dict
 
 from optimize.step import truncated_step
 
+import multiprocessing
+
 array = Union[np.array, jnp.array]
 Handler = Union[AM1CCCHandler, LennardJonesHandler] # TODO: do these all inherit from a Handler class already?
 
 if __name__ == "__main__":
+
+    multiprocessing.set_start_method('spawn')
 
     parser = argparse.ArgumentParser(
         description="Relative Binding Free Energy Testing",
@@ -71,51 +75,61 @@ if __name__ == "__main__":
 
     cmd_args = parser.parse_args()
 
+    print("NUM_GPUS", cmd_args.num_gpus)
+
     client = CUDAPoolClient(max_workers=cmd_args.num_gpus)
 
     # fetch mol_a, mol_b, core, forcefield from testsystem
-    mol_a, mol_b, core = hif2a_ligand_pair.mol_a, hif2a_ligand_pair.mol_b, hif2a_ligand_pair.core
+    # mol_a, mol_b, core = hif2a_ligand_pair.mol_a, hif2a_ligand_pair.mol_b, hif2a_ligand_pair.core
+    mol, _, _ = hif2a_ligand_pair.mol_a, hif2a_ligand_pair.mol_b, hif2a_ligand_pair.core
     forcefield = hif2a_ligand_pair.ff
 
     # compute ddG label from mol_a, mol_b
     # TODO: add label upon testsystem construction
     # (ytz): these are *binding* free energies, i.e. values that are less than zero.
-    label_dG_a = convert_uIC50_to_kJ_per_mole(float(mol_a.GetProp("IC50[uM](SPA)")))
-    label_dG_b = convert_uIC50_to_kJ_per_mole(float(mol_b.GetProp("IC50[uM](SPA)")))
-    label_ddG = label_dG_b - label_dG_a  # complex - solvent
+    # label_dG_a = convert_uIC50_to_kJ_per_mole(float(mol_a.GetProp("IC50[uM](SPA)")))
+    # label_dG_b = convert_uIC50_to_kJ_per_mole(float(mol_b.GetProp("IC50[uM](SPA)")))
+    # label_ddG = label_dG_b - label_dG_a  # complex - solvent
 
-    print("binding dG_a", label_dG_a)
-    print("binding dG_b", label_dG_b)
+    # print("binding dG_a", label_dG_a)
+    # print("binding dG_b", label_dG_b)
 
-    hif2a_ligand_pair.label = label_ddG
+    # hif2a_ligand_pair.label = label_ddG
 
     # construct lambda schedules for complex and solvent
-    complex_schedule = construct_lambda_schedule(cmd_args.num_complex_windows)
-    solvent_schedule = construct_lambda_schedule(cmd_args.num_solvent_windows)
+    complex_schedule = construct_absolute_lambda_schedule(cmd_args.num_complex_windows)
+    solvent_schedule = construct_absolute_lambda_schedule(cmd_args.num_solvent_windows)
 
     # build the protein system.
-    complex_system, complex_coords, _, _, complex_box, _ = builders.build_protein_system(
+    complex_system, complex_coords, _, _, complex_box, complex_topology = builders.build_protein_system(
         'tests/data/hif2a_nowater_min.pdb')
 
     # build the water system.
-    solvent_system, solvent_coords, solvent_box, _ = builders.build_water_system(4.0)
+    solvent_system, solvent_coords, solvent_box, solvent_topology = builders.build_water_system(4.0)
 
-    binding_model = model.RBFEModel(
+    binding_model_complex = model_abfe.AbsoluteModel(
         client,
         forcefield,
         complex_system,
         complex_coords,
         complex_box,
         complex_schedule,
-        solvent_system,
-        solvent_coords,
-        solvent_box,
-        solvent_schedule,
+        complex_topology,
         cmd_args.num_equil_steps,
         cmd_args.num_prod_steps
     )
 
-
+    binding_model_solvent = model_abfe.AbsoluteModel(
+        client,
+        forcefield,
+        solvent_system,
+        solvent_coords,
+        solvent_box,
+        solvent_schedule,
+        solvent_topology,
+        cmd_args.num_equil_steps,
+        cmd_args.num_prod_steps
+    )
 
     ordered_params = forcefield.get_ordered_params()
     ordered_handles = forcefield.get_ordered_handles()
@@ -169,13 +183,28 @@ if __name__ == "__main__":
     flat_grad_traj = []
     loss_traj = []
 
-    vg_fn = jax.value_and_grad(binding_model.loss, argnums=0, has_aux=True)
+
+    def loss_fn(params, mol, epoch, cr, sr):
+        dG_complex, cr = binding_model_complex.predict(params, mol, restraints=True, prefix='complex_'+str(epoch), cache_results=cr)
+        dG_solvent, sr = binding_model_solvent.predict(params, mol, restraints=False, prefix='solvent_'+str(epoch), cache_results=sr)
+        print("dG_complex", dG_complex, "dG_solvent", dG_solvent)
+        return dG_complex - dG_solvent, (cr, sr)
+
+    # def solvent_loss_fn(params, mol, epoch, cr, sr):
+    #     dG_solvent, sr = binding_model_solvent.predict(params, mol, restraints=False, prefix='solvent_'+str(epoch), cache_results=sr)
+    #     print("dG_solvent", dG_solvent)
+    #     return dG_solvent, (cr, sr)
+
+
+    vg_fn = jax.value_and_grad(loss_fn, argnums=0, has_aux=True)
+
+    complex_results = None
+    solvent_results = None
 
     for epoch in range(1000):
         epoch_params = serialize_handlers(ordered_handles)
 
-        (loss, aux), loss_grad = vg_fn(ordered_params, mol_a, mol_b, core, label_ddG)
-
+        (loss, (complex_results, solvent_results)), loss_grad = vg_fn(ordered_params, mol, epoch, complex_results, solvent_results)
         print("epoch", epoch, "loss", loss)
 
         # note: unflatten_grad and unflatten_theta have identical definitions for now
@@ -184,7 +213,7 @@ if __name__ == "__main__":
 
         step_lower_bound = loss * relative_improvement_bound
         theta_increment = truncated_step(flat_theta, loss, flat_loss_grad, step_lower_bound=step_lower_bound)
-        param_increments = unflatten_theta(theta_increment)
+        param_increments= unflatten_theta(theta_increment)
 
         # for any parameter handler types being updated, update in place
         for handle in ordered_handles:
