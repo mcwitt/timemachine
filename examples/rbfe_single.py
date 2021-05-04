@@ -180,7 +180,7 @@ if __name__ == "__main__":
 
         # note: unflatten_grad and unflatten_theta have identical definitions for now
         flat_loss_grad, unflatten_grad = flatten(loss_grad)
-        flat_theta, unflatten_theta = flatten(ordered_params)
+        flat_theta, unflatten_theta= flatten(ordered_params)
 
         step_lower_bound = loss * relative_improvement_bound
         theta_increment = truncated_step(flat_theta, loss, flat_loss_grad, step_lower_bound=step_lower_bound)

@@ -79,22 +79,12 @@ if __name__ == "__main__":
 
     client = CUDAPoolClient(max_workers=cmd_args.num_gpus)
 
-    # fetch mol_a, mol_b, core, forcefield from testsystem
-    # mol_a, mol_b, core = hif2a_ligand_pair.mol_a, hif2a_ligand_pair.mol_b, hif2a_ligand_pair.core
     mol, _, _ = hif2a_ligand_pair.mol_a, hif2a_ligand_pair.mol_b, hif2a_ligand_pair.core
     forcefield = hif2a_ligand_pair.ff
 
-    # compute ddG label from mol_a, mol_b
-    # TODO: add label upon testsystem construction
-    # (ytz): these are *binding* free energies, i.e. values that are less than zero.
-    # label_dG_a = convert_uIC50_to_kJ_per_mole(float(mol_a.GetProp("IC50[uM](SPA)")))
-    # label_dG_b = convert_uIC50_to_kJ_per_mole(float(mol_b.GetProp("IC50[uM](SPA)")))
-    # label_ddG = label_dG_b - label_dG_a  # complex - solvent
+    label_dG = convert_uIC50_to_kJ_per_mole(float(mol.GetProp("IC50[uM](SPA)")))
 
-    # print("binding dG_a", label_dG_a)
-    # print("binding dG_b", label_dG_b)
-
-    # hif2a_ligand_pair.label = label_ddG
+    print("binding dG", label_dG)
 
     # construct lambda schedules for complex and solvent
     complex_schedule = construct_absolute_lambda_schedule(cmd_args.num_complex_windows)
@@ -183,18 +173,20 @@ if __name__ == "__main__":
     flat_grad_traj = []
     loss_traj = []
 
-
-    def loss_fn(params, mol, epoch, cr, sr):
+    def loss_fn(params, mol, label_dG_bind, epoch, cr, sr):
         dG_complex, cr = binding_model_complex.predict(params, mol, restraints=True, prefix='complex_'+str(epoch), cache_results=cr)
         dG_solvent, sr = binding_model_solvent.predict(params, mol, restraints=False, prefix='solvent_'+str(epoch), cache_results=sr)
+        pred_dG_bind = dG_solvent - dG_complex # deltaG of binding, move from solvent into complex
+
+        loss = jnp.abs(pred_dG_bind - label_dG_bind)
         print("dG_complex", dG_complex, "dG_solvent", dG_solvent)
-        return dG_complex - dG_solvent, (cr, sr)
+        print("dG_pred", pred_dG_bind, "dG_label", label_dG_bind)
+        return loss, (cr, sr)
 
     # def solvent_loss_fn(params, mol, epoch, cr, sr):
     #     dG_solvent, sr = binding_model_solvent.predict(params, mol, restraints=False, prefix='solvent_'+str(epoch), cache_results=sr)
     #     print("dG_solvent", dG_solvent)
     #     return dG_solvent, (cr, sr)
-
 
     vg_fn = jax.value_and_grad(loss_fn, argnums=0, has_aux=True)
 
@@ -204,7 +196,14 @@ if __name__ == "__main__":
     for epoch in range(1000):
         epoch_params = serialize_handlers(ordered_handles)
 
-        (loss, (complex_results, solvent_results)), loss_grad = vg_fn(ordered_params, mol, epoch, complex_results, solvent_results)
+        (loss, (complex_results, solvent_results)), loss_grad = vg_fn(
+            ordered_params,
+            mol,
+            label_dG,
+            epoch,
+            complex_results,
+            solvent_results
+        )
         print("epoch", epoch, "loss", loss)
 
         # note: unflatten_grad and unflatten_theta have identical definitions for now
