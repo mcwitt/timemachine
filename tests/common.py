@@ -163,7 +163,7 @@ def prepare_water_system(
 
     params = np.stack([
         (np.random.rand(N).astype(np.float64) - 0.5)*np.sqrt(138.935456), # q
-        np.random.rand(N).astype(np.float64)/5.0, # sig
+        np.random.rand(N).astype(np.float64)/5.0, # sig # fix me
         np.random.rand(N).astype(np.float64) # eps
     ], axis=1)
 
