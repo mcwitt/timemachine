@@ -158,7 +158,7 @@ class AbsoluteModel():
         # transform_qlj = "lambda < 0.5 ? sin(lambda*PI)*sin(lambda*PI) : 1"
         # transform_w = "lambda < 0.5 ? 0.0 : sin((lambda+0.5)*PI)*sin((lambda+0.5)*PI)"
         transform_qlj = "lambda"
-        transform_w = "0"
+        transform_w = "0.0"
         cache_lambda = 1.0 # if lambda <= cache_lambda then we re-run the simulation.
         # transform_qlj = "lambda"
         # transform_w = "lambda"
