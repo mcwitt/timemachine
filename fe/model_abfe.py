@@ -111,6 +111,95 @@ def setup_restraints(
     return core_idxs, core_params
 
 
+def setup_centroid_restraints(
+    mol,
+    host_topology,
+    host_coords):
+    """
+    Setup rigid restraint between protein c-alpha and the core atoms in the ligand.
+    It is assumed that the ligand is properly positioned within the protein.
+
+    Parameters
+    ----------
+    mol: Chem.Mol
+        molecule with conformer information specified
+
+    host_topology: openmm.Topology
+        Topology of the host
+
+    host_coords: Nx3
+        Coordinates of the host.
+
+    Returns
+    -------
+    potentials.CentroidRestraint
+
+    """
+    ligand_coords = get_romol_conf(mol)
+    ri = np.expand_dims(ligand_coords, 1)
+    rj = np.expand_dims(host_coords, 0)
+
+    # (ytz): should we use PBCs here?
+    # d2ij = np.sum(np.power(delta_r(ri, rj, host_box), 2), axis=-1)
+    dij = np.sqrt(np.sum(np.power(ri-rj, 2), axis=-1))
+
+    atom_names = [a.name for a in host_topology.atoms()]
+
+    def is_alpha_carbon(idx):
+        return atom_names[idx] == 'CA'
+
+    # what if one of these c-alphas is a highly motile loop?
+    pocket_atoms = set()
+
+    # 5 angstrom radius
+    pocket_cutoff = 1.0
+
+    for i_idx in range(mol.GetNumAtoms()):
+        # if i_idx in core:
+        dists = dij[i_idx]
+        for j_idx, dist in enumerate(dists):
+            if is_alpha_carbon(j_idx):
+                if dist < pocket_cutoff:
+                    pocket_atoms.add(j_idx)
+
+    pocket_atoms = np.array(list(pocket_atoms))
+
+    # ri = np.expand_dims(ligand_coords[core], 1)
+    # rj = np.expand_dims(host_coords[pocket_atoms], 0)
+    # dij_pocket = np.sqrt(np.sum(np.power(ri-rj, 2), axis=-1))
+
+    # row_idxs, col_idxs = linear_sum_assignment(dij_pocket)
+    num_host_atoms = host_coords.shape[0]
+
+    # core_idxs = []
+    # core_params = []
+    # for core_i, protein_j in zip(row_idxs, col_idxs):
+    #     core_idxs.append((core[core_i] + num_host_atoms, pocket_atoms[protein_j]))
+    #     core_params.append((k_core, 0.0))
+    #     # (ytz): intentionally left commented out in-case we want to try a non-0 value
+    #     # later on. But this will cause poor overlap with the RMSD restraint when we
+    #     # do the endpoint correction.
+    #     # core_params.append((self.k_core, dij_pocket[core_i, protein_j]))
+
+    # core_idxs = np.array(core_idxs, dtype=np.int32)
+    # core_params = np.array(core_params, dtype=np.float64)
+
+    ligand_atoms = np.arange(mol.GetNumAtoms()) + num_host_atoms
+
+    # b0 = np.abs(np.mean(pocket_atoms) - np.mean(ligand_atoms))
+    b0 = 0
+    k = 200.0
+
+    # print("b0", b0)
+
+    return potentials.CentroidRestraint(
+        pocket_atoms.astype(np.int32),
+        ligand_atoms.astype(np.int32),
+        k,
+        b0
+    )
+
+
 class AbsoluteModel():
 
     def __init__(
@@ -164,7 +253,7 @@ class AbsoluteModel():
         # transform_w = "lambda"
 
         guest_idxs = np.arange(mol.GetNumAtoms()) + len(min_host_coords)
-        print(guest_idxs.tolist())
+        # print(guest_idxs.tolist())
         # assert 0
 
         nonbonded = unbound_potentials[-1]
@@ -176,28 +265,34 @@ class AbsoluteModel():
             transform_w]
         )
 
-        core = []
-        for a in mol.GetAtoms():
-            if a.IsInRing():
-                core.append(a.GetIdx())
+        # core = []
+        # for a in mol.GetAtoms():
+            # if a.IsInRing():
+                # core.append(a.GetIdx())
 
         if restraints:
-            k_core = 50.0
-            core_idxs, core_params = setup_restraints(mol, core, self.host_topology, self.host_coords, k_core)
-            B = len(core_idxs)
-            core_lambda_mult = np.ones(B)
-            core_lambda_offset = np.zeros(B)
+            # k_core = 50.0
+            # core_idxs, core_params = setup_restraints(mol, core, self.host_topology, self.host_coords, k_core)
+            # B = len(core_idxs)
+            # core_lambda_mult = np.ones(B)
+            # core_lambda_offset = np.zeros(B)
 
-            restraint_potential = potentials.HarmonicBond(
-                core_idxs,
-                core_lambda_mult.astype(np.int32),
-                core_lambda_offset.astype(np.int32)
+            # restraint_potential = potentials.HarmonicBond(
+            #     core_idxs,
+            #     core_lambda_mult.astype(np.int32),
+            #     core_lambda_offset.astype(np.int32)
+            # )
+
+            restraint_potential = setup_centroid_restraints(
+                mol,
+                self.host_topology,
+                self.host_coords
             )
 
             unbound_potentials.append(restraint_potential)
-            sys_params.append(core_params)
+            sys_params.append(np.array([], dtype=np.float64))
 
-            endpoint_correct = True
+            endpoint_correct = False
         else:
             endpoint_correct = False
 

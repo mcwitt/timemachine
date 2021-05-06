@@ -173,22 +173,22 @@ if __name__ == "__main__":
     flat_grad_traj = []
     loss_traj = []
 
-    # def loss_fn(params, mol, label_dG_bind, epoch, cr, sr):
-    #     dG_complex, cr = binding_model_complex.predict(params, mol, restraints=True, prefix='complex_'+str(epoch), cache_results=cr)
-    #     dG_solvent, sr = binding_model_solvent.predict(params, mol, restraints=False, prefix='solvent_'+str(epoch), cache_results=sr)
-    #     pred_dG_bind = dG_solvent - dG_complex # deltaG of binding, move from solvent into complex
-
-    #     loss = jnp.abs(pred_dG_bind - label_dG_bind)
-    #     print("dG_complex", dG_complex, "dG_solvent", dG_solvent)
-    #     print("dG_pred", pred_dG_bind, "dG_label", label_dG_bind)
-    #     return loss, (cr, sr)
-
-    def solvent_loss_fn(params, mol, label, epoch, cr, sr):
+    def loss_fn(params, mol, label_dG_bind, epoch, cr, sr):
+        dG_complex, cr = binding_model_complex.predict(params, mol, restraints=True, prefix='complex_'+str(epoch), cache_results=cr)
         dG_solvent, sr = binding_model_solvent.predict(params, mol, restraints=False, prefix='solvent_'+str(epoch), cache_results=sr)
-        print("dG_solvent", dG_solvent)
-        return dG_solvent, (cr, sr)
+        pred_dG_bind = dG_solvent - dG_complex # deltaG of binding, move from solvent into complex
 
-    vg_fn = jax.value_and_grad(solvent_loss_fn, argnums=0, has_aux=True)
+        loss = jnp.abs(pred_dG_bind - label_dG_bind)
+        print("dG_complex", dG_complex, "dG_solvent", dG_solvent)
+        print("dG_pred", pred_dG_bind, "dG_label", label_dG_bind)
+        return loss, (cr, sr)
+
+    # def solvent_loss_fn(params, mol, label, epoch, cr, sr):
+    #     dG_solvent, sr = binding_model_solvent.predict(params, mol, restraints=False, prefix='solvent_'+str(epoch), cache_results=sr)
+    #     print("dG_solvent", dG_solvent)
+    #     return dG_solvent, (cr, sr)
+
+    # vg_fn = jax.value_and_grad(solvent_loss_fn, argnums=0, has_aux=True)
 
     complex_results = None
     solvent_results = None
@@ -196,7 +196,7 @@ if __name__ == "__main__":
     for epoch in range(1000):
         epoch_params = serialize_handlers(ordered_handles)
 
-        loss, (complex_results, solvent_results) = solvent_loss_fn(
+        loss, (complex_results, solvent_results) = loss_fn(
             ordered_params,
             mol,
             label_dG,

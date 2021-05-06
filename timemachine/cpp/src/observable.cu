@@ -74,15 +74,18 @@ void AvgPartialUPartialParam::observe(
         count_++;
         const int tpb = 32;
         const int blocks = (size+tpb-1)/tpb;
-        k_compute_variance<<<blocks, tpb, 0, stream>>>(
-            size,
-            count_,
-            d_du_dp_,
-            d_m_,
-            d_s_
-        );
+        // std::cout << blocks << std::endl;
+        if(blocks > 0) {
+            k_compute_variance<<<blocks, tpb, 0, stream>>>(
+                size,
+                count_,
+                d_du_dp_,
+                d_m_,
+                d_s_
+            );
+            gpuErrchk(cudaPeekAtLastError());
+        }
 
-        gpuErrchk(cudaPeekAtLastError());
     }
 
 }
