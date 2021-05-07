@@ -271,6 +271,8 @@ class AbsoluteTopology(BaseTopology):
         q_params = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol)
         lj_params = self.ff.lj_handle.partial_parameterize(ff_lj_params, self.mol)
 
+        N = len(q_params)
+
         exclusion_idxs, scale_factors = nonbonded.generate_exclusion_idxs(
             self.mol,
             scale12=_SCALE_12,
@@ -283,7 +285,7 @@ class AbsoluteTopology(BaseTopology):
         # scale_factors = []
 
         # # turn off fully
-        # N = len(q_params)
+
         # for i in range(N):
         #     for j in range(i+1, N):
         #         exclusion_idxs.append((i, j))
