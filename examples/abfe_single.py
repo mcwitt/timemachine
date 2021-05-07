@@ -44,6 +44,8 @@ def reorder_mol(mol):
     dists = np.linalg.norm(conf - com, axis=-1)
     perm = np.argsort(dists)[::-1]
     mol_perm = Chem.RenumberAtoms(mol, perm.tolist())
+
+    print(Chem.MolToMolBlock(mol_perm))
     return mol_perm
     # conf_perm = get_romol_conf(mol_perm)
     # com_perm = np.mean(conf_perm, axis=0)
