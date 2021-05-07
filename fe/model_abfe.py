@@ -269,7 +269,7 @@ class AbsoluteModel():
                 return term*term;
             }
         """
-        print(transform_w)
+        # print(transform_w)
 
         # assert 0
         # transform_w = "return lambda;"

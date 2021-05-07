@@ -310,12 +310,12 @@ class AbsoluteTopology(BaseTopology):
         # safe_epsilons = jnp.ones_like(qlj_params[:, 2])*0.15 # sqrt(eps)
 
         src_qlj_params = qlj_params
-        src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
+        # src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
         # src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 1], safe_sigmas)
         # src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], safe_epsilons)
 
         dst_qlj_params = qlj_params
-        dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
+        # dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
         # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], safe_sigmas)
         # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], safe_epsilons)
 
