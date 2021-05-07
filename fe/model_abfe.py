@@ -294,33 +294,33 @@ class AbsoluteModel():
         if restraints:
 
 
-            # core = []
-            # for a in mol.GetAtoms():
-            #     if a.IsInRing():
-            #         core.append(a.GetIdx())
-            # k_core = 50.0
-            # core_idxs, core_params = setup_restraints(mol, core, self.host_topology, self.host_coords, k_core)
-            # B = len(core_idxs)
-            # core_lambda_mult = np.ones(B)
-            # core_lambda_offset = np.zeros(B)
+            core = []
+            for a in mol.GetAtoms():
+                if a.IsInRing():
+                    core.append(a.GetIdx())
+            k_core = 50.0
+            core_idxs, core_params = setup_restraints(mol, core, self.host_topology, self.host_coords, k_core)
+            B = len(core_idxs)
+            core_lambda_mult = np.ones(B)
+            core_lambda_offset = np.zeros(B)
 
-            # restraint_potential = potentials.HarmonicBond(
-            #     core_idxs,
-            #     core_lambda_mult.astype(np.int32),
-            #     core_lambda_offset.astype(np.int32)
-            # )
-            # unbound_potentials.append(restraint_potential)
-            # sys_params.append(core_params)
-
-            restraint_potential = setup_centroid_restraints(
-                mol,
-                self.host_topology,
-                self.host_coords
+            restraint_potential = potentials.HarmonicBond(
+                core_idxs,
+                core_lambda_mult.astype(np.int32),
+                core_lambda_offset.astype(np.int32)
             )
             unbound_potentials.append(restraint_potential)
-            sys_params.append(np.array([], dtype=np.float64))
+            sys_params.append(core_params)
 
-            endpoint_correct = False
+            # restraint_potential = setup_centroid_restraints(
+            #     mol,
+            #     self.host_topology,
+            #     self.host_coords
+            # )
+            # unbound_potentials.append(restraint_potential)
+            # sys_params.append(np.array([], dtype=np.float64))
+
+            endpoint_correct = True
         else:
             endpoint_correct = False
 
