@@ -1,7 +1,7 @@
 # This script repeatedly estimates the relative binding free energy of a single edge, along with the gradient of the
 # estimate with respect to force field parameters, and adjusts the force field parameters to improve tha accuracy
 # of the free energy prediction.
-
+from rdkit import Chem
 
 import argparse
 import numpy as np
@@ -28,6 +28,28 @@ import multiprocessing
 
 array = Union[np.array, jnp.array]
 Handler = Union[AM1CCCHandler, LennardJonesHandler] # TODO: do these all inherit from a Handler class already?
+
+
+def get_romol_conf(mol):
+    """Coordinates of mol's 0th conformer, in nanometers"""
+    conformer = mol.GetConformer(0)
+    guest_conf = np.array(conformer.GetPositions(), dtype=np.float64)
+    return guest_conf/10 # from angstroms to nm
+
+def reorder_mol(mol):
+    # decouple atoms from outside in
+    conf = get_romol_conf(mol)
+    com = np.mean(conf, axis=0)
+    # get distance to centroid
+    dists = np.linalg.norm(conf - com, axis=-1)
+    perm = np.argsort(dists)[::-1]
+    mol_perm = Chem.RenumberAtoms(mol, perm.tolist())
+    return mol_perm
+    # conf_perm = get_romol_conf(mol_perm)
+    # com_perm = np.mean(conf_perm, axis=0)
+    # dists = np.linalg.norm(conf_perm - com_perm, axis=-1)
+    # print(dists)
+    assert 0
 
 if __name__ == "__main__":
 
@@ -82,7 +104,10 @@ if __name__ == "__main__":
     mol, _, _ = hif2a_ligand_pair.mol_a, hif2a_ligand_pair.mol_b, hif2a_ligand_pair.core
     forcefield = hif2a_ligand_pair.ff
 
+
     label_dG = convert_uIC50_to_kJ_per_mole(float(mol.GetProp("IC50[uM](SPA)")))
+
+    mol = reorder_mol(mol)
 
     print("binding dG", label_dG)
 
