@@ -291,8 +291,8 @@ class AbsoluteTopology(BaseTopology):
                 exclusion_idxs.append((i, j))
                 scale_factors.append((1.0, 1.0))
 
-        # exclusion_idxs = np.array(exclusion_idxs, dtype=np.int32)
-        # scale_factors = np.array(scale_factors, dtype=np.float64)
+        exclusion_idxs = np.array(exclusion_idxs, dtype=np.int32)
+        scale_factors = np.array(scale_factors, dtype=np.float64)
 
         lambda_plane_idxs = np.zeros(N, dtype=np.int32)
         lambda_offset_idxs = np.ones(N, dtype=np.int32)
