@@ -932,12 +932,10 @@ void declare_nonbonded(py::module &m, const char *typestr) {
     py::arg("lambda_offset_idxs_i"),
     py::arg("beta"),
     py::arg("cutoff"),
-    py::arg("shrink_idxs")=std::vector<int>(),
     py::arg("transform_lambda_charge")="lambda",
     py::arg("transform_lambda_sigma")="lambda",
     py::arg("transform_lambda_epsilon")="lambda",
     py::arg("transform_lambda_w")="lambda");
-
 }
 
 PYBIND11_MODULE(custom_ops, m) {
