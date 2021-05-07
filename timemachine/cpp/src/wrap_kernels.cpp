@@ -888,7 +888,6 @@ void declare_nonbonded(py::module &m, const char *typestr) {
         const py::array_t<int, py::array::c_style> &lambda_offset_idxs_i, //
         const double beta,
         const double cutoff,
-        const std::vector<int> shrink_idxs={},
         const std::string &transform_lambda_charge="lambda",
         const std::string &transform_lambda_sigma="lambda",
         const std::string &transform_lambda_epsilon="lambda",
@@ -922,7 +921,6 @@ void declare_nonbonded(py::module &m, const char *typestr) {
             lambda_offset_idxs,
             beta,
             cutoff,
-            shrink_idxs,
             source_str
         );
     }),
@@ -932,10 +930,10 @@ void declare_nonbonded(py::module &m, const char *typestr) {
     py::arg("lambda_offset_idxs_i"),
     py::arg("beta"),
     py::arg("cutoff"),
-    py::arg("transform_lambda_charge")="lambda",
-    py::arg("transform_lambda_sigma")="lambda",
-    py::arg("transform_lambda_epsilon")="lambda",
-    py::arg("transform_lambda_w")="lambda");
+    py::arg("transform_lambda_charge")="return lambda;",
+    py::arg("transform_lambda_sigma")="return lambda;",
+    py::arg("transform_lambda_epsilon")="return lambda;",
+    py::arg("transform_lambda_w")="return lambda;");
 }
 
 PYBIND11_MODULE(custom_ops, m) {

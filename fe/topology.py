@@ -271,16 +271,30 @@ class AbsoluteTopology(BaseTopology):
         q_params = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol)
         lj_params = self.ff.lj_handle.partial_parameterize(ff_lj_params, self.mol)
 
-        exclusion_idxs, scale_factors = nonbonded.generate_exclusion_idxs(
-            self.mol,
-            scale12=_SCALE_12,
-            scale13=_SCALE_13,
-            scale14=_SCALE_14
-        )
+        # exclusion_idxs, scale_factors = nonbonded.generate_exclusion_idxs(
+        #     self.mol,
+        #     scale12=_SCALE_12,
+        #     scale13=_SCALE_13,
+        #     scale14=_SCALE_14
+        # )
 
-        scale_factors = np.stack([scale_factors, scale_factors], axis=1)
+        # scale_factors = np.stack([scale_factors, scale_factors], axis=1)
 
+        exclusion_idxs = []
+        scale_factors = []
+
+        # turn off fully
         N = len(q_params)
+        for i in range(N):
+            for j in range(i+1, N):
+                exclusion_idxs.append((i, j))
+                scale_factors.append((1.0, 1.0))
+
+        exclusion_idxs = np.array(exclusion_idxs, dtype=np.int32)
+        scale_factors = np.array(scale_factors, dtype=np.float64)
+
+        # print(exclusion_idxs)
+        # print(scale_factors)
 
         lambda_plane_idxs = np.zeros(N, dtype=np.int32)
         lambda_offset_idxs = np.ones(N, dtype=np.int32)
@@ -294,8 +308,8 @@ class AbsoluteTopology(BaseTopology):
         ], axis=1)
 
         # interpolate every atom down to the same epsilon before we decouple
-        safe_sigmas = jnp.ones_like(qlj_params[:, 1])*0.2 # half sigma
-        safe_epsilons = jnp.ones_like(qlj_params[:, 2])*0.1 # sqrt(eps)
+        # safe_sigmas = jnp.ones_like(qlj_params[:, 1])*0.2 # half sigma
+        # safe_epsilons = jnp.ones_like(qlj_params[:, 2])*0.1 # sqrt(eps)
 
         # src_qlj_params = qlj_params
         src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
@@ -303,10 +317,9 @@ class AbsoluteTopology(BaseTopology):
         # src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], safe_epsilons)
 
         # dst_qlj_params = qlj_params
-
         dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], safe_sigmas)
-        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], safe_epsilons)
+        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], safe_sigmas)
+        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], safe_epsilons)
 
         qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
 

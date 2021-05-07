@@ -108,8 +108,8 @@ class TestInterpolatedPotential(GradientTest):
 
         N = coords.shape[0]
 
-        lambda_plane_idxs = np.random.randint(low=0, high=2, size=N, dtype=np.int32)
-        lambda_offset_idxs = np.random.randint(low=0, high=2, size=N, dtype=np.int32)
+        lambda_plane_idxs = np.random.randint(low=0, high=1, size=N, dtype=np.int32)
+        lambda_offset_idxs = np.random.randint(low=1, high=2, size=N, dtype=np.int32)
 
 
         def transform_q(lamb):
@@ -178,16 +178,21 @@ class TestInterpolatedPotential(GradientTest):
 
         for precision, rtol in [(np.float64, 1e-8), (np.float32, 1e-4)]:
 
-            for lamb in [0.0, 0.2, 0.6, 0.7, 0.8, 1.0]:
+            # for lamb in [0.0, 0.2, 0.6, 0.7, 0.8, 1.0]:
+            for lamb in np.linspace(0, 1.0, 10):
 
-                    qlj = np.concatenate([qlj_src, qlj_dst])
+                    # qlj = np.concatenate([qlj_src, qlj_dst])
+                    qlj = np.concatenate([qlj_src, qlj_src])
 
                     print("lambda", lamb, "cutoff", cutoff, "precision", precision, "xshape", coords.shape)
 
                     args = copy.deepcopy(test_potential.args)
-                    args.append("return lambda*lambda") # transform q
-                    args.append("return sin(lambda*PI/2)") # transform sigma
-                    args.append("return lambda < 0.5 ? sin(lambda*PI)*sin(lambda*PI) : 1") # transform epsilon
+                    # args.append("return lambda*lambda") # transform q
+                    # args.append("return sin(lambda*PI/2)") # transform sigma
+                    # args.append("return lambda < 0.5 ? sin(lambda*PI)*sin(lambda*PI) : 1") # transform epsilon
+                    args.append("return lambda;") # transform q
+                    args.append("return lambda;") # transform sigma
+                    args.append("return lambda;") # transform epsilon
                     args.append("""
                         double offset = atom_idx / (2.0*N);
                         if(lambda < offset) {
