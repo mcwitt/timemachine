@@ -2,6 +2,7 @@ import pymbar
 from fe import endpoint_correction
 from collections import namedtuple
 
+import time
 import functools
 import copy
 import jax
@@ -11,6 +12,7 @@ import numpy as np
 from typing import Tuple, List, Any
 import os
 
+from fe import standard_state
 from fe.estimator_common import SimulationResult, simulate
 
 FreeEnergyModel = namedtuple(
@@ -29,7 +31,7 @@ FreeEnergyModel = namedtuple(
      "beta",
      "prefix",
      "cache_results",
-     "cache_lambda" # is lambda < cache_lambda, then the simulation is re-ran
+     "cache_lambda" # if lambda < cache_lambda, then the simulation is re-ran
     ]
 )
 
@@ -114,9 +116,14 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
 
     if model.endpoint_correct:
         core_restr = bound_potentials[-1]
+        # (ytz): automatically find optimal k_translation/k_rotation such that
+        # standard deviation and/or overlap is maximized
+        k_translation = 200.0
+        k_rotation = 100.0
+        start = time.time()
         lhs_du, rhs_du, _, _ = endpoint_correction.estimate_delta_us(
-            k_translation=200.0,
-            k_rotation=100.0,
+            k_translation=k_translation,
+            k_rotation=k_rotation,
             core_idxs=core_restr.get_idxs(),
             core_params=core_restr.params.reshape((-1,2)),
             beta=model.beta,
@@ -124,8 +131,14 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
             rhs_xs=results[-1].xs
         )
         dG_endpoint = pymbar.BAR(model.beta*lhs_du, model.beta*np.array(rhs_du))[0]/model.beta
+        # compute standard state corrections for translation and rotation
+        dG_ssc_translation, dG_ssc_rotation = standard_state.release_orientational_restraints(
+            k_translation,
+            k_rotation,
+            model.beta
+        )
         overlap = endpoint_correction.overlap_from_cdf(lhs_du, rhs_du)
-        print(f"{model.prefix} dG_endpoint {dG_endpoint:.3f} overlap {overlap:.3f}")
+        print(f"{model.prefix} dG_endpoint {dG_endpoint:.3f} dG_ssc_translation {dG_ssc_translation:.3f} dG_ssc_rotation {dG_ssc_rotation:.3f} overlap {overlap:.3f} time: {time.time()-start:.3f}s")
         dG += dG_endpoint
 
     return (dG, results), dG_grad
