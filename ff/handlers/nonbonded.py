@@ -128,7 +128,7 @@ def generate_exclusion_idxs(mol, scale12, scale13, scale14):
 
     return np.array(idxs, dtype=np.int32), np.array(scales, dtype=np.float64)
 
-
+@functools.lru_cache(2**8)
 def generate_nonbonded_idxs(mol, smirks):
     """
     Parameterize Nonbonded indices given a mol.
@@ -328,24 +328,21 @@ class AM1CCCHandler(SerializableMixIn):
     def parameterize(self, mol):
         return self.static_parameterize(self.params, self.smirks, mol)
 
+    @functools.lru_cache(2 ** 8)
     @staticmethod
-    def static_parameterize(params, smirks, mol):
-        """
-        Parameters
-        ----------
-        params: np.array, (P,)
-            normalized charge increment for each matched bond
-        smirks: list of str (P,)
-            SMIRKS patterns matching bonds
-        mol: Chem.ROMol
-            molecule to be parameterized.
-
-        """
+    def _get_oemol(mol):
         # imported here for optional dependency
         from openeye import oechem
 
         oemol = convert_to_oe(mol)
         AromaticityModel.assign(oemol)
+        return oemol
+
+    @functools.lru_cache(2 ** 8)
+    @staticmethod
+    def _get_am1_charges(mol):
+        # imported here for optional dependency
+        from openeye import oequacpac
 
         # check for cache
         cache_key = 'AM1Cache'
@@ -361,12 +358,20 @@ class AM1CCCHandler(SerializableMixIn):
         else:
             am1_charges = pickle.loads(base64.b64decode(mol.GetProp(cache_key)))
 
+        return np.array(am1_charges)
+
+    @functools.lru_cache(2 ** 8)
+    @staticmethod
+    def _get_bond_indices(mol, smirks):
+        # imported here for optional dependency
+        from openeye import oechem
+        oemol = AM1CCCHandler._get_oemol(mol)
+
         bond_idxs = []
         bond_idx_params = []
 
         for index in range(len(smirks)):
-            smirk = smirks[index]  
-            param = params[index]
+            smirk = smirks[index]
 
             substructure_search = oechem.OESubSearch(smirk)
             substructure_search.SetMaxMatches(0)
@@ -374,13 +379,12 @@ class AM1CCCHandler(SerializableMixIn):
             matched_bonds = []
             matches = []
             for match in substructure_search.Match(oemol):
-                
                 matched_indices = {
                     atom_match.pattern.GetMapIdx() - 1: atom_match.target.GetIdx()
                     for atom_match in match.GetAtoms()
                     if atom_match.pattern.GetMapIdx() != 0
                 }
-               
+
                 matches.append(matched_indices)
 
             for matched_indices in matches:
@@ -389,27 +393,55 @@ class AM1CCCHandler(SerializableMixIn):
                 reverse_matched_bond = [matched_indices[1], matched_indices[0]]
 
                 if (
-                    forward_matched_bond in matched_bonds
-                    or reverse_matched_bond in matched_bonds
-                    or forward_matched_bond in bond_idxs 
-                    or reverse_matched_bond in bond_idxs
+                        forward_matched_bond in matched_bonds
+                        or reverse_matched_bond in matched_bonds
+                        or forward_matched_bond in bond_idxs
+                        or reverse_matched_bond in bond_idxs
                 ):
                     continue
 
                 matched_bonds.append(forward_matched_bond)
                 bond_idxs.append(forward_matched_bond)
                 bond_idx_params.append(index)
-        
-
-        am1_charges = np.array(am1_charges)
         bond_idxs = np.array(bond_idxs)
         bond_idx_params = np.array(bond_idx_params)
+        return bond_idxs, bond_idx_params
+
+    @staticmethod
+    def apply_params(params, am1_charges, bond_idxs, bond_idx_params):
+        """for each i, (a,b) in enumerate(bond_idxs)
+            increment am1_charges[a] by +params[i] and
+            decrement am1_charges[b] by -params[i]
+
+        Usage: when am1_charges, bond_idxs, and bond_idx_params can be computed once
+            from mol and smirks, and we would like to adjust params
+        """
 
         deltas = params[bond_idx_params]
-        incremented = ops.index_add(am1_charges, bond_idxs[:, 0], deltas)
+        incremented = ops.index_add(am1_charges, bond_idxs[:, 0], +deltas)
         decremented = ops.index_add(incremented, bond_idxs[:, 1], -deltas)
 
         q_params = decremented
+
+        return q_params
+
+    @staticmethod
+    def static_parameterize(params, smirks, mol):
+        """
+        Parameters
+        ----------
+        params: np.array, (P,)
+            normalized charge increment for each matched bond
+        smirks: list of str (P,)
+            SMIRKS patterns matching bonds
+        mol: Chem.ROMol
+            molecule to be parameterized.
+        """
+        am1_charges = AM1CCCHandler._get_am1_charges(mol)
+        bond_idxs, bond_idx_params = AM1CCCHandler._get_bond_indices(mol, smirks)
+
+        q_params = AM1CCCHandler.apply_params(params, am1_charges, bond_idxs, bond_idx_params)
+
         assert (q_params.shape[0] == mol.GetNumAtoms()) # check that return shape is consistent with input mol
 
         return q_params
