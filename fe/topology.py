@@ -301,10 +301,6 @@ class AbsoluteTopology(BaseTopology):
         # for idx, val in enumerate(qlj_params):
             # print(idx, val)
 
-        # print(qlj_params[:, 1])
-        # print(qlj_params[:, 2])
-
-
         src_qlj_params = qlj_params
         dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
 
