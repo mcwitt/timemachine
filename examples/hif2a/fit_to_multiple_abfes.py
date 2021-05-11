@@ -19,7 +19,7 @@ from ff import Forcefield
 from ff.handlers.deserialize import deserialize_handlers
 from ff.handlers.serialize import serialize_handlers
 from ff.handlers.nonbonded import AM1CCCHandler, LennardJonesHandler
-from parallel.client import CUDAPoolClient
+from parallel.client import CUDAPoolClient, GRPCClient
 from parallel.utils import get_gpu_count
 
 from typing import Union, Optional, Iterable, Any, Tuple, Dict
@@ -38,8 +38,15 @@ if __name__ == "__main__":
     multiprocessing.set_start_method('spawn')
 
     parser = argparse.ArgumentParser(
-        description="Relative Binding Free Energy Testing",
+        description="Absolute Binding Free Energy Testing",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser.add_argument(
+        "--hosts",
+        nargs="*",
+        default=None,
+        help="Hosts running GRPC worker to use for compute"
     )
 
     parser.add_argument(
@@ -79,10 +86,18 @@ if __name__ == "__main__":
 
     cmd_args = parser.parse_args()
 
-    client = CUDAPoolClient(max_workers=cmd_args.num_gpus)
+    # client = CUDAPoolClient(max_workers=cmd_args.num_gpus)
 
-    # mol, _, _ = hif2a_ligand_pair.mol_a, hif2a_ligand_pair.mol_b, hif2a_ligand_pair.core
-    # forcefield = hif2a_ligand_pair.ff
+    if not args.hosts:
+        num_gpus = args.num_gpus
+        if num_gpus is None:
+            num_gpus = NUM_GPUS
+        # set up multi-GPU client
+        client = CUDAPoolClient(max_workers=num_gpus)
+    else:
+        # Setup GRPC client
+        client = GRPCClient(hosts=args.hosts)
+    client.verify()
 
     path_to_ligand = 'tests/data/ligands_40.sdf'
     suppl = Chem.SDMolSupplier(path_to_ligand, removeHs=False)
@@ -225,8 +240,6 @@ if __name__ == "__main__":
                 complex_results,
                 solvent_results
             )
-
-            assert 0
 
             print("epoch", epoch, "mol", mol.GetProp("_Name"), "loss", loss)
 
