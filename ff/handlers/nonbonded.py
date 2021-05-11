@@ -217,6 +217,16 @@ class SimpleChargeHandler(NonbondedHandler):
 class LennardJonesHandler(NonbondedHandler):
 
     @staticmethod
+    def apply_params(params, param_idxs):
+        params = params[param_idxs]
+        sigmas = params[:, 0]
+        epsilons = params[:, 1]
+        # the raw parameters already in sqrt form.
+        # sigmas need to be divided by two
+        return jnp.stack([sigmas / 2, epsilons], axis=1)
+
+
+    @staticmethod
     def static_parameterize(params, smirks, mol):
         """
         Parameters
@@ -238,12 +248,8 @@ class LennardJonesHandler(NonbondedHandler):
 
         """
         param_idxs = generate_nonbonded_idxs(mol, smirks)
-        params = params[param_idxs]
-        sigmas = params[:, 0]
-        epsilons = params[:, 1]
-        # the raw parameters already in sqrt form.
-        # sigmas need to be divided by two
-        return jnp.stack([sigmas/2, epsilons], axis=1)
+        return LennardJonesHandler.apply_params(params, param_idxs)
+
 
 class GBSAHandler(NonbondedHandler):
     pass
