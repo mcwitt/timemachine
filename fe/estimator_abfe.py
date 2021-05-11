@@ -138,7 +138,7 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
             model.beta
         )
         overlap = endpoint_correction.overlap_from_cdf(lhs_du, rhs_du)
-        print(f"{model.prefix} dG_endpoint {dG_endpoint:.3f} dG_ssc_translation {dG_ssc_translation:.3f} dG_ssc_rotation {dG_ssc_rotation:.3f} overlap {overlap:.3f} time: {time.time()-start:.3f}s")
+        print(f"{model.prefix} dG_ti {dG:.3f} dG_endpoint {dG_endpoint:.3f} dG_ssc_translation {dG_ssc_translation:.3f} dG_ssc_rotation {dG_ssc_rotation:.3f} overlap {overlap:.3f} time: {time.time()-start:.3f}s")
         dG += dG_endpoint + dG_ssc_translation + dG_ssc_rotation
 
     return (dG, results), dG_grad

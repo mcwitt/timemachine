@@ -294,14 +294,19 @@ class AbsoluteTopology(BaseTopology):
         ], axis=1)
 
         # interpolate every atom down to the same epsilon before we decouple
-        safe_sigmas = jnp.ones_like(qlj_params[:, 1])*0.15 # half sigma
-        safe_epsilons = jnp.ones_like(qlj_params[:, 2])*0.15 # sqrt(eps)
+        # this can be bigger than default values (eg. H-O)
+        # safe_sigmas = jnp.ones_like(qlj_params[:, 1])*0.15 # half sigma
+        # safe_epsilons = jnp.ones_like(qlj_params[:, 2])*0.15 # sqrt(eps)
+
+        # for idx, val in enumerate(qlj_params):
+            # print(idx, val)
+
+        # print(qlj_params[:, 1])
+        # print(qlj_params[:, 2])
+
 
         src_qlj_params = qlj_params
-
         dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
-        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], safe_sigmas)
-        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], safe_epsilons)
 
         qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
 

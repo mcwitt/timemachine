@@ -89,6 +89,9 @@ if __name__ == "__main__":
 
         label_dG = convert_uIC50_to_kJ_per_mole(float(mol.GetProp("IC50[uM](SPA)")))
 
+        # if mol.GetProp("_Name") != "234":
+            # continue
+
         print("mol", mol.GetProp("_Name"), "binding dG", label_dG)
 
         # construct lambda schedules for complex and solvent
@@ -101,6 +104,8 @@ if __name__ == "__main__":
 
         # build the water system.
         solvent_system, solvent_coords, solvent_box, solvent_topology = builders.build_water_system(4.0)
+
+        # client = None
 
         binding_model_complex = model_abfe.AbsoluteModel(
             client,
@@ -137,6 +142,7 @@ if __name__ == "__main__":
             loss = jnp.abs(pred_dG_bind - label_dG_bind)
             print("dG_complex", dG_complex, "dG_solvent", dG_solvent, "dG_pred", pred_dG_bind, "dG_label", label_dG_bind)
             return loss, (cr, sr)
+            # return dG_complex, (None, None)
 
         complex_results = None
         solvent_results = None

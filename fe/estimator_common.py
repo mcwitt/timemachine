@@ -79,6 +79,12 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
         all_impls.append(impl)
         du_dp_obs.append(custom_ops.AvgPartialUPartialParam(impl, 5))
 
+    # sanity check that forces are well behaved
+    for bp in all_impls:
+        du_dx, du_dl, u = bp.execute(x0, box, lamb)
+        norm_forces = np.linalg.norm(du_dx, axis=1)
+        assert np.all(norm_forces < 25000)
+
     if integrator.seed == 0:
         # this deepcopy is needed if we're running if client == None
         integrator = copy.deepcopy(integrator)
