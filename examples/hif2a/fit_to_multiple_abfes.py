@@ -15,6 +15,8 @@ from md import builders
 
 from testsystems.relative import hif2a_ligand_pair
 
+from ff import Forcefield
+from ff.handlers.deserialize import deserialize_handlers
 from ff.handlers.serialize import serialize_handlers
 from ff.handlers.nonbonded import AM1CCCHandler, LennardJonesHandler
 from parallel.client import CUDAPoolClient
@@ -25,6 +27,8 @@ from typing import Union, Optional, Iterable, Any, Tuple, Dict
 from optimize.step import truncated_step
 
 import multiprocessing
+from training.dataset import Dataset
+from rdkit import Chem
 
 array = Union[np.array, jnp.array]
 Handler = Union[AM1CCCHandler, LennardJonesHandler] # TODO: do these all inherit from a Handler class already?
@@ -77,12 +81,19 @@ if __name__ == "__main__":
 
     client = CUDAPoolClient(max_workers=cmd_args.num_gpus)
 
-    mol, _, _ = hif2a_ligand_pair.mol_a, hif2a_ligand_pair.mol_b, hif2a_ligand_pair.core
-    forcefield = hif2a_ligand_pair.ff
+    # mol, _, _ = hif2a_ligand_pair.mol_a, hif2a_ligand_pair.mol_b, hif2a_ligand_pair.core
+    # forcefield = hif2a_ligand_pair.ff
 
-    label_dG = convert_uIC50_to_kJ_per_mole(float(mol.GetProp("IC50[uM](SPA)")))
+    path_to_ligand = 'tests/data/ligands_40.sdf'
+    suppl = Chem.SDMolSupplier(path_to_ligand, removeHs=False)
 
-    print("binding dG", label_dG)
+    with open('ff/params/smirnoff_1_1_0_ccc.py') as f:
+        ff_handlers = deserialize_handlers(f.read())
+
+    forcefield = Forcefield(ff_handlers)
+    mols = [x for x in suppl]
+
+    dataset = Dataset(mols)
 
     # construct lambda schedules for complex and solvent
     complex_schedule = construct_absolute_lambda_schedule(cmd_args.num_complex_windows)
@@ -171,20 +182,24 @@ if __name__ == "__main__":
     flat_grad_traj = []
     loss_traj = []
 
+    # arbitrary right now
+    dG_reorg = 10
+
+    def safe_repr(x):
+        try:
+            # get rid of ConcreteArray string shenanigans
+            return x.aval.val
+        except:
+            return x
+
     def loss_fn(params, mol, label_dG_bind, epoch, cr, sr):
         dG_complex, cr = binding_model_complex.predict(params, mol, restraints=True, prefix='complex_'+str(epoch), cache_results=cr)
         dG_solvent, sr = binding_model_solvent.predict(params, mol, restraints=False, prefix='solvent_'+str(epoch), cache_results=sr)
-        pred_dG_bind = dG_solvent - dG_complex # deltaG of binding, move from solvent into complex
+        pred_dG_bind = dG_solvent - dG_complex + dG_reorg # deltaG of binding, move from solvent into complex
 
         loss = jnp.abs(pred_dG_bind - label_dG_bind)
-        print("dG_complex", dG_complex, "dG_solvent", dG_solvent)
-        print("dG_pred", pred_dG_bind, "dG_label", label_dG_bind)
+        print("mol", mol.GetProp("_Name"), "dG_complex", safe_repr(dG_complex), "dG_solvent", safe_repr(dG_solvent), "dG_pred", safe_repr(pred_dG_bind), "dG_label", label_dG_bind)
         return loss, (cr, sr)
-
-    # def solvent_loss_fn(params, mol, epoch, cr, sr):
-    #     dG_solvent, sr = binding_model_solvent.predict(params, mol, restraints=False, prefix='solvent_'+str(epoch), cache_results=sr)
-    #     print("dG_solvent", dG_solvent)
-    #     return dG_solvent, (cr, sr)
 
     vg_fn = jax.value_and_grad(loss_fn, argnums=0, has_aux=True)
 
@@ -194,55 +209,66 @@ if __name__ == "__main__":
     for epoch in range(1000):
         epoch_params = serialize_handlers(ordered_handles)
 
-        (loss, (complex_results, solvent_results)), loss_grad = vg_fn(
-            ordered_params,
-            mol,
-            label_dG,
-            epoch,
-            complex_results,
-            solvent_results
-        )
-        print("epoch", epoch, "loss", loss)
+        dataset.shuffle()
 
-        # note: unflatten_grad and unflatten_theta have identical definitions for now
-        flat_loss_grad, unflatten_grad = flatten(loss_grad)
-        flat_theta, unflatten_theta = flatten(ordered_params)
+        for mol in dataset.data:
 
-        step_lower_bound = loss * relative_improvement_bound
-        theta_increment = truncated_step(flat_theta, loss, flat_loss_grad, step_lower_bound=step_lower_bound)
-        param_increments = unflatten_theta(theta_increment)
+            label_dG = convert_uIC50_to_kJ_per_mole(float(mol.GetProp("IC50[uM](SPA)")))
 
-        # for any parameter handler types being updated, update in place
-        for handle in ordered_handles:
-            handle_type = type(handle)
-            if handle_type in param_increments:
-                print(f'updating {handle_type.__name__}')
+            print("processing mol", mol.GetProp("_Name"), "with binding dG", label_dG)
 
-                print(f'\tbefore update: {handle.params}')
-                handle.params += param_increments[handle_type] # TODO: careful -- this must be a "+=" or "-=" not an "="!
-                print(f'\tafter update:  {handle.params}')
+            (loss, (complex_results, solvent_results)), loss_grad = vg_fn(
+                ordered_params,
+                mol,
+                label_dG,
+                epoch,
+                complex_results,
+                solvent_results
+            )
 
-                # useful for debugging to dump out the grads
-                # for smirks, dp in zip(handle.smirks, loss_grad):
-                    # if np.any(dp) > 0:
-                        # print(smirks, dp)
+            assert 0
 
-        # checkpoint results to npz (overwrite
-        flat_theta_traj.append(np.array(flat_theta))
-        flat_grad_traj.append(flat_loss_grad)
-        loss_traj.append(loss)
+            print("epoch", epoch, "mol", mol.GetProp("_Name"), "loss", loss)
 
-        path_to_npz = 'results_checkpoint.npz'
-        print(f'saving theta, grad, loss trajs to {path_to_npz}')
-        np.savez(
-            path_to_npz,
-            theta_traj=np.array(flat_theta_traj),
-            grad_traj=np.array(flat_grad_traj),
-            loss_traj=np.array(loss_traj)
-        )
+            # note: unflatten_grad and unflatten_theta have identical definitions for now
+            flat_loss_grad, unflatten_grad = flatten(loss_grad)
+            flat_theta, unflatten_theta = flatten(ordered_params)
 
-        # write ff parameters after each epoch
-        path_to_ff_checkpoint = f"checkpoint_{epoch}.py"
-        print(f'saving force field parameter checkpoint to {path_to_ff_checkpoint}')
-        with open(path_to_ff_checkpoint, 'w') as fh:
-            fh.write(epoch_params)
+            step_lower_bound = loss * relative_improvement_bound
+            theta_increment = truncated_step(flat_theta, loss, flat_loss_grad, step_lower_bound=step_lower_bound)
+            param_increments = unflatten_theta(theta_increment)
+
+            # for any parameter handler types being updated, update in place
+            for handle in ordered_handles:
+                handle_type = type(handle)
+                if handle_type in param_increments:
+                    print(f'updating {handle_type.__name__}')
+
+                    print(f'\tbefore update: {handle.params}')
+                    handle.params += param_increments[handle_type] # TODO: careful -- this must be a "+=" or "-=" not an "="!
+                    print(f'\tafter update:  {handle.params}')
+
+                    # useful for debugging to dump out the grads
+                    # for smirks, dp in zip(handle.smirks, loss_grad):
+                        # if np.any(dp) > 0:
+                            # print(smirks, dp)
+
+            # checkpoint results to npz (overwrite
+            flat_theta_traj.append(np.array(flat_theta))
+            flat_grad_traj.append(flat_loss_grad)
+            loss_traj.append(loss)
+
+            path_to_npz = 'results_checkpoint.npz'
+            print(f'saving theta, grad, loss trajs to {path_to_npz}')
+            np.savez(
+                path_to_npz,
+                theta_traj=np.array(flat_theta_traj),
+                grad_traj=np.array(flat_grad_traj),
+                loss_traj=np.array(loss_traj)
+            )
+
+            # write ff parameters after each epoch
+            path_to_ff_checkpoint = f"checkpoint_{epoch}.py"
+            print(f'saving force field parameter checkpoint to {path_to_ff_checkpoint}')
+            with open(path_to_ff_checkpoint, 'w') as fh:
+                fh.write(epoch_params)
