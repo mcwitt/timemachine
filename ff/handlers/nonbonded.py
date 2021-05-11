@@ -186,6 +186,10 @@ class NonbondedHandler(SerializableMixIn):
         return self.static_parameterize(self.params, self.smirks, mol)
 
     @staticmethod
+    def apply_params(params, param_idxs):
+        return params[param_idxs]
+
+    @staticmethod
     def static_parameterize(params, smirks, mol):
         """
         Carry out parameterization of given molecule, with an option to attach additional parameters
@@ -205,7 +209,7 @@ class NonbondedHandler(SerializableMixIn):
         """
         assert (len(smirks) == len(params))
         param_idxs = generate_nonbonded_idxs(mol, smirks)
-        return params[param_idxs]
+        return NonbondedHandler.apply_params(params, param_idxs)
 
 class SimpleChargeHandler(NonbondedHandler):
     pass
