@@ -88,15 +88,13 @@ if __name__ == "__main__":
 
     # client = CUDAPoolClient(max_workers=cmd_args.num_gpus)
 
-    if not args.hosts:
-        num_gpus = args.num_gpus
-        if num_gpus is None:
-            num_gpus = NUM_GPUS
+    if not cmd_args.hosts:
+        num_gpus = cmd_args.num_gpus
         # set up multi-GPU client
         client = CUDAPoolClient(max_workers=num_gpus)
     else:
         # Setup GRPC client
-        client = GRPCClient(hosts=args.hosts)
+        client = GRPCClient(hosts=cmd_args.hosts)
     client.verify()
 
     path_to_ligand = 'tests/data/ligands_40.sdf'
