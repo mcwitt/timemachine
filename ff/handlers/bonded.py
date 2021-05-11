@@ -65,8 +65,8 @@ class ReversibleBondHandler(SerializableMixIn):
 
         Returns
         -------
-        tuple of (Q,2) (np.int32), ((Q,2), fn: R^Qx2 -> R^Px2))
-            System bond idxes, parameters, and the vjp_fn.
+        tuple of (Q,2) (np.int32), ((Q,2))
+            System bond idxs, parameters
 
         """
 
