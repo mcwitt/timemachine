@@ -88,6 +88,8 @@ def setup_restraints(
 
     pocket_atoms = np.array(list(pocket_atoms))
 
+    print("c-alphas to be used as restraints:", pocket_atoms)
+
     ri = np.expand_dims(ligand_coords[core], 1)
     rj = np.expand_dims(host_coords[pocket_atoms], 0)
     dij_pocket = np.sqrt(np.sum(np.power(ri-rj, 2), axis=-1))
