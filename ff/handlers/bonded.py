@@ -52,6 +52,16 @@ class ReversibleBondHandler(SerializableMixIn):
         return self.static_parameterize(self.params, self.smirks, mol)
 
     @staticmethod
+    def get_indices(mol, smirks):
+        interaction_idxs, param_idxs = generate_vd_idxs(mol, smirks)
+        return interaction_idxs, param_idxs
+
+    @staticmethod
+    def apply_parameters(params, param_idxs):
+        return params[param_idxs]
+
+
+    @staticmethod
     def static_parameterize(params, smirks, mol):
         """
         Parameterize given molecule
@@ -67,9 +77,9 @@ class ReversibleBondHandler(SerializableMixIn):
             System bond idxs, parameters
 
         """
-
-        bond_idxs, param_idxs = generate_vd_idxs(mol, smirks)
-        return params[param_idxs], bond_idxs
+        interaction_idxs, param_idxs = ReversibleBondHandler.get_indices(mol, smirks)
+        applied_params = ReversibleBondHandler.apply_parameters(params, param_idxs)
+        return applied_params, interaction_idxs
 
 # we need to subclass to get the names backout
 class HarmonicBondHandler(ReversibleBondHandler):
@@ -114,9 +124,10 @@ class ProperTorsionHandler():
     def partial_parameterize(self, params, mol):
         return self.static_parameterize(params, self.smirks, self.counts, mol)
 
-
     @staticmethod
-    def static_parameterize(params, smirks, counts, mol):
+    def get_indices(mol, smirks, counts):
+        interaction_idxs, param_idxs = generate_vd_idxs(mol, smirks)
+
         torsion_idxs, param_idxs = generate_vd_idxs(mol, smirks)
 
         assert len(torsion_idxs) == len(param_idxs)
@@ -126,7 +137,7 @@ class ProperTorsionHandler():
         repeats = []
 
         # prefix sum of size + 1
-        pfxsum = np.concatenate([[0], np.cumsum(counts)]) 
+        pfxsum = np.concatenate([[0], np.cumsum(counts)])
         for p_idx in param_idxs:
             start = pfxsum[p_idx]
             end = pfxsum[p_idx+1]
@@ -139,7 +150,21 @@ class ProperTorsionHandler():
 
         scatter_idxs = np.array(scatter_idxs)
 
-        return params[scatter_idxs], np.repeat(torsion_idxs, repeats, axis=0).astype(np.int32)
+        torsion_idxs_w_repeats = np.repeat(torsion_idxs, repeats, axis=0).astype(np.int32)
+
+        return scatter_idxs, torsion_idxs_w_repeats
+
+    @staticmethod
+    def apply_parameters(params, scatter_idxs):
+        return params[scatter_idxs]
+
+    @staticmethod
+    def static_parameterize(params, smirks, counts, mol):
+        scatter_idxs, torsion_idxs_w_repeats = ProperTorsionHandler.get_indices(mol, smirks, counts)
+
+        applied_params = ProperTorsionHandler.apply_parameters(params, scatter_idxs)
+
+        return applied_params, torsion_idxs_w_repeats
 
     def serialize(self):
         list_params = []
