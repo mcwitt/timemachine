@@ -207,12 +207,13 @@ if __name__ == "__main__":
 
     def loss_fn(params, mol, label_dG_bind, epoch, cr, sr):
         dG_complex, cr = binding_model_complex.predict(params, mol, restraints=True, prefix='complex_'+str(epoch), cache_results=cr)
-        dG_solvent, sr = binding_model_solvent.predict(params, mol, restraints=False, prefix='solvent_'+str(epoch), cache_results=sr)
-        pred_dG_bind = dG_solvent - dG_complex + dG_reorg # deltaG of binding, move from solvent into complex
+        # dG_solvent, sr = binding_model_solvent.predict(params, mol, restraints=False, prefix='solvent_'+str(epoch), cache_results=sr)
+        # pred_dG_bind = dG_solvent - dG_complex + dG_reorg # deltaG of binding, move from solvent into complex
 
-        loss = jnp.abs(pred_dG_bind - label_dG_bind)
-        print("mol", mol.GetProp("_Name"), "dG_complex", safe_repr(dG_complex), "dG_solvent", safe_repr(dG_solvent), "dG_pred", safe_repr(pred_dG_bind), "dG_label", label_dG_bind)
-        return loss, (cr, sr)
+        # loss = jnp.abs(pred_dG_bind - label_dG_bind)
+        # print("mol", mol.GetProp("_Name"), "dG_complex", safe_repr(dG_complex), "dG_solvent", safe_repr(dG_solvent), "dG_pred", safe_repr(pred_dG_bind), "dG_label", label_dG_bind)
+        # return loss, (cr, sr)
+        return dG_complex, (None, None)
 
     vg_fn = jax.value_and_grad(loss_fn, argnums=0, has_aux=True)
 
@@ -225,6 +226,9 @@ if __name__ == "__main__":
         dataset.shuffle()
 
         for mol in dataset.data:
+
+            if mol.GetProp("_Name") != '254':
+                continue
 
             label_dG = convert_uIC50_to_kJ_per_mole(float(mol.GetProp("IC50[uM](SPA)")))
 
@@ -240,6 +244,8 @@ if __name__ == "__main__":
             )
 
             print("epoch", epoch, "mol", mol.GetProp("_Name"), "loss", loss)
+
+            continue
 
             # note: unflatten_grad and unflatten_theta have identical definitions for now
             flat_loss_grad, unflatten_grad = flatten(loss_grad)

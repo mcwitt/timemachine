@@ -179,8 +179,10 @@ class AbsoluteModel():
             k_core = 50.0
             core_idxs, core_params = setup_restraints(mol, core, self.host_topology, self.host_coords, k_core)
             B = len(core_idxs)
-            core_lambda_mult = np.ones(B)
-            core_lambda_offset = np.zeros(B)
+            # core_lambda_mult = np.ones(B)
+            # core_lambda_offset = np.zeros(B)
+            core_lambda_mult = np.zeros(B)
+            core_lambda_offset = np.ones(B)
 
             restraint_potential = potentials.HarmonicBond(
                 core_idxs,

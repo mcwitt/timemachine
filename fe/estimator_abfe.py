@@ -47,7 +47,13 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
         bound_potentials.append(bp)
 
     all_args = []
-    for lamb in model.lambda_schedule:
+    for lamb_idx, lamb in enumerate(model.lambda_schedule):
+
+        if (lamb_idx == len(model.lambda_schedule) - 1) and model.endpoint_correct:
+            x_interval = 50
+        else:
+            x_interval = 1000
+
         all_args.append((
             lamb,
             model.box,
@@ -56,7 +62,8 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
             bound_potentials,
             model.integrator,
             model.equil_steps,
-            model.prod_steps
+            model.prod_steps,
+            x_interval
         ))
 
     if model.endpoint_correct:
@@ -68,7 +75,8 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
             bound_potentials[:-1],
             model.integrator,
             model.equil_steps,
-            model.prod_steps
+            model.prod_steps,
+            50
         ))
 
     assert len(all_args) == len(model.cache_results)
