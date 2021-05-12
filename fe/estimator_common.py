@@ -4,6 +4,7 @@ import copy
 import jax
 import numpy as np
 import dataclasses
+from md import minimizer
 
 from timemachine.lib import potentials, custom_ops
 
@@ -78,6 +79,9 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, equil_steps, prod_
         impl = bp.bound_impl(np.float32)
         all_impls.append(impl)
         du_dp_obs.append(custom_ops.AvgPartialUPartialParam(impl, 5))
+
+    # fire minimize once again, needed for parameter interpolation
+    x0 = minimizer.fire_minimize(x0, all_impls, box, np.ones(100, dtype=np.float64)*lamb)
 
     # sanity check that forces are well behaved
     for bp in all_impls:

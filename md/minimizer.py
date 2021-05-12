@@ -69,6 +69,7 @@ def fire_minimize(x0: np.ndarray, u_impls, box: np.ndarray, lamb_sched: np.array
     init, f = fire_descent(force, shift)
     opt_state = init(x0, lamb=lamb_sched[0])
     for lamb in lamb_sched[1:]:
+        # print("lamb", lamb)
         opt_state = f(opt_state, lamb=lamb)
     return np.asarray(opt_state.position)
 

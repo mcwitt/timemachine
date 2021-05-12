@@ -119,6 +119,8 @@ if __name__ == "__main__":
     # build the water system.
     solvent_system, solvent_coords, solvent_box, solvent_topology = builders.build_water_system(4.0)
 
+    client = None
+
     binding_model_complex = model_abfe.AbsoluteModel(
         client,
         forcefield,
