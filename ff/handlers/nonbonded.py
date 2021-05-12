@@ -350,7 +350,8 @@ class AM1CCCHandler(SerializableMixIn):
 
     #@functools.lru_cache(2 ** 8)
     @staticmethod
-    def _get_am1_charges(mol):
+    def get_am1_charges(mol):
+        """Compute AM1 charges, if not already cached"""
         # imported here for optional dependency
         from openeye import oequacpac
 
@@ -372,7 +373,8 @@ class AM1CCCHandler(SerializableMixIn):
 
     #@functools.lru_cache(2 ** 8)
     @staticmethod
-    def _get_bond_indices(mol, smirks):
+    def get_bond_indices(mol, smirks):
+        """Compute bond_idxs and associated bond_idx_params"""
         # imported here for optional dependency
         from openeye import oechem
         oemol = AM1CCCHandler._get_oemol(mol)
@@ -447,8 +449,8 @@ class AM1CCCHandler(SerializableMixIn):
         mol: Chem.ROMol
             molecule to be parameterized.
         """
-        am1_charges = AM1CCCHandler._get_am1_charges(mol)
-        bond_idxs, bond_idx_params = AM1CCCHandler._get_bond_indices(mol, smirks)
+        am1_charges = AM1CCCHandler.get_am1_charges(mol)
+        bond_idxs, bond_idx_params = AM1CCCHandler.get_bond_indices(mol, smirks)
 
         q_params = AM1CCCHandler.apply_params(params, am1_charges, bond_idxs, bond_idx_params)
 
