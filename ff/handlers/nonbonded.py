@@ -128,7 +128,7 @@ def generate_exclusion_idxs(mol, scale12, scale13, scale14):
 
     return np.array(idxs, dtype=np.int32), np.array(scales, dtype=np.float64)
 
-@functools.lru_cache(2**8)
+#@functools.lru_cache(2**8)
 def generate_nonbonded_idxs(mol, smirks):
     """
     Parameterize Nonbonded indices given a mol.
@@ -338,7 +338,7 @@ class AM1CCCHandler(SerializableMixIn):
     def parameterize(self, mol):
         return self.static_parameterize(self.params, self.smirks, mol)
 
-    @functools.lru_cache(2 ** 8)
+    #@functools.lru_cache(2 ** 8)
     @staticmethod
     def _get_oemol(mol):
         # imported here for optional dependency
@@ -348,7 +348,7 @@ class AM1CCCHandler(SerializableMixIn):
         AromaticityModel.assign(oemol)
         return oemol
 
-    @functools.lru_cache(2 ** 8)
+    #@functools.lru_cache(2 ** 8)
     @staticmethod
     def _get_am1_charges(mol):
         # imported here for optional dependency
@@ -370,7 +370,7 @@ class AM1CCCHandler(SerializableMixIn):
 
         return np.array(am1_charges)
 
-    @functools.lru_cache(2 ** 8)
+    #@functools.lru_cache(2 ** 8)
     @staticmethod
     def _get_bond_indices(mol, smirks):
         # imported here for optional dependency
