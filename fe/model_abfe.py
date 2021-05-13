@@ -183,13 +183,12 @@ class AbsoluteModel():
 
         core = []
         for a in mol.GetAtoms():
-            if a.IsInRing():
-                core.append(a.GetIdx())
+            # if a.IsInRing():
+                # core.append(a.GetIdx())
+            core.append(a.GetIdx())
 
         if restraints:
             k_core = 50.0
-
-
 
 
             core_idxs, core_params = setup_restraints(mol, core, self.host_topology, self.host_coords, k_core)
