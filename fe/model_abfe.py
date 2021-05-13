@@ -166,11 +166,26 @@ class AbsoluteModel():
         )
 
         # setup lambda transformations
-        transform_qlj = "lambda < 0.5 ? sin(lambda*PI)*sin(lambda*PI) : 1"
-        transform_w = "lambda < 0.5 ? 0.0 : sin((lambda+0.5)*PI)*sin((lambda+0.5)*PI)"
+        # transform_qlj = "lambda < 0.5 ? sin(lambda*PI)*sin(lambda*PI) : 1"
+        # transform_w = "lambda < 0.5 ? 0.0 : sin((lambda+0.5)*PI)*sin((lambda+0.5)*PI)"
         # cache_lambda = 0.5 # if lambda <= cache_lambda then we re-run the simulation.
         # transform_qlj = "lambda"
         # transform_w = "lambda"
+
+        num_host_atoms = self.host_coords.shape[0]
+        transform_qlj = "return lambda;"
+        transform_w = """
+            if(atom_idx < """ + str(num_host_atoms) + """) { return 0; }
+            double offset = (atom_idx - """ + str(num_host_atoms) + """)/ (2.0*(N-"""+str(num_host_atoms)+"""));
+            if(lambda < offset) {
+                return 0;
+            } else if (lambda > (0.5 + offset)) {
+                return 1;
+            } else {
+                NumericType term = sin((lambda - offset)*PI);
+                return term*term;
+            }
+        """
         cache_lambda = 1.0
 
         nonbonded = unbound_potentials[-1]
