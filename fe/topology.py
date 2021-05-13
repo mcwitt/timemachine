@@ -295,13 +295,13 @@ class AbsoluteTopology(BaseTopology):
 
         # interpolate every atom down to the same epsilon before we decouple
         # this can be bigger than default values (eg. H-O)
-        # safe_sigmas = jnp.ones_like(qlj_params[:, 1])*0.2 # half sigma
-        # safe_epsilons = jnp.ones_like(qlj_params[:, 2])*0.2 # sqrt(eps)
+        safe_sigmas = jnp.ones_like(qlj_params[:, 1])*0.1 # half sigma
+        safe_epsilons = jnp.ones_like(qlj_params[:, 2])*0.2 # sqrt(eps)
 
         # for idx, val in enumerate(qlj_params):
             # print(idx, val)
 
-        # ligand is decharged first
+        # ligand is decharged first and converted to "safe state"
         src_qlj_params = qlj_params
         dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
         dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], safe_sigmas)
