@@ -19,6 +19,7 @@ from functools import partial
 
 from ff.handlers import openmm_deserializer
 from scipy.optimize import linear_sum_assignment
+import scipy.spatial
 
 def get_romol_conf(mol):
     """Coordinates of mol's 0th conformer, in nanometers"""
@@ -60,6 +61,12 @@ def setup_restraints(
 
     """
     ligand_coords = get_romol_conf(mol)
+    core_coords = ligand_coords[core]
+
+    # restrict core to the convex hull
+    hull_idxs = scipy.spatial.ConvexHull(core_coords).vertices
+    core = [core[x] for x in hull_idxs]
+
     ri = np.expand_dims(ligand_coords, 1)
     rj = np.expand_dims(host_coords, 0)
 
@@ -76,7 +83,7 @@ def setup_restraints(
     pocket_atoms = set()
 
     # 5 angstrom radius
-    pocket_cutoff = 0.7
+    pocket_cutoff = 1.0
 
     for i_idx in range(mol.GetNumAtoms()):
         if i_idx in core:
@@ -88,7 +95,7 @@ def setup_restraints(
 
     pocket_atoms = np.array(list(pocket_atoms))
 
-    print("c-alphas to be used as restraints:", pocket_atoms)
+    # print("c-alphas to be used as restraints:", pocket_atoms)
 
     ri = np.expand_dims(ligand_coords[core], 1)
     rj = np.expand_dims(host_coords[pocket_atoms], 0)
@@ -102,6 +109,8 @@ def setup_restraints(
     for core_i, protein_j in zip(row_idxs, col_idxs):
         core_idxs.append((core[core_i] + num_host_atoms, pocket_atoms[protein_j]))
         core_params.append((k_core, 0.0))
+
+    print(core_idxs)
         # (ytz): intentionally left commented out in-case we want to try a non-0 value
         # later on. But this will cause poor overlap with the RMSD restraint when we
         # do the endpoint correction.
@@ -179,6 +188,10 @@ class AbsoluteModel():
 
         if restraints:
             k_core = 50.0
+
+
+
+
             core_idxs, core_params = setup_restraints(mol, core, self.host_topology, self.host_coords, k_core)
             B = len(core_idxs)
             # core_lambda_mult = np.ones(B)

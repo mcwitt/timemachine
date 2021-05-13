@@ -232,9 +232,10 @@ if __name__ == "__main__":
             if mol.GetProp("_Name") != '254':
                 continue
 
+
             label_dG = convert_uIC50_to_kJ_per_mole(float(mol.GetProp("IC50[uM](SPA)")))
 
-            print("processing mol", mol.GetProp("_Name"), "with binding dG", label_dG)
+            print("processing mol", mol.GetProp("_Name"), "with binding dG", label_dG, "SMILES", Chem.MolToSmiles(mol))
 
             (loss, (complex_results, solvent_results)), loss_grad = vg_fn(
                 ordered_params,

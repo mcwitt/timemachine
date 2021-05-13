@@ -269,7 +269,7 @@ def construct_absolute_lambda_schedule(num_windows):
     ])
 
     # lambda_schedule = [0.14,0.15,0.18,0.19,0.20,0.21,0.22]
-    lambda_schedule = np.linspace(0.60, 0.70, num_windows)
+    lambda_schedule = np.linspace(0.55, 0.70, num_windows)
 
     # assert len(lambda_schedule) == num_windows
 
