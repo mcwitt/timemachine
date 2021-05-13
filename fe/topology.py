@@ -302,7 +302,12 @@ class AbsoluteTopology(BaseTopology):
             # print(idx, val)
 
         # ligand is decharged first and converted to "safe state"
-        src_qlj_params = qlj_params
+        # src_qlj_params = qlj_params
+
+        src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
+        src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 1], safe_sigmas)
+        src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], safe_epsilons)
+
         dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
         dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], safe_sigmas)
         dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], safe_epsilons)
