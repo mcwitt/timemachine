@@ -38,7 +38,7 @@ class DeleteAndInsert(MonteCarloMove):
     def propose(self, x: CoordsVelBox) -> Tuple[CoordsVelBox, float]:
         """Simulate a deletion trajectory followed immediately by an insertion trajectory, accumulating work.
         Proposal: final snapshot of proposal trajectory
-        Acceptance probability: exp(-reduced_work)
+        Acceptance probability: min(1, exp(-reduced_work))
 
         Notes
         -----
@@ -65,6 +65,6 @@ class DeleteAndInsert(MonteCarloMove):
 
         # reduced work, now unitless
         reduced_work = self.ensemble.reduce(W_delete + W_insert)
-        log_acceptance_probability = - reduced_work
+        log_acceptance_probability = min(0.0, - reduced_work)
 
         return proposal, log_acceptance_probability
