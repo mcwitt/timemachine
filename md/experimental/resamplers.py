@@ -16,18 +16,22 @@ def null_resample(log_weights: LogWeights) -> Tuple[IndexArray, LogWeights]:
 
 
 def stratified_resample(log_weights: LogWeights) -> Tuple[IndexArray, LogWeights]:
-    """
+    """Apply stratified resampling to a vector of unnormalized log weights
+
     Notes
     -----
     * Stratified resampling (unlike residual resampling or multinomial resampling),
         is sensitive to arbitrary particle ordering.
-        TODO: should we shuffle the weights first?
-
+        TODO: before calling this function, should we periodically re-shuffle the particles?
 
     References
     ----------
-    * [Douc, Cappé, Moulines,
-    * Implementation in variational SMC
+    * [Douc, Cappé, Moulines, 2005] Comparison of Resampling Schemes for Particle Filtering
+        https://arxiv.org/abs/cs/0507025
+    * [Chopin, 2021] Implementation in nchopin/particles
+        https://github.com/nchopin/particles/blob/8e5eb4c6886823598ba941d4f4eab551e8779509/particles/resampling.py#L528-L531
+    * [Naesseth, 2019] Implementation in blei-lab/variational-smc
+        https://github.com/blei-lab/variational-smc/blob/5487bf9666e6ae72ef8d34b71f7341768fec707a/variational_smc.py#L8-L19
     """
 
     # indices
