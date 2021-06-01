@@ -52,6 +52,9 @@ def round_trip_smc(
         https://www.pnas.org/content/108/45/E1009
     * Arnaud Doucet's annotated bibliography of SMC
         https://www.stats.ox.ac.uk/~doucet/smc_resources.html
+    * [Rousey, Dickson, 2020] Enhanced Jarzynski free energy calculations using weighted ensemble
+        Demonstration of benefits of resampling in context of nonequilibrium free energy calculations
+        https://aip.scitation.org/doi/abs/10.1063/5.0020600
     """
     n = len(samples)
     log_weights = np.zeros(n)
