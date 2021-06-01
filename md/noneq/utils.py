@@ -1,7 +1,10 @@
 from timemachine.lib.potentials import Nonbonded
 from copy import deepcopy
 from md.ensembles import PotentialEnergyModel
+import networkx as nx
 import numpy as np
+
+from typing import List, Tuple
 
 
 def make_particles_alchemical_in_place(nb: Nonbonded, particle_indices: np.array) -> None:
@@ -47,6 +50,34 @@ def alchemify(potential_energy: PotentialEnergyModel, particle_indices: np.array
         **original_potential_energy_params
     )
     return alchemical_model
+
+
+def get_water_indices(bond_list: List[Tuple[int, int]]) -> np.array:
+    """Get water indices, suitable for treating the waters as indistinguishable.
+
+    Notes
+    -----
+    * Assumes (without checking) that any bonded collection of 3 atoms is a water molecule
+    * TODO: replace as soon as possible with a proper topology object, e.g. from mdtraj, openmm, or openff
+
+    See Also
+    --------
+    * md.random_walk.moves.SwapIndistinguishable
+        assumes a collection of indistinguishable molecules
+    * md.barostat.utils.get_group_indices
+        gets all bonded collections regardless of size,
+        and might scramble atom order within each molecule
+        (unsuitable for use in SwapIndistinguishable)
+    """
+    topology = nx.Graph(bond_list)
+    components = [np.array(list(c)) for c in nx.algorithms.connected_components(topology)]
+    is_water = lambda c : len(c) == 3
+    waters = list(filter(is_water, components))
+
+    def sort_atoms(unordered_water_atoms):
+        return sorted(unordered_water_atoms, key=lambda a : len(list(topology.neighbors(a))))
+
+    return np.array(list(map(sort_atoms, waters)))
 
 
 def construct_water_deletion_lambda_schedule(num_windows=60):
