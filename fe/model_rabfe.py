@@ -285,7 +285,7 @@ class ReferenceAbsoluteModel():
         bond_list = np.concatenate([unbound_potentials[0].get_idxs(), core_idxs])
         bond_list = list(map(tuple, bond_list))
         group_indices = get_group_indices(bond_list)
-        barostat_interval = 5
+        barostat_interval = 25
 
         barostat = MonteCarloBarostat(
             coords.shape[0],
@@ -320,9 +320,8 @@ class ReferenceAbsoluteModel():
         for idx, result in enumerate(results):
             # print(result.xs.shape)
             traj = mdtraj.Trajectory(result.xs, mdtraj.Topology.from_openmm(combined_topology))
-            # unit_cell = np.repeat(self.host_box[None, :], len(result.xs), axis=0)
-            # traj.unitcell_vectors = unit_cell
-            # traj.image_molecules()
+            traj.unitcell_vectors = result.boxes
+            traj.image_molecules()
             traj.save_xtc("complex_lambda_"+str(idx)+".xtc")
 
         assert 0

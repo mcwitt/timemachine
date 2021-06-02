@@ -11,15 +11,16 @@ from timemachine.lib import potentials, custom_ops
 @dataclasses.dataclass
 class SimulationResult:
    xs: np.array
+   boxes: np.array
    du_dls: np.array
    du_dps: np.array
 
 def flatten(v):
-    return tuple(), (v.xs, v.du_dls, v.du_dps)
+    return tuple(), (v.xs, v.boxes, v.du_dls, v.du_dps)
 
 def unflatten(aux_data, children):
-    xs, du_dls, du_dps = aux_data
-    return SimulationResult(xs, du_dls, du_dps)
+    xs, boxes, du_dls, du_dps = aux_data
+    return SimulationResult(xs, boxes, du_dls, du_dps)
 
 jax.tree_util.register_pytree_node(SimulationResult, flatten, unflatten)
 
@@ -122,7 +123,7 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, barostat, equil_st
 
     prod_schedule = np.ones(prod_steps)*lamb
 
-    full_du_dls, xs = ctxt.multiple_steps(prod_schedule, du_dl_interval, x_interval)
+    full_du_dls, xs, boxes, = ctxt.multiple_steps(prod_schedule, du_dl_interval, x_interval)
 
     # keep the structure of grads the same as that of final_potentials so we can properly
     # form their vjps.
@@ -130,5 +131,5 @@ def simulate(lamb, box, x0, v0, final_potentials, integrator, barostat, equil_st
     for obs in du_dp_obs:
         grads.append(obs.avg_du_dp())
 
-    result = SimulationResult(xs=xs, du_dls=full_du_dls, du_dps=grads)
+    result = SimulationResult(xs=xs, boxes=boxes, du_dls=full_du_dls, du_dps=grads)
     return result
