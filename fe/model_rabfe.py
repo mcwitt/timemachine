@@ -51,7 +51,6 @@ def generate_topology(objs, host_coords, out_filename):
 
     combined_mol = rd_mols[0]
     for mol in rd_mols[1:]:
-        print(mol)
         combined_mol = Chem.CombineMols(combined_mol, mol)
 
     # with tempfile.NamedTemporaryFile(mode='w') as fp:
@@ -110,6 +109,28 @@ def setup_relative_restraints(
     # print(core_params)
 
     return core_idxs, core_params
+
+def apply_hmr(masses, bond_list, multiplier=2):
+
+    def is_hydrogen(i):
+        return np.abs(masses[i] - 1.00794) < 1e-3
+
+    for i, j in bond_list:
+        i, j = np.array([i, j])[np.argsort([masses[i], masses[j]])]
+        if is_hydrogen(i):
+            if is_hydrogen(j):
+                # H-H, skip
+                continue
+            else:
+                # H-X
+                # order of operations is important!
+                masses[j] -= multiplier*masses[i]
+                masses[i] += multiplier*masses[i]
+        else:
+            # do nothing
+            continue
+
+    return masses
 
 
 class ReferenceAbsoluteModel():
@@ -228,7 +249,7 @@ class ReferenceAbsoluteModel():
         #         masses[idx] = 100000.0
 
         # setup restraints and align to the blocker
-        k_core = 50.0
+        k_core = 100.0
 
         num_host_atoms = len(self.host_coords)
         core_idxs, core_params = setup_relative_restraints(self.ref_mol, mol, k_core)
@@ -253,8 +274,6 @@ class ReferenceAbsoluteModel():
         core_idxs[:, 0] += num_host_atoms
         core_idxs[:, 1] += num_host_atoms + self.ref_mol.GetNumAtoms()
 
-        print(core_idxs)
-
         B = len(core_idxs)
 
         restraint_potential = potentials.HarmonicBond(
@@ -274,15 +293,16 @@ class ReferenceAbsoluteModel():
         temperature = 300.0
         beta = 1/(constants.BOLTZ*temperature)
 
+        bond_list = np.concatenate([unbound_potentials[0].get_idxs(), core_idxs])
+        masses = apply_hmr(masses, bond_list)
+
         integrator = LangevinIntegrator(
             temperature,
-            1.5e-3,
+            2.5e-3,
             1.0,
             masses,
             seed
         )
-
-        bond_list = np.concatenate([unbound_potentials[0].get_idxs(), core_idxs])
         bond_list = list(map(tuple, bond_list))
         group_indices = get_group_indices(bond_list)
         barostat_interval = 25
