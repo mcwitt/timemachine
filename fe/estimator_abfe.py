@@ -50,10 +50,7 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
     all_args = []
     for lamb_idx, lamb in enumerate(model.lambda_schedule):
 
-        if (lamb_idx == len(model.lambda_schedule) - 1) and model.endpoint_correct:
-            x_interval = 1000
-        else:
-            x_interval = 1000
+        x_interval = 500
 
         all_args.append((
             lamb,
@@ -79,7 +76,7 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
             model.barostat,
             model.equil_steps,
             model.prod_steps,
-            3000
+            x_interval
         ))
 
     # assert len(all_args) == len(model.cache_results)
@@ -141,7 +138,7 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
 
     if model.endpoint_correct:
         core_restr = bound_potentials[-1]
-        # (ytz): automatically find optimal k_translation/k_rotation such that
+        # (ytz): tbd, automatically find optimal k_translation/k_rotation such that
         # standard deviation and/or overlap is maximized
         k_translation = 200.0
         k_rotation = 100.0

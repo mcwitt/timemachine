@@ -65,7 +65,10 @@ def generate_topology(objs, host_coords, out_filename):
 def setup_relative_restraints(
     mol_a,
     mol_b):
+    """
+    Setup restraints between ring atoms in two molecules.
 
+    """
     # setup relative orientational restraints
     # rough sketch of algorithm:
     # find core atoms in mol_a
@@ -402,7 +405,7 @@ class ReferenceAbsoluteModel():
         #         masses[idx] = 100000.0
 
         # setup restraints and align to the blocker
-        k_core = 100.0
+        k_core = 75.0
 
  
         core_idxs, core_params = setup_relative_restraints(self.ref_mol, mol, k_core)
