@@ -72,16 +72,30 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--num_equil_steps",
+        "--num_complex_equil_steps",
         type=int,
-        help="number of equilibration steps for each lambda window",
+        help="number of equilibration steps for each complex lambda window",
         required=True
     )
 
     parser.add_argument(
-        "--num_prod_steps",
+        "--num_complex_prod_steps",
         type=int,
-        help="number of production steps for each lambda window",
+        help="number of production steps for each complex lambda window",
+        required=True
+    )
+
+    parser.add_argument(
+        "--num_solvent_equil_steps",
+        type=int,
+        help="number of equilibration steps for each solvent lambda window",
+        required=True
+    )
+
+    parser.add_argument(
+        "--num_solvent_prod_steps",
+        type=int,
+        help="number of production steps for each solvent lambda window",
         required=True
     )
 
@@ -117,15 +131,7 @@ if __name__ == "__main__":
     complex_system, complex_coords, _, _, complex_box, complex_topology = builders.build_protein_system(
         'tests/data/hif2a_nowater_min.pdb')
 
-    # print("complex_box", complex_box)
-
-    # assert 0
-
-    # build the water system.
     solvent_system, solvent_coords, solvent_box, solvent_topology = builders.build_water_system(4.0)
-
-    # client = None
-
 
     ref_mol = mols[-1]
 
@@ -138,8 +144,8 @@ if __name__ == "__main__":
         complex_schedule,
         complex_topology,
         ref_mol,
-        cmd_args.num_equil_steps,
-        cmd_args.num_prod_steps
+        cmd_args.num_complex_equil_steps,
+        cmd_args.num_complex_prod_steps
     )
 
     # assert 0
@@ -151,8 +157,8 @@ if __name__ == "__main__":
         solvent_box,
         solvent_schedule,
         solvent_topology,
-        cmd_args.num_equil_steps,
-        cmd_args.num_prod_steps
+        cmd_args.num_solvent_equil_steps,
+        cmd_args.num_solvent_prod_steps
     )
 
     ordered_params = forcefield.get_ordered_params()
@@ -233,13 +239,10 @@ if __name__ == "__main__":
 
     for epoch in range(1):
         epoch_params = serialize_handlers(ordered_handles)
-
         # dataset.shuffle()
         for mol in dataset.data:
-
-            if mol.GetProp("_Name") != '254':
-                continue
-
+            # if mol.GetProp("_Name") != '254':
+                # continue
             label_dG = convert_uIC50_to_kJ_per_mole(float(mol.GetProp("IC50[uM](SPA)")))
 
             print("processing mol", mol.GetProp("_Name"), "with binding dG", label_dG, "SMILES", Chem.MolToSmiles(mol))
