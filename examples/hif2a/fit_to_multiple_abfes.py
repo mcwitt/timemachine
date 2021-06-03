@@ -218,26 +218,23 @@ if __name__ == "__main__":
         except:
             return x
 
-    def loss_fn(params, mol, label_dG_bind, epoch):
+
+    def pred_fn(params, mol):
         dG_complex = binding_model_complex.predict(params, mol, prefix='complex_'+str(epoch))
-        # dG_solvent, sr = binding_model_solvent.predict(params, mol, restraints=False, prefix='solvent_'+str(epoch), cache_results=sr)
+        dG_solvent = binding_model_solvent.predict(params, mol, prefix='solvent_'+str(epoch))
+        return dG_solvent - dG_complex
+
+    def loss_fn(params, mol, label_dG_bind, epoch):
+        # dG_complex = binding_model_complex.predict(params, mol, prefix='complex_'+str(epoch))
+        dG_solvent = binding_model_solvent.predict(params, mol, prefix='solvent_'+str(epoch))
+        return dG_solvent
         # pred_dG_bind = dG_solvent - dG_complex  + dG_reorg # deltaG of binding, move from solvent into complex
 
-        # loss = jnp.abs(pred_dG_bind - label_dG_bind)
-        # print("mol", mol.GetProp("_Name"), "dG_complex", safe_repr(dG_complex), "dG_solvent", safe_repr(dG_solvent), "dG_pred", safe_repr(pred_dG_bind), "dG_label", label_dG_bind)
-        # return loss, (cr, sr)
-        return dG_complex
 
-    # vg_fn = jax.value_and_grad(loss_fn, argnums=0, has_aux=True)
-
-    # complex_results = None
-    # solvent_results = None
-
-    for epoch in range(1000):
+    for epoch in range(1):
         epoch_params = serialize_handlers(ordered_handles)
 
-        dataset.shuffle()
-
+        # dataset.shuffle()
         for mol in dataset.data:
 
             if mol.GetProp("_Name") != '254':
@@ -257,14 +254,8 @@ if __name__ == "__main__":
             #     solvent_results
             # )
 
-            loss = loss_fn(
-                ordered_params,
-                mol,
-                label_dG,
-                epoch
-            )
-
-            print("epoch", epoch, "mol", mol.GetProp("_Name"), "loss", loss)
+            pred_dG = pred_fn(ordered_params, mol)
+            print("epoch", epoch, "mol", mol.GetProp("_Name"), "pred", pred_dG, "label", label_dG)
 
             continue
 

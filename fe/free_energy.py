@@ -58,7 +58,7 @@ import functools
 # this class is serializable.
 class AbsoluteFreeEnergy(BaseFreeEnergy):
 
-    def __init__(self, mol, ff, dummy=None):
+    def __init__(self, mol, ff):
         """
         Compute the absolute free energy of a molecule via 4D decoupling.
 
@@ -73,11 +73,11 @@ class AbsoluteFreeEnergy(BaseFreeEnergy):
         """
         self.mol = mol
         self.ff = ff
-        self.top = topology.AbsoluteTopology(mol, ff)
-        self.top.parameterize_nonbonded = functools.partial(self.top.parameterize_nonbonded, dummy=dummy)
+        self.top = topology.BaseTopology(mol, ff)
+        # self.top.parameterize_nonbonded = functools.partial(self.top.parameterize_nonbonded)
 
 
-    def prepare_host_edge(self, ff_params, host_system, host_coords):
+    def prepare_host_edge(self, ff_params, host_system):
         """
         Prepares the host-edge system
 
@@ -102,16 +102,15 @@ class AbsoluteFreeEnergy(BaseFreeEnergy):
         ligand_coords = get_romol_conf(self.mol)
 
         host_bps, host_masses = openmm_deserializer.deserialize_system(host_system, cutoff=1.2)
-        num_host_atoms = host_coords.shape[0]
+        # num_host_atoms = host_coords.shape[0]
 
         hgt = topology.HostGuestTopology(host_bps, self.top)
 
         final_params, final_potentials = self._get_system_params_and_potentials(ff_params, hgt)
 
         combined_masses = np.concatenate([host_masses, ligand_masses])
-        combined_coords = np.concatenate([host_coords, ligand_coords])
 
-        return final_potentials, final_params, combined_masses, combined_coords
+        return final_potentials, final_params, combined_masses
 
 
 # this class is serializable.

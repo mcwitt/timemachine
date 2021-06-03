@@ -161,9 +161,10 @@ class ReferenceAbsoluteModel():
         # equilibriate the combined structure.
         save_state = "equil.pkl"
         if os.path.exists(save_state):
-            print("restoring pickle")
+            print("restoring pickle...")
             self.x0, self.v0, self.box0 = pickle.load(open(save_state, "rb"))
         else:
+            print("generating new equilibrium structure from scratch...")
             self.x0, self.v0, self.box0 = minimizer.minimize_host_4d(
                 [self.ref_mol],
                 self.host_system,
@@ -193,23 +194,22 @@ class ReferenceAbsoluteModel():
             self.host_system
         )
 
-        # (ytz): MODIFY ME WHEN WE SWAP
-        # mol_coords = get_romol_conf(mol) # original coords
-
         # setup restraints and align to the blocker
-        k_core = 75.0
 
         num_host_atoms = len(self.host_coords)
-
-        combined_topology = generate_topology([self.host_topology, mol_a, mol_b], self.host_coords, "complex.pdb")
+        combined_topology = generate_topology(
+            [self.host_topology, mol_a, mol_b],
+            self.host_coords,
+            "complex"+prefix+".pdb"
+        )
 
         # generate initial structure
-        # coords = np.concatenate([self.x0, aligned_mol])
         coords = combined_coords
 
         traj = mdtraj.Trajectory([coords], mdtraj.Topology.from_openmm(combined_topology))
         traj.save_xtc("initial_coords_aligned.xtc")
 
+        k_core = 75.0
         core_params = np.zeros_like(core_idxs).astype(np.float64)
         core_params[:, 0] = k_core
 
@@ -270,14 +270,11 @@ class ReferenceAbsoluteModel():
             self.prod_steps,
             beta,
             prefix
-            # cache_results,
-            # cache_lambda
         )
 
         dG, results = estimator_abfe.deltaG(model, sys_params)
 
         for idx, result in enumerate(results):
-            # print(result.xs.shape)
             traj = mdtraj.Trajectory(result.xs, mdtraj.Topology.from_openmm(combined_topology))
             traj.unitcell_vectors = result.boxes
             traj.image_molecules()
@@ -300,15 +297,13 @@ class ReferenceAbsoluteModel():
         mol: Chem.Mol
             Molecule we want to decouple
 
-        core: np.ndarray
-            N x 2 list of ints corresponding to the atom mapping of the core.
-
         Returns
         -------
         float
             delta delta G in kJ/mol
         aux
             list of TI results
+
         """
 
         host_system = self.host_system

@@ -76,7 +76,7 @@ def fire_minimize(x0: np.ndarray, u_impls, box: np.ndarray, lamb_sched: np.array
         opt_state = f(opt_state, lamb=lamb)
     return np.asarray(opt_state.position)
 
-def minimize_host_4d(mols, host_system, host_coords, ff, box) -> np.ndarray:
+def minimize_host_4d(mols, host_system, host_coords, ff, box, equilibrate=False) -> np.ndarray:
     """
     Insert mols into a host system via 4D decoupling using Fire minimizer at lambda=1.0,
     0 Kelvin Langevin integration at a sequence of lambda from 1.0 to 0.0, and Fire minimizer again at lambda=0.0
@@ -177,44 +177,51 @@ def minimize_host_4d(mols, host_system, host_coords, ff, box) -> np.ndarray:
         norm = np.linalg.norm(du_dx, axis=-1)
         assert np.all(norm < 25000)
 
-    bond_list = get_bond_list(bound_potentials[0])
-    group_indices = get_group_indices(bond_list)
-    barostat_interval = 5
 
-    # equilibrate
-    print("Starting equilibration...")
-    temperature = 300.0
+    if equilibrate:
 
-    barostat = MonteCarloBarostat(
-        x0.shape[0],
-        group_indices,
-        1.0,
-        temperature,
-        barostat_interval,
-        seed
-    ).impl(u_impls)
+        bond_list = get_bond_list(bound_potentials[0])
+        group_indices = get_group_indices(bond_list)
+        barostat_interval = 5
 
-    intg = LangevinIntegrator(
-        temperature,
-        1.5e-3,
-        1.0,
-        combined_masses,
-        seed
-    ).impl()
+        # equilibrate
 
-    npt_ctxt = custom_ops.Context(
-        ctxt.get_x_t(),
-        ctxt.get_v_t(),
-        ctxt.get_box(),
-        intg,
-        u_impls,
-        barostat
-    )
+        print("Starting equilibration...")
+        temperature = 300.0
 
-    npt_ctxt.multiple_steps(np.zeros(1000000, dtype=np.float64))
+        barostat = MonteCarloBarostat(
+            x0.shape[0],
+            group_indices,
+            1.0,
+            temperature,
+            barostat_interval,
+            seed
+        ).impl(u_impls)
 
+        intg = LangevinIntegrator(
+            temperature,
+            1.5e-3,
+            1.0,
+            combined_masses,
+            seed
+        ).impl()
 
-    return npt_ctxt.get_x_t(), npt_ctxt.get_v_t(), npt_ctxt.get_box()
+        npt_ctxt = custom_ops.Context(
+            ctxt.get_x_t(),
+            ctxt.get_v_t(),
+            ctxt.get_box(),
+            intg,
+            u_impls,
+            barostat
+        )
+
+        npt_ctxt.multiple_steps(np.zeros(1000000, dtype=np.float64))
+
+        return npt_ctxt.get_x_t(), npt_ctxt.get_v_t(), npt_ctxt.get_box()
+
+    else:
+
+        return ctxt.get_x_t(), ctxt.get_v_t(), ctxt.get_box()
 
     # return final_coords[:num_host_atoms]
 
