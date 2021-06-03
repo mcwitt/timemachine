@@ -338,6 +338,11 @@ class ReferenceAbsoluteModel():
         combined_coords = np.concatenate([equil_host_coords, aligned_coords, ref_coords])
         dG_1, results_1 = self._predict_a_to_b(ff_params, mol, self.ref_mol, combined_core_idxs, combined_coords, prefix+"_mol_to_ref")
 
+        # dG_0 is the free energy of moving X-B-A into X-B+A
+        # dG_1 is the free energy of moving X-A-B into X-A+B
+        # -dG_1 + dG_0 is the free energy of moving X-A+B -> X-B+A
+        # i.e. the free energy of "unbinding" A
+
         return -dG_1 + dG_0
 
 

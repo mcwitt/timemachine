@@ -133,7 +133,15 @@ if __name__ == "__main__":
 
     solvent_system, solvent_coords, solvent_box, solvent_topology = builders.build_water_system(4.0)
 
-    ref_mol = mols[-1]
+    # pick the largest mol as the blocker
+    largest_size = 0
+    ref_mol = None
+    for mol in mols:
+        if mol.GetNumAtoms() > largest_size:
+            largest_size = mol.GetNumAtoms()
+            ref_mol = mol
+
+    print("Reference Molecule:", ref_mol.GetProp("_Name"), Chem.MolToSmiles(ref_mol))
 
     binding_model_complex = model_rabfe.ReferenceAbsoluteModel(
         client,
