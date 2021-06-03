@@ -354,17 +354,16 @@ class ReferenceAbsoluteModel():
         combined_coords = np.concatenate([equil_host_coords, ref_coords, aligned_coords])
         dG_0, results_0 = self._predict_a_to_b(ff_params, self.ref_mol, mol, combined_core_idxs, combined_coords, prefix+"_ref_to_mol")
 
-        return dG_0
-        # combined_core_idxs = np.copy(core_idxs)
-        # # swap
-        # combined_core_idxs[:, 0] = core_idxs[:, 1]
-        # combined_core_idxs[:, 1] = core_idxs[:, 0]
-        # combined_core_idxs[:, 0] += num_host_atoms
-        # combined_core_idxs[:, 1] += num_host_atoms + mol.GetNumAtoms()
-        # combined_coords = np.concatenate([equil_host_coords, aligned_coords, ref_coords])
-        # dG_1, results_1 = self._predict_a_to_b(ff_params, mol, self.ref_mol, combined_core_idxs, combined_coords, prefix+"_mol_to_ref")
+        combined_core_idxs = np.copy(core_idxs)
+        # swap
+        combined_core_idxs[:, 0] = core_idxs[:, 1]
+        combined_core_idxs[:, 1] = core_idxs[:, 0]
+        combined_core_idxs[:, 0] += num_host_atoms
+        combined_core_idxs[:, 1] += num_host_atoms + mol.GetNumAtoms()
+        combined_coords = np.concatenate([equil_host_coords, aligned_coords, ref_coords])
+        dG_1, results_1 = self._predict_a_to_b(ff_params, mol, self.ref_mol, combined_core_idxs, combined_coords, prefix+"_mol_to_ref")
 
-        # return -dG_1 + dG_0
+        return -dG_1 + dG_0
 
         assert 0
 
