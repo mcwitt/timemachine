@@ -256,25 +256,20 @@ def construct_absolute_lambda_schedule(num_windows):
     -----
     manually optimized by YTZ
     """
+    A = int(0.66 * num_windows)
+    B = num_windows - A
 
-    A = int(0.33 * num_windows)
-    B = int(0.5 * num_windows)
-    C = num_windows - A - B
-
-    # this is intended for a two stage protocol specific to the transformation
-    # transform_qlj = "lambda < 0.5 ? sin(lambda*PI)*sin(lambda*PI) : 1"
-    # transform_w = "lambda < 0.5 ? 0.0 : sin((lambda+0.5)*PI)*sin((lambda+0.5)*PI)"
     lambda_schedule = np.concatenate([
-        np.linspace(0.0,  0.50, A, endpoint=False),
-        np.linspace(0.50, 0.72, B, endpoint=False),
-        np.linspace(0.72, 1.0,  C, endpoint=True)
+        np.linspace(0.0,  0.25, A, endpoint=False),
+        np.linspace(0.25, 1.0, B, endpoint=True)
     ])
 
     # lambda_schedule = [0.14,0.15,0.18,0.19,0.20,0.21,0.22]
     # lambda_schedule = np.linspace(0.0, 0.20, num_windows)
     # lambda_schedule = np.linspace(0.03, 0.03, num_windows)
-    lambda_schedule = np.linspace(0.00, 0.3, num_windows)
+    # lambda_schedule = np.linspace(0.00, 0.3, num_windows)
 
+    # print(lambda_schedule)
     # assert len(lambda_schedule) == num_windows
 
     return lambda_schedule

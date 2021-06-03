@@ -219,7 +219,7 @@ if __name__ == "__main__":
             return x
 
     def loss_fn(params, mol, label_dG_bind, epoch):
-        dG_complex, cr = binding_model_complex.predict(params, mol, prefix='complex_'+str(epoch))
+        dG_complex = binding_model_complex.predict(params, mol, prefix='complex_'+str(epoch))
         # dG_solvent, sr = binding_model_solvent.predict(params, mol, restraints=False, prefix='solvent_'+str(epoch), cache_results=sr)
         # pred_dG_bind = dG_solvent - dG_complex  + dG_reorg # deltaG of binding, move from solvent into complex
 
@@ -243,7 +243,6 @@ if __name__ == "__main__":
             if mol.GetProp("_Name") != '254':
                 continue
 
-
             label_dG = convert_uIC50_to_kJ_per_mole(float(mol.GetProp("IC50[uM](SPA)")))
 
             print("processing mol", mol.GetProp("_Name"), "with binding dG", label_dG, "SMILES", Chem.MolToSmiles(mol))
@@ -264,7 +263,6 @@ if __name__ == "__main__":
                 label_dG,
                 epoch
             )
-            assert 0
 
             print("epoch", epoch, "mol", mol.GetProp("_Name"), "loss", loss)
 

@@ -64,8 +64,7 @@ def generate_topology(objs, host_coords, out_filename):
 
 def setup_relative_restraints(
     mol_a,
-    mol_b,
-    k_core):
+    mol_b):
 
     # setup relative orientational restraints
     # rough sketch of algorithm:
@@ -93,22 +92,19 @@ def setup_relative_restraints(
     row_idxs, col_idxs = linear_sum_assignment(rij)
 
     core_idxs = []
-    core_params = []
+    # core_params = []
 
     for core_a, core_b in zip(row_idxs, col_idxs):
         core_idxs.append((
             core_idxs_a[core_a],
             core_idxs_b[core_b]
         ))
-        core_params.append((k_core, 0.0))
+        # core_params.append((k_core, 0.0))
 
     core_idxs = np.array(core_idxs, dtype=np.int32)
-    core_params = np.array(core_params, dtype=np.float64)
+    # core_params = np.array(core_params, dtype=np.float64)
 
-    # print(core_idxs)
-    # print(core_params)
-
-    return core_idxs, core_params
+    return core_idxs
 
 def apply_hmr(masses, bond_list, multiplier=2):
 
@@ -177,9 +173,135 @@ class ReferenceAbsoluteModel():
             )
             pickle.dump([self.x0, self.v0, self.box0], open(save_state, "wb"))
 
+    def _predict_a_to_b(
+        self,
+        ff_params,
+        mol_a,
+        mol_b,
+        core_idxs,
+        combined_coords,
+        prefix):
+
+        dual_topology = topology.DualTopology(mol_a, mol_b, self.ff)
+        dual_topology.parameterize_nonbonded = functools.partial(
+            dual_topology.parameterize_nonbonded,
+            minimize=False)
+        rfe = free_energy.RelativeFreeEnergy(dual_topology)
+
+        unbound_potentials, sys_params, masses = rfe.prepare_host_edge(
+            ff_params,
+            self.host_system
+        )
+
+        # (ytz): MODIFY ME WHEN WE SWAP
+        # mol_coords = get_romol_conf(mol) # original coords
+
+        # setup restraints and align to the blocker
+        k_core = 100.0
+
+        num_host_atoms = len(self.host_coords)
+        # core_idxs, core_params = setup_relative_restraints(mol_a, mol_b, k_core)
+
+        # rmsd align target mol onto reference
+        # R, t = rmsd.get_optimal_rotation_and_translation(
+            # self.x0[num_host_atoms:][core_idxs[:, 0]], # reference
+            # mol_coords[core_idxs[:, 1]]
+        # )
+
+        # mol_com = np.mean(mol_coords, axis=0)
+        # aligned_mol = (mol_coords-mol_com)@R - t + mol_com
+        combined_topology = generate_topology([self.host_topology, mol_a, mol_b], self.host_coords, "complex.pdb")
+
+        # generate initial structure
+        # coords = np.concatenate([self.x0, aligned_mol])
+        coords = combined_coords
+
+        traj = mdtraj.Trajectory([coords], mdtraj.Topology.from_openmm(combined_topology))
+        traj.save_xtc("initial_coords_aligned.xtc")
+
+        core_params = np.zeros_like(core_idxs).astype(np.float64)
+        core_params[:, 0] = k_core
+        # offset core_idxs appropriately
+        # core_idxs[:, 0] += num_host_atoms
+        # core_idxs[:, 1] += num_host_atoms +ref_mol.GetNumAtoms()
+
+        B = len(core_idxs)
+
+        restraint_potential = potentials.HarmonicBond(
+            core_idxs,
+        )
+
+        unbound_potentials.append(restraint_potential)
+        sys_params.append(core_params)
+
+        endpoint_correct = True
+
+        # tbd sample from boltzmann distribution later
+        x0 = coords
+        v0 = np.zeros_like(coords)
+
+        seed = 0
+        temperature = 300.0
+        beta = 1/(constants.BOLTZ*temperature)
+
+        bond_list = np.concatenate([unbound_potentials[0].get_idxs(), core_idxs])
+        masses = apply_hmr(masses, bond_list)
+
+        integrator = LangevinIntegrator(
+            temperature,
+            2.5e-3,
+            1.0,
+            masses,
+            seed
+        )
+        bond_list = list(map(tuple, bond_list))
+        group_indices = get_group_indices(bond_list)
+        barostat_interval = 25
+
+        barostat = MonteCarloBarostat(
+            coords.shape[0],
+            group_indices,
+            1.0,
+            temperature,
+            barostat_interval,
+            seed
+        )
+
+        endpoint_correct = True
+        model = estimator_abfe.FreeEnergyModel(
+            unbound_potentials,
+            endpoint_correct,
+            self.client,
+            self.box0, # important, use equilibrated box.
+            x0,
+            v0,
+            integrator,
+            barostat,
+            self.host_schedule,
+            self.equil_steps,
+            self.prod_steps,
+            beta,
+            prefix
+            # cache_results,
+            # cache_lambda
+        )
+
+        dG, results = estimator_abfe.deltaG(model, sys_params)
+
+        for idx, result in enumerate(results):
+            # print(result.xs.shape)
+            traj = mdtraj.Trajectory(result.xs, mdtraj.Topology.from_openmm(combined_topology))
+            traj.unitcell_vectors = result.boxes
+            traj.image_molecules()
+            traj.save_xtc(prefix+"_complex_lambda_"+str(idx)+".xtc")
+
+        return dG, results
+
     def predict(self, ff_params: list, mol: Chem.Mol, prefix: str):
         """
-        Predict the ddG of morphing mol_a into mol_b. This function is differentiable w.r.t. ff_params.
+        Predict the ddG of morphing mol_a into a reference molecule.
+
+        This function is differentiable w.r.t. ff_params.
 
         Parameters
         ----------
@@ -206,13 +328,44 @@ class ReferenceAbsoluteModel():
 
         # tbd rmsd align core using old mapping.
 
-        stage_dGs = []
-        stage_results = []
+        # stage_dGs = []
+        # stage_results = []
 
         host_system = self.host_system
-        # host_coords = self.host_coords
-        # host_box = self.host_box
         host_lambda_schedule = self.host_schedule
+
+        # generate indices
+        core_idxs = setup_relative_restraints(self.ref_mol, mol)
+        mol_coords = get_romol_conf(mol) # original coords
+        num_host_atoms = len(self.host_coords)
+        R, t = rmsd.get_optimal_rotation_and_translation(
+            self.x0[num_host_atoms:][core_idxs[:, 0]], # reference
+            mol_coords[core_idxs[:, 1]]
+        )
+
+        mol_com = np.mean(mol_coords, axis=0)
+        aligned_coords = (mol_coords-mol_com)@R - t + mol_com
+        ref_coords = self.x0[num_host_atoms:]
+        equil_host_coords = self.x0[:num_host_atoms]
+
+        combined_core_idxs = np.copy(core_idxs)
+        combined_core_idxs[:, 0] += num_host_atoms
+        combined_core_idxs[:, 1] += self.ref_mol.GetNumAtoms()
+        combined_coords = np.concatenate([equil_host_coords, ref_coords, aligned_coords])
+        dG_0, results_0 = self._predict_a_to_b(ff_params, self.ref_mol, mol, combined_core_idxs, combined_coords, prefix+"_ref_to_mol")
+
+        combined_core_idxs = np.copy(core_idxs)
+        # swap
+        combined_core_idxs[:, 0] = core_idxs[:, 1]
+        combined_core_idxs[:, 1] = core_idxs[:, 0]
+        combined_core_idxs[:, 0] += num_host_atoms
+        combined_core_idxs[:, 1] += mol.GetNumAtoms()
+        combined_coords = np.concatenate([equil_host_coords, aligned_coords, ref_coords])
+        dG_1, results_1 = self._predict_a_to_b(ff_params, mol, self.ref_mol, combined_core_idxs, combined_coords, prefix+"_mol_to_ref")
+
+        return -dG_1 + dG_0
+
+        assert 0
 
         print(f"Minimizing the host structure to remove clashes.")
         # min_host_coords = minimizer.minimize_host_4d(
@@ -251,7 +404,7 @@ class ReferenceAbsoluteModel():
         # setup restraints and align to the blocker
         k_core = 100.0
 
-        num_host_atoms = len(self.host_coords)
+ 
         core_idxs, core_params = setup_relative_restraints(self.ref_mol, mol, k_core)
 
         # rmsd align target mol onto reference
