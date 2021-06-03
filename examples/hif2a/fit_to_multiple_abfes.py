@@ -109,6 +109,7 @@ if __name__ == "__main__":
         client = CUDAPoolClient(max_workers=num_gpus)
     else:
         # Setup GRPC client
+        print("Connecting to GRPC workers...")
         client = GRPCClient(hosts=cmd_args.hosts)
     client.verify()
 
