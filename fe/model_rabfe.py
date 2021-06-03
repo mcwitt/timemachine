@@ -348,11 +348,6 @@ class ReferenceAbsoluteModel():
         ref_coords = self.x0[num_host_atoms:]
         equil_host_coords = self.x0[:num_host_atoms]
 
-        r0 = np.linalg.norm(aligned_coords[core_idxs[:, 0]] - ref_coords[core_idxs[:, 1]])
-
-        # core_idxs
-        # print(core_idxs)
-
         combined_core_idxs = np.copy(core_idxs)
         combined_core_idxs[:, 0] += num_host_atoms
         combined_core_idxs[:, 1] += num_host_atoms + self.ref_mol.GetNumAtoms()
