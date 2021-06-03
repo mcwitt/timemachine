@@ -421,21 +421,40 @@ class DualTopology():
         beta = _BETA
         cutoff = _CUTOFF # solve for this analytically later
 
-        nb = potentials.Nonbonded(
-            combined_exclusion_idxs,
-            combined_scale_factors,
-            combined_lambda_plane_idxs,
-            combined_lambda_offset_idxs,
-            beta,
-            cutoff
-        ) 
-
-        params = jnp.concatenate([
+        qlj_params = jnp.concatenate([
             jnp.reshape(q_params, (-1, 1)),
             jnp.reshape(lj_params, (-1, 2))
         ], axis=1)
 
-        return params, nb
+        if minimize:
+
+            return qlj_params, potentials.Nonbonded(
+                combined_exclusion_idxs,
+                combined_scale_factors,
+                combined_lambda_plane_idxs,
+                combined_lambda_offset_idxs,
+                beta,
+                cutoff
+            )
+
+        else:
+
+            # decharge charge and epsilon roughly by half at the "intermediate" state via parameter interpolation
+            src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], qlj_params[:, 0]*0.5)
+            src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], qlj_params[:, 2]*0.5)
+            dst_qlj_params = qlj_params
+
+            combined_qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
+
+            return combined_qlj_params, potentials.NonbondedInterpolated(
+                combined_exclusion_idxs,
+                combined_scale_factors,
+                combined_lambda_plane_idxs,
+                combined_lambda_offset_idxs,
+                beta,
+                cutoff
+            )
+
 
     def _parameterize_bonded_term(self, ff_params, bonded_handle, potential):
         offset = self.mol_a.GetNumAtoms()
