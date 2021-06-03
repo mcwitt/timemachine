@@ -130,7 +130,7 @@ class AbsoluteModel():
 
         bond_list = get_bond_list(unbound_potentials[0])
         group_indices = get_group_indices(bond_list)
-        barostat_interval = 25
+        barostat_interval = 5
         barostat = MonteCarloBarostat(
             minimized_coords.shape[0],
             group_indices,
