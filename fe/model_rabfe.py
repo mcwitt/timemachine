@@ -128,12 +128,15 @@ class ReferenceAbsoluteModel():
         mol_b,
         core_idxs,
         combined_coords,
-        prefix):
+        prefix,
+        standardize):
 
         dual_topology = topology.DualTopology(mol_a, mol_b, self.ff)
         dual_topology.parameterize_nonbonded = functools.partial(
             dual_topology.parameterize_nonbonded,
-            minimize=False)
+            minimize=False,
+            standardize=standardize
+            )
         rfe = free_energy.RelativeFreeEnergy(dual_topology)
 
         unbound_potentials, sys_params, masses = rfe.prepare_host_edge(
@@ -274,7 +277,14 @@ class ReferenceAbsoluteModel():
         combined_core_idxs[:, 0] += num_host_atoms
         combined_core_idxs[:, 1] += num_host_atoms + self.ref_mol.GetNumAtoms()
         combined_coords = np.concatenate([equil_host_coords, ref_coords, aligned_coords])
-        dG_0, results_0 = self._predict_a_to_b(ff_params, self.ref_mol, mol, combined_core_idxs, combined_coords, prefix+"_ref_to_mol")
+        dG_0, results_0 = self._predict_a_to_b(
+            ff_params,
+            self.ref_mol,
+            mol,
+            combined_core_idxs,
+            combined_coords,
+            prefix+"_ref_to_mol",
+            standardize="a")
 
         combined_core_idxs = np.copy(core_idxs)
         # swap
@@ -283,7 +293,14 @@ class ReferenceAbsoluteModel():
         combined_core_idxs[:, 0] += num_host_atoms
         combined_core_idxs[:, 1] += num_host_atoms + mol.GetNumAtoms()
         combined_coords = np.concatenate([equil_host_coords, aligned_coords, ref_coords])
-        dG_1, results_1 = self._predict_a_to_b(ff_params, mol, self.ref_mol, combined_core_idxs, combined_coords, prefix+"_mol_to_ref")
+        dG_1, results_1 = self._predict_a_to_b(
+            ff_params,
+            mol,
+            self.ref_mol,
+            combined_core_idxs,
+            combined_coords,
+            prefix+"_mol_to_ref",
+            standardize="b")
 
         # dG_0 is the free energy of moving X-B-A into X-B+A
         # dG_1 is the free energy of moving X-A-B into X-A+B

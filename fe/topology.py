@@ -357,7 +357,12 @@ class DualTopology():
     def get_num_atoms(self):
         return self.mol_a.GetNumAtoms() + self.mol_b.GetNumAtoms()
 
-    def parameterize_nonbonded(self, ff_q_params, ff_lj_params, minimize=False):
+    def parameterize_nonbonded(
+            self,
+            ff_q_params,
+            ff_lj_params,
+            minimize=False,
+            standardize=None):
         # dummy is either "a or "b
         q_params_a = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol_a)
         q_params_b = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol_b)
@@ -442,13 +447,29 @@ class DualTopology():
 
 
             # reduce charge and epsilon roughly by half at the "intermediate" state via parameter interpolation
-            src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], qlj_params[:, 0]*0.5)
-            src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], qlj_params[:, 2]*0.5)
-            dst_qlj_params = qlj_params
+            # src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], qlj_params[:, 0]*0.5)
+            # src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], qlj_params[:, 2]*0.5)
+            # dst_qlj_params = qlj_params
 
-            combined_qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
+            # combined_qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
 
-            return combined_qlj_params, potentials.NonbondedInterpolated(
+            print("qlj_params_before", qlj_params)
+
+            if standardize == "a":
+                qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:NA, 0], 0.0)
+                qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:NA, 1], 0.1)
+                qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:NA, 2], 0.2)
+            elif standardize == "b":
+                qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[NA:, 0], 0.0)
+                qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[NA:, 1], 0.1)
+                qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[NA:, 2], 0.2)
+            else:
+                assert 0
+
+
+            print("qlj_params_after", qlj_params)
+
+            return qlj_params, potentials.Nonbonded(
                 combined_exclusion_idxs,
                 combined_scale_factors,
                 combined_lambda_plane_idxs,
@@ -456,6 +477,15 @@ class DualTopology():
                 beta,
                 cutoff
             )
+
+            # return combined_qlj_params, potentials.NonbondedInterpolated(
+            #     combined_exclusion_idxs,
+            #     combined_scale_factors,
+            #     combined_lambda_plane_idxs,
+            #     combined_lambda_offset_idxs,
+            #     beta,
+            #     cutoff
+            # )
 
 
     def _parameterize_bonded_term(self, ff_params, bonded_handle, potential):
