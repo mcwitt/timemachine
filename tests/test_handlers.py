@@ -504,18 +504,20 @@ def test_am1_differences():
             break
 
     suppl = Chem.SDMolSupplier('tests/data/ligands_40.sdf', removeHs=False)
-    smi = "[H]c1c(OP(=S)(OC([H])([H])C([H])([H])[H])OC([H])([H])C([H])([H])[H])nc(C([H])(C([H])([H])[H])C([H])([H])[H])nc1C([H])([H])[H]"
-    smi = "Clc1c(Cl)c(Cl)c(-c2c(Cl)c(Cl)c(Cl)c(Cl)c2Cl)c(Cl)c1Cl"
-    mol = Chem.MolFromSmiles(smi)
-    mol = Chem.AddHs(mol)
-    mol.SetProp("_Name", "Debug")
-    assert AllChem.EmbedMolecule(mol) == 0
+    # smi = "[H]c1c(OP(=S)(OC([H])([H])C([H])([H])[H])OC([H])([H])C([H])([H])[H])nc(C([H])(C([H])([H])[H])C([H])([H])[H])nc1C([H])([H])[H]"
+    # smi = "Clc1c(Cl)c(Cl)c(-c2c(Cl)c(Cl)c(Cl)c(Cl)c2Cl)c(Cl)c1Cl"
+    # mol = Chem.MolFromSmiles(smi)
+    # mol = Chem.AddHs(mol)
+    # mol.SetProp("_Name", "Debug")
+    # assert AllChem.EmbedMolecule(mol) == 0
 
-    suppl = [mol]
+    # suppl = [mol]
     am1 = nonbonded.AM1Handler([], [], None)
     bcc = nonbonded.AM1BCCHandler([], [], None)
 
     for mol in suppl:
+
+        print("mol", Chem.MolToSmiles(mol))
 
         am1_params = am1.parameterize(mol)
         ccc_params = ccc.parameterize(mol)

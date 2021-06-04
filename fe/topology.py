@@ -358,6 +358,7 @@ class DualTopology():
         return self.mol_a.GetNumAtoms() + self.mol_b.GetNumAtoms()
 
     def parameterize_nonbonded(self, ff_q_params, ff_lj_params, minimize=False):
+        # dummy is either "a or "b
         q_params_a = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol_a)
         q_params_b = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol_b)
         lj_params_a = self.ff.lj_handle.partial_parameterize(ff_lj_params, self.mol_a)
@@ -439,7 +440,8 @@ class DualTopology():
 
         else:
 
-            # decharge charge and epsilon roughly by half at the "intermediate" state via parameter interpolation
+
+            # reduce charge and epsilon roughly by half at the "intermediate" state via parameter interpolation
             src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], qlj_params[:, 0]*0.5)
             src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], qlj_params[:, 2]*0.5)
             dst_qlj_params = qlj_params

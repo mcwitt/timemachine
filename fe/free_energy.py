@@ -255,12 +255,12 @@ def construct_absolute_lambda_schedule(num_windows):
     -----
     manually optimized by YTZ
     """
-    A = int(0.66 * num_windows)
+    A = int(0.70 * num_windows)
     B = num_windows - A
 
     lambda_schedule = np.concatenate([
-        np.linspace(0.0,  0.25, A, endpoint=False),
-        np.linspace(0.25, 1.0, B, endpoint=True)
+        np.linspace(0.0, 0.3, A, endpoint=False),
+        np.linspace(0.3, 1.0, B, endpoint=True)
     ])
 
     # lambda_schedule = [0.14,0.15,0.18,0.19,0.20,0.21,0.22]

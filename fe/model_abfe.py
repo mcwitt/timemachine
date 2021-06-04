@@ -13,7 +13,7 @@ from timemachine import constants
 from md import minimizer
 from timemachine.lib import LangevinIntegrator, MonteCarloBarostat
 from timemachine.lib import potentials
-from fe import free_energy, topology, estimator_abfe
+from fe import free_energy, topology, estimator_abfe, model_utils
 from ff import Forcefield
 
 from parallel.client import AbstractClient
@@ -35,37 +35,6 @@ def get_romol_conf(mol):
     conformer = mol.GetConformer(0)
     guest_conf = np.array(conformer.GetPositions(), dtype=np.float64)
     return guest_conf/10 # from angstroms to nm
-
-def generate_topology(objs, host_coords, out_filename):
-    rd_mols = []
-    # super jank
-    for obj in objs:
-        if isinstance(obj, app.Topology):
-            with tempfile.NamedTemporaryFile(mode='w') as fp:
-                # write
-                app.PDBFile.writeHeader(obj, fp)
-                app.PDBFile.writeModel(obj, host_coords, fp, 0)
-                app.PDBFile.writeFooter(obj, fp)
-                fp.flush()
-                romol = Chem.MolFromPDBFile(fp.name, removeHs=False)
-                rd_mols.append(romol)
-
-        if isinstance(obj, Chem.Mol):
-            rd_mols.append(obj)
-
-    combined_mol = rd_mols[0]
-    for mol in rd_mols[1:]:
-        print(mol)
-        combined_mol = Chem.CombineMols(combined_mol, mol)
-
-    # with tempfile.NamedTemporaryFile(mode='w') as fp:
-    fp = open(out_filename, "w")
-    # write
-    Chem.MolToPDBFile(combined_mol, out_filename)
-    fp.flush()
-    # read
-    combined_pdb = app.PDBFile(out_filename)
-    return combined_pdb.topology
 
 class AbsoluteModel():
 
@@ -120,15 +89,17 @@ class AbsoluteModel():
         temperature = 300.0
         beta = 1/(constants.BOLTZ*temperature)
 
+        bond_list = get_bond_list(unbound_potentials[0])
+        masses = model_utils.apply_hmr(masses, bond_list)
+
         integrator = LangevinIntegrator(
             temperature,
-            1.5e-3,
+            2.5e-3,
             1.0,
             masses,
             seed
         )
 
-        bond_list = get_bond_list(unbound_potentials[0])
         group_indices = get_group_indices(bond_list)
         barostat_interval = 5
         barostat = MonteCarloBarostat(

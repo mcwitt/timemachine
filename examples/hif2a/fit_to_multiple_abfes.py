@@ -246,12 +246,14 @@ if __name__ == "__main__":
         # pred_dG_bind = dG_solvent - dG_complex  + dG_reorg # deltaG of binding, move from solvent into complex
 
 
-    for epoch in range(1):
+    for epoch in range(10):
         epoch_params = serialize_handlers(ordered_handles)
         # dataset.shuffle()
         for mol in dataset.data:
-            # if mol.GetProp("_Name") != '254':
-                # continue
+
+            if mol.GetProp("_Name") != '254':
+                continue
+
             label_dG = convert_uIC50_to_kJ_per_mole(float(mol.GetProp("IC50[uM](SPA)")))
 
             print("processing mol", mol.GetProp("_Name"), "with binding dG", label_dG, "SMILES", Chem.MolToSmiles(mol))
