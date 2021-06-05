@@ -453,8 +453,6 @@ class DualTopology():
 
             # combined_qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
 
-            print("qlj_params_before", qlj_params)
-
             if standardize == "a":
                 qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:NA, 0], 0.0)
                 qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:NA, 1], 0.1)
@@ -465,9 +463,6 @@ class DualTopology():
                 qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[NA:, 2], 0.2)
             else:
                 assert 0
-
-
-            print("qlj_params_after", qlj_params)
 
             return qlj_params, potentials.Nonbonded(
                 combined_exclusion_idxs,
