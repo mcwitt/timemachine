@@ -104,6 +104,7 @@ class ReferenceAbsoluteModel():
         self.ff = ff
         self.equil_steps = equil_steps
         self.prod_steps = prod_steps
+        # self.standardize = standardize
 
         # equilibriate the combined structure.
         save_state = "equil.pkl"
@@ -309,26 +310,3 @@ class ReferenceAbsoluteModel():
 
         return -dG_1 + dG_0
 
-
-    def loss(self, ff_params, mol_a, mol_b, core, label_ddG):
-        """
-        Computes the L1 loss relative to some label. See predict() for the type signature.
-
-        This function is differentiable w.r.t. ff_params.
-
-        Parameters
-        ----------
-        label_ddG: float
-            Label ddG in kJ/mol of the alchemical transformation.
-
-        Returns
-        -------
-        float
-            loss
-
-        TODO: make this configurable, using loss functions from in fe/loss.py
-
-        """
-        pred_ddG, results = self.predict(ff_params, mol_a, mol_b, core)
-        loss = jnp.abs(pred_ddG - label_ddG)
-        return loss, results

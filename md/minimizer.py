@@ -1,3 +1,4 @@
+import functools
 import numpy as np
 
 from fe import topology
@@ -115,6 +116,7 @@ def minimize_host_4d(mols, host_system, host_coords, ff, box, equilibrate=False)
         top = topology.BaseTopology(mols[0], ff)
     elif len(mols) == 2:
         top = topology.DualTopology(mols[0], mols[1], ff)
+        top.parameterize_nonbonded = functools.partial(top.parameterize_nonbonded, minimize=True)
     else:
         raise ValueError("mols must be length 1 or 2")
 

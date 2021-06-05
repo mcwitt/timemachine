@@ -305,20 +305,11 @@ class AbsoluteTopology(BaseTopology):
         safe_sigmas = jnp.ones_like(qlj_params[:, 1])*0.1 # half sigma
         safe_epsilons = jnp.ones_like(qlj_params[:, 2])*0.2 # sqrt(eps)
 
-        # for idx, val in enumerate(qlj_params):
-            # print(idx, val)
-
-        # print(qlj_params)
-
-
         # ligand is decharged first
         src_qlj_params = qlj_params
         dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0)
         dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], safe_sigmas)
         dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], safe_epsilons)
-
-        # print(src_qlj_params)
-        # print(dst_qlj_params)
 
         qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
 
@@ -363,6 +354,7 @@ class DualTopology():
             ff_lj_params,
             minimize=False,
             standardize=None):
+
         # dummy is either "a or "b
         q_params_a = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol_a)
         q_params_b = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol_b)
@@ -453,7 +445,9 @@ class DualTopology():
 
             # combined_qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
 
-            if standardize == "a":
+            if standardize is None:
+                qlj_params = qlj_params
+            elif standardize == "a":
                 qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:NA, 0], 0.0)
                 qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:NA, 1], 0.1)
                 qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:NA, 2], 0.2)
