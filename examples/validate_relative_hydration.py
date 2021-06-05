@@ -103,7 +103,8 @@ if __name__ == "__main__":
 
     dataset = Dataset(mols)
 
-    solvent_schedule = construct_absolute_lambda_schedule(cmd_args.num_windows)
+    absolute_solvent_schedule = construct_absolute_lambda_schedule(cmd_args.num_windows)
+    relative_solvent_schedule = construct_absolute_lambda_schedule(cmd_args.num_windows-1)
     solvent_system, solvent_coords, solvent_box, solvent_topology = builders.build_water_system(4.0)
 
     # pick the largest mol as the blocker
@@ -122,7 +123,7 @@ if __name__ == "__main__":
         solvent_system,
         solvent_coords,
         solvent_box,
-        solvent_schedule,
+        absolute_solvent_schedule,
         solvent_topology,
         cmd_args.num_equil_steps,
         cmd_args.num_prod_steps
@@ -135,7 +136,7 @@ if __name__ == "__main__":
         solvent_system,
         solvent_coords,
         solvent_box,
-        solvent_schedule,
+        relative_solvent_schedule,
         solvent_topology,
         cmd_args.num_equil_steps,
         cmd_args.num_prod_steps
@@ -144,18 +145,22 @@ if __name__ == "__main__":
     ordered_params = forcefield.get_ordered_params()
     ordered_handles = forcefield.get_ordered_handles()
 
-    mol_a = dataset.data[0]
-    mol_b = dataset.data[2]
+    M = len(dataset.data)
 
-    ddG_ab = model_relative.predict(ordered_params, mol_a, mol_b, prefix='solvent_relative_'+mol_a.GetProp('_Name')+'_'+mol_b.GetProp('_Name'))
+    for i in range(M):
+        for j+1 in range(i, M):
 
-    dG_a = model_absolute.predict(ordered_params, mol_a, prefix='solvent_absolute_'+mol_a.GetProp('_Name'))
-    dG_b = model_absolute.predict(ordered_params, mol_b, prefix='solvent_absolute_'+mol_b.GetProp('_Name'))
+            mol_a = dataset.data[i]
+            mol_b = dataset.data[j]
 
-    print(ddG_ab)
-    print(dG_b - dG_a)
+            ddG_ab = model_relative.predict(ordered_params, mol_a, mol_b, prefix='solvent_relative_'+mol_a.GetProp('_Name')+'_'+mol_b.GetProp('_Name'))
 
-    assert 0
+            dG_a = model_absolute.predict(ordered_params, mol_a, prefix='solvent_absolute_'+mol_a.GetProp('_Name'))
+            dG_b = model_absolute.predict(ordered_params, mol_b, prefix='solvent_absolute_'+mol_b.GetProp('_Name'))
+
+            print("mol_i", i, mol_a.GetProp("_Name"), "mol_j", j, mol_b.GetProp("_Name"), "ddG_ab", ddG_ab, "dG_a - dG_b", dG_a - dG_b)
+
+            assert 0
 
     for mol in dataset.data:
         dG_solvent_absolute = model_absolute.predict(params, mol, prefix='solvent_'+mol.GetProp('_Name'))
