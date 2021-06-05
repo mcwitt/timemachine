@@ -148,7 +148,7 @@ if __name__ == "__main__":
     M = len(dataset.data)
 
     for i in range(M):
-        for j+1 in range(i, M):
+        for j in range(i+1, M):
 
             mol_a = dataset.data[i]
             mol_b = dataset.data[j]
