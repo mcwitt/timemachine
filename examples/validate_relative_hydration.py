@@ -158,16 +158,4 @@ if __name__ == "__main__":
             dG_a = model_absolute.predict(ordered_params, mol_a, prefix='solvent_absolute_'+mol_a.GetProp('_Name'))
             dG_b = model_absolute.predict(ordered_params, mol_b, prefix='solvent_absolute_'+mol_b.GetProp('_Name'))
 
-            print("mol_i", i, mol_a.GetProp("_Name"), "mol_j", j, mol_b.GetProp("_Name"), "ddG_ab", ddG_ab, "dG_a - dG_b", dG_a - dG_b)
-
-            assert 0
-
-    for mol in dataset.data:
-        dG_solvent_absolute = model_absolute.predict(params, mol, prefix='solvent_'+mol.GetProp('_Name'))
-        pred_fn(ordered_params, mol)
-
-        # label_dG = convert_uIC50_to_kJ_per_mole(float(mol.GetProp("IC50[uM](SPA)")))
-        # print("processing mol", mol.GetProp("_Name"), "with binding dG", label_dG, "SMILES", Chem.MolToSmiles(mol))
-
-        # pred_dG = pred_fn(ordered_params, mol)
-        # print("epoch", epoch, "mol", mol.GetProp("_Name"), "pred", pred_dG, "label", label_dG)
+            print("mol_i", i, mol_a.GetProp("_Name"), "mol_j", j, mol_b.GetProp("_Name"), "ddG_ab", ddG_ab, "dG_a-dG_b", dG_a-dG_b)
