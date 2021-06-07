@@ -175,7 +175,7 @@ class RelativeHydrationModel():
         )
         bond_list = list(map(tuple, bond_list))
         group_indices = get_group_indices(bond_list)
-        barostat_interval = 25
+        barostat_interval = 5
 
         barostat = MonteCarloBarostat(
             coords.shape[0],
@@ -205,11 +205,11 @@ class RelativeHydrationModel():
 
         dG, results = estimator_abfe.deltaG(model, sys_params)
 
-        # for idx, result in enumerate(results):
-            # traj = mdtraj.Trajectory(result.xs, mdtraj.Topology.from_openmm(combined_topology))
-            # traj.unitcell_vectors = result.boxes
-            # traj.image_molecules()
-            # traj.save_xtc(prefix+"_complex_lambda_"+str(idx)+".xtc")
+        for idx, result in enumerate(results):
+            traj = mdtraj.Trajectory(result.xs, mdtraj.Topology.from_openmm(combined_topology))
+            traj.unitcell_vectors = result.boxes
+            traj.image_molecules()
+            traj.save_xtc(prefix+"_complex_lambda_"+str(idx)+".xtc")
 
         return dG, results
 
@@ -253,6 +253,10 @@ class RelativeHydrationModel():
 
         # generate indices
         core_idxs = setup_relative_restraints(mol_a, mol_b)
+        # print(core_idxs)
+
+        # assert 0
+
         mol_a_coords = get_romol_conf(mol_a)
         mol_b_coords = get_romol_conf(mol_b)
 

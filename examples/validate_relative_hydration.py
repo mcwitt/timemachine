@@ -147,15 +147,16 @@ if __name__ == "__main__":
 
     M = len(dataset.data)
 
-    for i in range(M):
-        for j in range(i+1, M):
+    for epoch in range(100):
 
-            mol_a = dataset.data[i]
-            mol_b = dataset.data[j]
+        for i in range(M):
 
-            ddG_ab = model_relative.predict(ordered_params, mol_a, mol_b, prefix='solvent_relative_'+mol_a.GetProp('_Name')+'_'+mol_b.GetProp('_Name'))
+            for j in range(i+1, M):
 
-            dG_a = model_absolute.predict(ordered_params, mol_a, prefix='solvent_absolute_'+mol_a.GetProp('_Name'))
-            dG_b = model_absolute.predict(ordered_params, mol_b, prefix='solvent_absolute_'+mol_b.GetProp('_Name'))
+                # if i != 0 or j != 13:
+                    # continue
 
-            print("mol_i", i, mol_a.GetProp("_Name"), "mol_j", j, mol_b.GetProp("_Name"), "ddG_ab", ddG_ab, "dG_a-dG_b", dG_a-dG_b)
+                mol_a = dataset.data[i]
+                mol_b = dataset.data[j]
+
+                ddG_ab = model_relative.predict(ordered_params, mol_a, mol_b, prefix='epoch_'+str(epoch)+'_solvent_relative_'+mol_a.GetProp('_Name')+'_'+mol_b.GetProp('_Name'))
