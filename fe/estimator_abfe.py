@@ -50,7 +50,10 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
     all_args = []
     for lamb_idx, lamb in enumerate(model.lambda_schedule):
 
-        x_interval = 500
+        if model.endpoint_correct and lamb_idx == len(model.lambda_schedule) - 1:
+            x_interval = 500
+        else:
+            x_interval = 10000
 
         all_args.append((
             lamb,
@@ -76,7 +79,7 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
             model.barostat,
             model.equil_steps,
             model.prod_steps,
-            x_interval
+            500
         ))
 
     # assert len(all_args) == len(model.cache_results)
