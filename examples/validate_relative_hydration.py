@@ -153,7 +153,7 @@ if __name__ == "__main__":
 
             for j in range(i+1, M):
 
-                if mol_i != 0 or mol_j != 3:
+                if i != 0 or j != 3:
                     continue
 
                 mol_a = dataset.data[i]
