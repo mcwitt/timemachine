@@ -9,7 +9,7 @@ Topology = app.Topology
 def strip_units(coords):
     return unit.Quantity(np.array(coords / coords.unit), coords.unit)
 
-def build_protein_system(host_pdbfile: str) -> Tuple[System, Coords, int, int, Box, Topology]:
+def build_protein_system(host_pdbfile: str, padding_in_nm=1.0) -> Tuple[System, Coords, int, int, Box, Topology]:
 
     host_ff = app.ForceField('amber99sbildn.xml', 'tip3p.xml')
     host_pdb = app.PDBFile(host_pdbfile)
@@ -17,11 +17,10 @@ def build_protein_system(host_pdbfile: str) -> Tuple[System, Coords, int, int, B
     modeller = app.Modeller(host_pdb.topology, host_pdb.positions)
     host_coords = strip_units(host_pdb.positions)
 
-    padding = 1.0
     box_lengths = np.amax(host_coords, axis=0) - np.amin(host_coords, axis=0)
     box_lengths = box_lengths.value_in_unit_system(unit.md_unit_system)
 
-    box_lengths = box_lengths+padding
+    box_lengths = box_lengths+padding_in_nm
     box = np.eye(3, dtype=np.float64)*box_lengths
 
     modeller.addSolvent(host_ff, boxSize=np.diag(box)*unit.nanometers, neutralize=False)
