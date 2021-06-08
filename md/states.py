@@ -1,5 +1,11 @@
 # Sampler states
 
-from collections import namedtuple
+import numpy as np
+from typing import NamedTuple
 
-CoordsVelBox = namedtuple('CoordsVelBox', ['coords', 'velocities', 'box'])
+Coordinates = Velocities = Box = Array = np.array
+
+class CoordsVelBox(NamedTuple):
+    coords: Coordinates
+    velocities: Velocities
+    box: Box
