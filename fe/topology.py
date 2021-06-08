@@ -437,16 +437,22 @@ class DualTopology():
 
         else:
 
-
-            # reduce charge and epsilon roughly by half at the "intermediate" state via parameter interpolation
-            # src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], qlj_params[:, 0]*0.5)
-            # src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], qlj_params[:, 2]*0.5)
-            # dst_qlj_params = qlj_params
-
-            # combined_qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
-
             if standardize is None:
-                qlj_params = qlj_params
+                # reduce charge and epsilon roughly by half at the "intermediate" state via parameter interpolation
+                src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], qlj_params[:, 0]*0.5)
+                src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], qlj_params[:, 2]*0.5)
+                dst_qlj_params = qlj_params
+                combined_qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
+
+                return combined_qlj_params, potentials.NonbondedInterpolated(
+                    combined_exclusion_idxs,
+                    combined_scale_factors,
+                    combined_lambda_plane_idxs,
+                    combined_lambda_offset_idxs,
+                    beta,
+                    cutoff
+                )
+
             elif standardize == "a":
                 qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:NA, 0], 0.0)
                 qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:NA, 1], 0.1)
@@ -467,14 +473,6 @@ class DualTopology():
                 cutoff
             )
 
-            # return combined_qlj_params, potentials.NonbondedInterpolated(
-            #     combined_exclusion_idxs,
-            #     combined_scale_factors,
-            #     combined_lambda_plane_idxs,
-            #     combined_lambda_offset_idxs,
-            #     beta,
-            #     cutoff
-            # )
 
 
     def _parameterize_bonded_term(self, ff_params, bonded_handle, potential):
