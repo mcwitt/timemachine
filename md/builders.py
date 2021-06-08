@@ -1,12 +1,15 @@
 import numpy as np
 from simtk import unit
-from simtk.openmm import app, Vec3
+from simtk.openmm import app, Vec3, System
+from typing import Tuple
 
+Coords = Box = np.array
+Topology = app.Topology
 
 def strip_units(coords):
     return unit.Quantity(np.array(coords / coords.unit), coords.unit)
 
-def build_protein_system(host_pdbfile):
+def build_protein_system(host_pdbfile: str) -> Tuple[System, Coords, int, int, Box, Topology]:
 
     host_ff = app.ForceField('amber99sbildn.xml', 'tip3p.xml')
     host_pdb = app.PDBFile(host_pdbfile)
