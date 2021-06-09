@@ -45,6 +45,7 @@ def round_trip_smc(
     * NCMC - nonequilibrium candidate monte carlo
     * MCMC - markov chain monte carlo
     * SMC - sequential monte carlo
+    * AIS - annealed importance sampling
 
     References
     ----------
