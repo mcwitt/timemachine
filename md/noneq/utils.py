@@ -18,7 +18,7 @@ def make_particles_alchemical_in_place(nb: Nonbonded, particle_indices: np.array
     offsets_are_0 = set(offset_idxs[normal_particles]) == {0}
     planes_are_0 = set(plane_idxs[normal_particles]) == {0}
     if not (offsets_are_0 and planes_are_0):
-        raise (RuntimeError('some particles already alchemical!'))
+        print(RuntimeWarning('some particles already alchemical!'))
 
     modified_offset_indices = np.array(offset_idxs)
     modified_offset_indices[particle_indices] = 1
