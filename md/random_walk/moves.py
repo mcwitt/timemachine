@@ -40,7 +40,8 @@ class SwapIndistinguishable(RandomWalkMove):
 
     def propose(self, x: CoordsVelBox) -> Tuple[CoordsVelBox, float]:
         pivot = self.pivot_group
-        other = np.random.choice(self.other_groups)
+        i = np.random.randint(len(self.other_groups))
+        other = self.other_groups[i]
 
         x_prime = swap_positions(x.coords, pivot, other)
         v_prime = swap_positions(x.velocities, pivot, other)
