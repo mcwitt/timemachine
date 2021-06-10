@@ -144,7 +144,7 @@ if __name__ == "__main__":
 
     print("Reference Molecule:", ref_mol.GetProp("_Name"), Chem.MolToSmiles(ref_mol))
 
-    binding_model_complex = model_rabfe.ReferenceAbsoluteModel(
+    binding_model_complex_decouple = model_rabfe.ReferenceAbsoluteModel(
         client,
         forcefield,
         complex_system,
@@ -153,6 +153,18 @@ if __name__ == "__main__":
         complex_schedule,
         complex_topology,
         ref_mol,
+        cmd_args.num_complex_equil_steps,
+        cmd_args.num_complex_prod_steps
+    )
+
+    binding_model_complex_conversion = model_conversion.ConversionModel(
+        client,
+        forcefield,
+        complex_system,
+        complex_coords,
+        complex_box,
+        complex_schedule,
+        complex_topology,
         cmd_args.num_complex_equil_steps,
         cmd_args.num_complex_prod_steps
     )
@@ -247,11 +259,12 @@ if __name__ == "__main__":
 
 
     def pred_fn(params, mol):
-        # dG_complex = binding_model_complex.predict(params, mol, prefix='complex_'+str(epoch))
-        print("Start conversion")
-        dG_solvent_conversion = binding_model_solvent_conversion.predict(params, mol, prefix='solvent_'+str(epoch))
-        print("Start decoupling")
-        dG_solvent_decouple = binding_model_solvent_decouple.predict(params, mol, prefix='solvent_'+str(epoch))
+        dG_complex_conversion = binding_model_complex_conversion.predict(params, mol, prefix='complex_conversion_'+str(epoch))
+        dG_complex_decouple = binding_model_complex_decouple.predict(params, mol, prefix='complex_decouple_'+str(epoch))
+        dG_solvent_conversion = binding_model_solvent_conversion.predict(params, mol, prefix='solvent_conversion_'+str(epoch))
+        dG_solvent_decouple = binding_model_solvent_decouple.predict(params, mol, prefix='solvent_decouple'+str(epoch))
+        print("complex dG_conversion", dG_complex_conversion)
+        print("complex dG_decouple", dG_complex_decouple)
         print("solvent dG_conversion", dG_solvent_conversion)
         print("solvent dG_decouple", dG_solvent_decouple)
         return dG_solvent_conversion + dG_solvent_decouple

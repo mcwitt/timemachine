@@ -179,8 +179,6 @@ def minimize_host_4d(mols, host_system, host_coords, ff, box, equilibrate=False)
         norm = np.linalg.norm(du_dx, axis=-1)
         assert np.all(norm < 25000)
 
-    print("DNOE")
-
     if equilibrate:
 
         bond_list = get_bond_list(bound_potentials[0])

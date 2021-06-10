@@ -64,7 +64,8 @@ class AbsoluteModel():
     def predict(self,
         ff_params,
         mol,
-        prefix):
+        prefix,
+        standardize=False):
 
         print(f"Minimizing the host structure to remove clashes.")
         minimized_coords, _, _ = minimizer.minimize_host_4d(
@@ -75,7 +76,10 @@ class AbsoluteModel():
             self.host_box
         )
 
-        top = topology.BaseTopologyStandardDecoupling(mol, self.ff)
+        if standardize:
+            top = topology.BaseTopologyStandardDecoupling(mol, self.ff)
+        else:
+            top = topology.BaseTopology(mol, self.ff)
 
         afe = free_energy.AbsoluteFreeEnergy(mol, self.ff)
 

@@ -264,13 +264,18 @@ class BaseTopology():
         return combined_params, combined_potential
 
 class BaseTopologyConversion(BaseTopology):
+    """
+    Converts a single ligand into a standard, forcefield independent state. The ligand has its 4D
+    coordinate set to zero at all times, so that it will be fully interacting with the host.
+
+    lambda=0 forcefield dependent state
+    lambda=1 forcefield independent state
+    """
 
     def parameterize_nonbonded(self,
         ff_q_params,
         ff_lj_params):
 
-        # lambda=0 forcefield dependent state
-        # lambda=1 forcefield independent state
         qlj_params, nb_potential = super().parameterize_nonbonded(ff_q_params, ff_lj_params)
         src_qlj_params = qlj_params
         dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], _STANDARD_CHARGE)
@@ -278,19 +283,21 @@ class BaseTopologyConversion(BaseTopology):
         dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], _STANDARD_SQRT_EPS)
 
         combined_qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
-
-        # modify lambda offsets so the ligand no longer floats away
-        interpolated_potential = nb_potential.interpolate()
-
         lambda_plane_idxs = np.zeros(self.mol.GetNumAtoms(), dtype=np.int32)
         lambda_offset_idxs = np.zeros(self.mol.GetNumAtoms(), dtype=np.int32)
 
+        interpolated_potential = nb_potential.interpolate()
         interpolated_potential.set_lambda_plane_idxs(lambda_plane_idxs)
         interpolated_potential.set_lambda_offset_idxs(lambda_offset_idxs)
 
         return combined_qlj_params, interpolated_potential
 
 class BaseTopologyStandardDecoupling(BaseTopology):
+    """
+    Decouple a standardize ligand from the environment.
+    lambda=0 fully interacting
+    lambda=1 fully non-interacting.
+    """
 
     def parameterize_nonbonded(self,
         ff_q_params,
@@ -505,9 +512,13 @@ class DualTopology(ABC):
         return self._parameterize_bonded_term(ff_params, self.ff.it_handle, potentials.PeriodicTorsion)
 
 
-# dual topology specifically for relative hydration free energies.
-class DualTopologyRHFE(DualTopology):
 
+class DualTopologyRHFE(DualTopology):
+    """
+    Utility class used for relative hydration free energies. Ligand B is decoupled as lambda goes
+    from 0 to 1, while ligand A is fully coupled. At the same time, at lambda=0, ligand B and ligand A
+    have their charges and epsilons reduced by half.
+    """
     def parameterize_nonbonded(self,
         ff_q_params,
         ff_lj_params):
@@ -535,6 +546,12 @@ class DualTopologyRHFE(DualTopology):
         return combined_qlj_params, nb_potential.interpolate()
 
 class DualTopologyStandardDecoupling(DualTopology):
+    """
+    Standardized variant, where both ligands A and B have their charges, sigma, and epsilons are set
+    to standard, forcefield-independent values. There is no parameter interpolation. lambda=0 has both
+    Ligand A and B fully in the pocket. lambda=1 has ligand b fully decoupled, while ligand a is kept
+    in place.
+    """
 
     def parameterize_nonbonded(self,
         ff_q_params,
