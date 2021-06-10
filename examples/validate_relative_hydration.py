@@ -123,7 +123,7 @@ if __name__ == "__main__":
         solvent_system,
         solvent_coords,
         solvent_box,
-        absolute_solvent_schedule,
+        relative_solvent_schedule,
         solvent_topology,
         cmd_args.num_equil_steps,
         cmd_args.num_prod_steps
@@ -136,7 +136,7 @@ if __name__ == "__main__":
         solvent_system,
         solvent_coords,
         solvent_box,
-        relative_solvent_schedule,
+        absolute_solvent_schedule,
         solvent_topology,
         cmd_args.num_equil_steps,
         cmd_args.num_prod_steps
@@ -166,7 +166,7 @@ if __name__ == "__main__":
                     prefix='epoch_'+str(epoch)+'_solvent_relative_'+mol_a.GetProp('_Name')+'_'+mol_b.GetProp('_Name')
                 )
 
-                dG_a = model_absolute.predict(ordered_params, mol_a, prefix='solvent_absolute_'+mol_a.GetProp('_Name'))
-                dG_b = model_absolute.predict(ordered_params, mol_b, prefix='solvent_absolute_'+mol_b.GetProp('_Name'))
+                # dG_a = model_absolute.predict(ordered_params, mol_a, prefix='solvent_absolute_'+mol_a.GetProp('_Name'))
+                # dG_b = model_absolute.predict(ordered_params, mol_b, prefix='solvent_absolute_'+mol_b.GetProp('_Name'))
 
-                print("mol_i", i, mol_a.GetProp("_Name"), "mol_j", j, mol_b.GetProp("_Name"), "ddG_ab", ddG_ab, "dG_a-dG_b", dG_a-dG_b)
+                # print("mol_i", i, mol_a.GetProp("_Name"), "mol_j", j, mol_b.GetProp("_Name"), "ddG_ab", ddG_ab, "dG_a-dG_b", dG_a-dG_b)

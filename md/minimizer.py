@@ -115,8 +115,8 @@ def minimize_host_4d(mols, host_system, host_coords, ff, box, equilibrate=False)
     if len(mols) == 1:
         top = topology.BaseTopology(mols[0], ff)
     elif len(mols) == 2:
-        top = topology.DualTopology(mols[0], mols[1], ff)
-        top.parameterize_nonbonded = functools.partial(top.parameterize_nonbonded, minimize=True)
+        top = topology.DualTopologyMinimization(mols[0], mols[1], ff)
+        # top.parameterize_nonbonded = functools.partial(top.parameterize_nonbonded, minimize=True)
     else:
         raise ValueError("mols must be length 1 or 2")
 
@@ -179,6 +179,7 @@ def minimize_host_4d(mols, host_system, host_coords, ff, box, equilibrate=False)
         norm = np.linalg.norm(du_dx, axis=-1)
         assert np.all(norm < 25000)
 
+    print("DNOE")
 
     if equilibrate:
 

@@ -75,11 +75,14 @@ class AbsoluteModel():
             self.host_box
         )
 
+        top = topology.BaseTopologyStandardDecoupling(mol, self.ff)
+
         afe = free_energy.AbsoluteFreeEnergy(mol, self.ff)
 
         unbound_potentials, sys_params, masses = afe.prepare_host_edge(
             ff_params,
             self.host_system,
+            top
         )
 
         endpoint_correct = False

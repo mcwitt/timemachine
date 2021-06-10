@@ -1,3 +1,5 @@
+from abc import ABC
+
 import numpy as np
 import jax
 import jax.numpy as jnp
@@ -10,6 +12,11 @@ _SCALE_13 = 1.0
 _SCALE_14 = 0.5
 _BETA = 2.0
 _CUTOFF = 1.2
+
+
+_STANDARD_CHARGE = 0.0
+_STANDARD_HALF_SIG = 0.1
+_STANDARD_SQRT_EPS = 0.2
 
 
 class AtomMappingError(Exception):
@@ -256,6 +263,47 @@ class BaseTopology():
         combined_potential = potentials.PeriodicTorsion(combined_idxs)
         return combined_params, combined_potential
 
+class BaseTopologyConversion(BaseTopology):
+
+    def parameterize_nonbonded(self,
+        ff_q_params,
+        ff_lj_params):
+
+        # lambda=0 forcefield dependent state
+        # lambda=1 forcefield independent state
+        qlj_params, nb_potential = super().parameterize_nonbonded(ff_q_params, ff_lj_params)
+        src_qlj_params = qlj_params
+        dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], _STANDARD_CHARGE)
+        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], _STANDARD_HALF_SIG)
+        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], _STANDARD_SQRT_EPS)
+
+        combined_qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
+
+        # modify lambda offsets so the ligand no longer floats away
+        interpolated_potential = nb_potential.interpolate()
+
+        lambda_plane_idxs = np.zeros(self.mol.GetNumAtoms(), dtype=np.int32)
+        lambda_offset_idxs = np.zeros(self.mol.GetNumAtoms(), dtype=np.int32)
+
+        interpolated_potential.set_lambda_plane_idxs(lambda_plane_idxs)
+        interpolated_potential.set_lambda_offset_idxs(lambda_offset_idxs)
+
+        return combined_qlj_params, interpolated_potential
+
+class BaseTopologyStandardDecoupling(BaseTopology):
+
+    def parameterize_nonbonded(self,
+        ff_q_params,
+        ff_lj_params):
+
+        # mol is standardized into a forcefield independent state.
+        qlj_params, nb_potential = super().parameterize_nonbonded(ff_q_params, ff_lj_params)
+        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], _STANDARD_CHARGE)
+        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], _STANDARD_HALF_SIG)
+        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], _STANDARD_SQRT_EPS)
+
+        return qlj_params, nb_potential
+
 class AbsoluteTopology(BaseTopology):
     # specialized variant of BaseTopology that overrides the nonbonded parameterization
 
@@ -322,7 +370,9 @@ class AbsoluteTopology(BaseTopology):
             cutoff
         )
 
-class DualTopology():
+
+class DualTopology(ABC):
+
 
     def __init__(self, mol_a, mol_b, forcefield):
         """
@@ -349,11 +399,9 @@ class DualTopology():
         return self.mol_a.GetNumAtoms() + self.mol_b.GetNumAtoms()
 
     def parameterize_nonbonded(
-            self,
-            ff_q_params,
-            ff_lj_params,
-            minimize=False,
-            standardize=None):
+        self,
+        ff_q_params,
+        ff_lj_params):
 
         # dummy is either "a or "b
         q_params_a = self.ff.q_handle.partial_parameterize(ff_q_params, self.mol_a)
@@ -404,17 +452,8 @@ class DualTopology():
             mutual_scale_factors
         ]).astype(np.float64)
 
-        combined_lambda_plane_idxs = np.zeros(NA+NB, dtype=np.int32)
-        if minimize:
-            combined_lambda_offset_idxs = np.concatenate([
-                np.ones(NA, dtype=np.int32),
-                np.ones(NB, dtype=np.int32)
-            ])
-        else:
-            combined_lambda_offset_idxs = np.concatenate([
-                np.zeros(NA, dtype=np.int32),
-                np.ones(NB, dtype=np.int32)
-            ])
+        combined_lambda_plane_idxs = None
+        combined_lambda_offset_idxs = None
 
         beta = _BETA
         cutoff = _CUTOFF # solve for this analytically later
@@ -424,56 +463,14 @@ class DualTopology():
             jnp.reshape(lj_params, (-1, 2))
         ], axis=1)
 
-        if minimize:
-
-            return qlj_params, potentials.Nonbonded(
-                combined_exclusion_idxs,
-                combined_scale_factors,
-                combined_lambda_plane_idxs,
-                combined_lambda_offset_idxs,
-                beta,
-                cutoff
-            )
-
-        else:
-
-            if standardize is None:
-                # reduce charge and epsilon roughly by half at the "intermediate" state via parameter interpolation
-                src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], qlj_params[:, 0]*0.5)
-                src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], qlj_params[:, 2]*0.5)
-                dst_qlj_params = qlj_params
-                combined_qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
-
-                return combined_qlj_params, potentials.NonbondedInterpolated(
-                    combined_exclusion_idxs,
-                    combined_scale_factors,
-                    combined_lambda_plane_idxs,
-                    combined_lambda_offset_idxs,
-                    beta,
-                    cutoff
-                )
-
-            elif standardize == "a":
-                qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:NA, 0], 0.0)
-                qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:NA, 1], 0.1)
-                qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:NA, 2], 0.2)
-            elif standardize == "b":
-                qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[NA:, 0], 0.0)
-                qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[NA:, 1], 0.1)
-                qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[NA:, 2], 0.2)
-            else:
-                assert 0
-
-            return qlj_params, potentials.Nonbonded(
-                combined_exclusion_idxs,
-                combined_scale_factors,
-                combined_lambda_plane_idxs,
-                combined_lambda_offset_idxs,
-                beta,
-                cutoff
-            )
-
-
+        return qlj_params, potentials.Nonbonded(
+            combined_exclusion_idxs,
+            combined_scale_factors,
+            combined_lambda_plane_idxs,
+            combined_lambda_offset_idxs,
+            beta,
+            cutoff
+        )
 
     def _parameterize_bonded_term(self, ff_params, bonded_handle, potential):
         offset = self.mol_a.GetNumAtoms()
@@ -507,6 +504,87 @@ class DualTopology():
     def parameterize_improper_torsion(self, ff_params):
         return self._parameterize_bonded_term(ff_params, self.ff.it_handle, potentials.PeriodicTorsion)
 
+
+# dual topology specifically for relative hydration free energies.
+class DualTopologyRHFE(DualTopology):
+
+    def parameterize_nonbonded(self,
+        ff_q_params,
+        ff_lj_params):
+
+        qlj_params, nb_potential = super().parameterize_nonbonded(ff_q_params, ff_lj_params)
+
+        # halve the strength of the charge and the epsilon parameters
+        src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], qlj_params[:, 0]*0.5)
+        src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], qlj_params[:, 2]*0.5)
+        dst_qlj_params = qlj_params
+        combined_qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
+
+        combined_lambda_plane_idxs = np.zeros(
+            self.mol_a.GetNumAtoms() + self.mol_b.GetNumAtoms(),
+            dtype=np.int32
+        )
+        combined_lambda_offset_idxs = np.concatenate([
+            np.zeros(self.mol_a.GetNumAtoms(), dtype=np.int32),
+            np.ones(self.mol_b.GetNumAtoms(), dtype=np.int32)
+        ])
+
+        nb_potential.set_lambda_plane_idxs(combined_lambda_plane_idxs)
+        nb_potential.set_lambda_offset_idxs(combined_lambda_offset_idxs)
+
+        return combined_qlj_params, nb_potential.interpolate()
+
+class DualTopologyStandardDecoupling(DualTopology):
+
+    def parameterize_nonbonded(self,
+        ff_q_params,
+        ff_lj_params):
+
+        # both mol_a and mol_b are standardized.
+        # we don't actually need derivatives for this stage.
+        qlj_params, nb_potential = super().parameterize_nonbonded(ff_q_params, ff_lj_params)
+        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], _STANDARD_CHARGE)
+        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], _STANDARD_HALF_SIG)
+        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], _STANDARD_SQRT_EPS)
+
+        combined_lambda_plane_idxs = np.zeros(
+            self.mol_a.GetNumAtoms() + self.mol_b.GetNumAtoms(),
+            dtype=np.int32
+        )
+        combined_lambda_offset_idxs = np.concatenate([
+            np.zeros(self.mol_a.GetNumAtoms(), dtype=np.int32),
+            np.ones(self.mol_b.GetNumAtoms(), dtype=np.int32)
+        ])
+
+        nb_potential.set_lambda_plane_idxs(combined_lambda_plane_idxs)
+        nb_potential.set_lambda_offset_idxs(combined_lambda_offset_idxs)
+
+        return qlj_params, nb_potential
+
+
+class DualTopologyMinimization(DualTopology):
+
+    def parameterize_nonbonded(self,
+        ff_q_params,
+        ff_lj_params):
+
+        # both mol_a and mol_b are standardized.
+        # we don't actually need derivatives for this stage.
+        qlj_params, nb_potential = super().parameterize_nonbonded(ff_q_params, ff_lj_params)
+
+        combined_lambda_plane_idxs = np.zeros(
+            self.mol_a.GetNumAtoms() + self.mol_b.GetNumAtoms(),
+            dtype=np.int32
+        )
+        combined_lambda_offset_idxs = np.concatenate([
+            np.ones(self.mol_a.GetNumAtoms(), dtype=np.int32),
+            np.ones(self.mol_b.GetNumAtoms(), dtype=np.int32)
+        ])
+
+        nb_potential.set_lambda_offset_idxs(combined_lambda_offset_idxs)
+        nb_potential.set_lambda_plane_idxs(combined_lambda_plane_idxs)
+
+        return qlj_params, nb_potential
 
 class SingleTopology():
 

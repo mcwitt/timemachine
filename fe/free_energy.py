@@ -73,11 +73,11 @@ class AbsoluteFreeEnergy(BaseFreeEnergy):
         """
         self.mol = mol
         self.ff = ff
-        self.top = topology.BaseTopology(mol, ff)
+        # self.top = topology.BaseTopologyStandardDecoupling(mol, ff)
         # self.top.parameterize_nonbonded = functools.partial(self.top.parameterize_nonbonded)
 
 
-    def prepare_host_edge(self, ff_params, host_system):
+    def prepare_host_edge(self, ff_params, host_system, ligand_top):
         """
         Prepares the host-edge system
 
@@ -104,7 +104,7 @@ class AbsoluteFreeEnergy(BaseFreeEnergy):
         host_bps, host_masses = openmm_deserializer.deserialize_system(host_system, cutoff=1.2)
         # num_host_atoms = host_coords.shape[0]
 
-        hgt = topology.HostGuestTopology(host_bps, self.top)
+        hgt = topology.HostGuestTopology(host_bps, ligand_top)
 
         final_params, final_potentials = self._get_system_params_and_potentials(ff_params, hgt)
 
@@ -270,6 +270,6 @@ def construct_absolute_lambda_schedule(num_windows):
 
     # print(lambda_schedule)
     # assert len(lambda_schedule) == num_windows
-
+    # lambda_schedule = np.ones_like(lambda_schedule)
 
     return lambda_schedule

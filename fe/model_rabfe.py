@@ -129,15 +129,9 @@ class ReferenceAbsoluteModel():
         mol_b,
         core_idxs,
         combined_coords,
-        prefix,
-        standardize):
+        prefix):
 
-        dual_topology = topology.DualTopology(mol_a, mol_b, self.ff)
-        dual_topology.parameterize_nonbonded = functools.partial(
-            dual_topology.parameterize_nonbonded,
-            minimize=False,
-            standardize=standardize
-            )
+        dual_topology = topology.DualTopologyStandardDecoupling(mol_a, mol_b, self.ff)
         rfe = free_energy.RelativeFreeEnergy(dual_topology)
 
         unbound_potentials, sys_params, masses = rfe.prepare_host_edge(
@@ -146,7 +140,6 @@ class ReferenceAbsoluteModel():
         )
 
         # setup restraints and align to the blocker
-
         num_host_atoms = len(self.host_coords)
         combined_topology = model_utils.generate_topology(
             [self.host_topology, mol_a, mol_b],
@@ -284,8 +277,7 @@ class ReferenceAbsoluteModel():
             mol,
             combined_core_idxs,
             combined_coords,
-            prefix+"_ref_to_mol",
-            standardize="a")
+            prefix+"_ref_to_mol")
 
         combined_core_idxs = np.copy(core_idxs)
         # swap
@@ -300,8 +292,7 @@ class ReferenceAbsoluteModel():
             self.ref_mol,
             combined_core_idxs,
             combined_coords,
-            prefix+"_mol_to_ref",
-            standardize="b")
+            prefix+"_mol_to_ref")
 
         # dG_0 is the free energy of moving X-B-A into X-B+A
         # dG_1 is the free energy of moving X-A-B into X-A+B

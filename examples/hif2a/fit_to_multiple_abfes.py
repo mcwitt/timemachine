@@ -10,7 +10,7 @@ from jax import numpy as jnp
 
 from fe.free_energy import construct_absolute_lambda_schedule
 from fe.utils import convert_uIC50_to_kJ_per_mole
-from fe import model_abfe, model_rabfe
+from fe import model_abfe, model_rabfe, model_conversion
 from fe import model as model_rbfe
 from md import builders
 
@@ -158,7 +158,19 @@ if __name__ == "__main__":
     )
 
     # assert 0
-    binding_model_solvent = model_abfe.AbsoluteModel(
+    binding_model_solvent_decouple = model_abfe.AbsoluteModel(
+        client,
+        forcefield,
+        solvent_system,
+        solvent_coords,
+        solvent_box,
+        solvent_schedule,
+        solvent_topology,
+        cmd_args.num_solvent_equil_steps,
+        cmd_args.num_solvent_prod_steps
+    )
+
+    binding_model_solvent_conversion = model_conversion.ConversionModel(
         client,
         forcefield,
         solvent_system,
@@ -235,14 +247,21 @@ if __name__ == "__main__":
 
 
     def pred_fn(params, mol):
-        dG_complex = binding_model_complex.predict(params, mol, prefix='complex_'+str(epoch))
-        dG_solvent = binding_model_solvent.predict(params, mol, prefix='solvent_'+str(epoch))
-        return dG_solvent - dG_complex
-
-    def loss_fn(params, mol, label_dG_bind, epoch):
         # dG_complex = binding_model_complex.predict(params, mol, prefix='complex_'+str(epoch))
-        dG_solvent = binding_model_solvent.predict(params, mol, prefix='solvent_'+str(epoch))
-        return dG_solvent
+        print("Start conversion")
+        dG_solvent_conversion = binding_model_solvent_conversion.predict(params, mol, prefix='solvent_'+str(epoch))
+        print("Start decoupling")
+        dG_solvent_decouple = binding_model_solvent_decouple.predict(params, mol, prefix='solvent_'+str(epoch))
+        print("solvent dG_conversion", dG_solvent_conversion)
+        print("solvent dG_decouple", dG_solvent_decouple)
+        return dG_solvent_conversion + dG_solvent_decouple
+        # return dG_solvent - dG_complex
+
+    # def loss_fn(params, mol, label_dG_bind, epoch):
+    #     # dG_complex = binding_model_complex.predict(params, mol, prefix='complex_'+str(epoch))
+    #     dG_solvent = binding_model_solvent_decouple.predict(params, mol, prefix='solvent_'+str(epoch))
+    #     dG_solvent = binding_model_solvent_conversion.predict(params, mol, prefix='solvent_'+str(epoch))
+    #     return dG_solvent
         # pred_dG_bind = dG_solvent - dG_complex  + dG_reorg # deltaG of binding, move from solvent into complex
 
 

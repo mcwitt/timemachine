@@ -113,12 +113,7 @@ class RelativeHydrationModel():
         prefix,
         standardize):
 
-        dual_topology = topology.DualTopology(mol_a, mol_b, self.ff)
-        dual_topology.parameterize_nonbonded = functools.partial(
-            dual_topology.parameterize_nonbonded,
-            minimize=False,
-            standardize=standardize
-            )
+        dual_topology = topology.DualTopologyRHFE(mol_a, mol_b, self.ff)
         rfe = free_energy.RelativeFreeEnergy(dual_topology)
 
         unbound_potentials, sys_params, masses = rfe.prepare_host_edge(
@@ -205,11 +200,11 @@ class RelativeHydrationModel():
 
         dG, results = estimator_abfe.deltaG(model, sys_params)
 
-        # for idx, result in enumerate(results):
-        #     traj = mdtraj.Trajectory(result.xs, mdtraj.Topology.from_openmm(combined_topology))
-        #     traj.unitcell_vectors = result.boxes
-        #     traj.image_molecules()
-        #     traj.save_xtc(prefix+"_complex_lambda_"+str(idx)+".xtc")
+        for idx, result in enumerate(results):
+            traj = mdtraj.Trajectory(result.xs, mdtraj.Topology.from_openmm(combined_topology))
+            traj.unitcell_vectors = result.boxes
+            traj.image_molecules()
+            traj.save_xtc(prefix+"_complex_lambda_"+str(idx)+".xtc")
 
         return dG, results
 
