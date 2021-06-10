@@ -157,13 +157,15 @@ if __name__ == "__main__":
         cmd_args.num_complex_prod_steps
     )
 
+    complex_conversion_schedule = np.linspace(0, 1.0, 24)
+
     binding_model_complex_conversion = model_conversion.ConversionModel(
         client,
         forcefield,
         complex_system,
         complex_coords,
         complex_box,
-        complex_schedule,
+        complex_conversion_schedule,
         complex_topology,
         cmd_args.num_complex_equil_steps,
         cmd_args.num_complex_prod_steps
@@ -182,13 +184,15 @@ if __name__ == "__main__":
         cmd_args.num_solvent_prod_steps
     )
 
+    solvent_conversion_schedule = np.linspace(0, 1.0, 24)
+
     binding_model_solvent_conversion = model_conversion.ConversionModel(
         client,
         forcefield,
         solvent_system,
         solvent_coords,
         solvent_box,
-        solvent_schedule,
+        solvent_conversion_schedule,
         solvent_topology,
         cmd_args.num_solvent_equil_steps,
         cmd_args.num_solvent_prod_steps
