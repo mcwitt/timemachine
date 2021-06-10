@@ -267,8 +267,10 @@ if __name__ == "__main__":
         print("complex dG_decouple", dG_complex_decouple)
         print("solvent dG_conversion", dG_solvent_conversion)
         print("solvent dG_decouple", dG_solvent_decouple)
-        return dG_solvent_conversion + dG_solvent_decouple
-        # return dG_solvent - dG_complex
+        dG_solvent = dG_solvent_conversion + dG_solvent_decouple
+        dG_complex = dG_complex_conversion + dG_complex_decouple
+        print("mol", mol.GetProp("_Name"), "dG_solvent", dG_solvent, "dG_complex", dG_complex)
+        return dG_solvent - dG_complex
 
     # def loss_fn(params, mol, label_dG_bind, epoch):
     #     # dG_complex = binding_model_complex.predict(params, mol, prefix='complex_'+str(epoch))
