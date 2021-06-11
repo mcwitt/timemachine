@@ -146,7 +146,7 @@ def _deltaG(model, sys_params) -> Tuple[Tuple[float, List], np.array]:
         k_translation = 200.0
         k_rotation = 100.0
         start = time.time()
-        lhs_du, rhs_du, _, _ = endpoint_correction.estimate_delta_us(
+        lhs_du, rhs_du, rotation_samples, translation_samples = endpoint_correction.estimate_delta_us(
             k_translation=k_translation,
             k_rotation=k_rotation,
             core_idxs=core_restr.get_idxs(),
