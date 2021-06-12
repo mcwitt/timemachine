@@ -165,8 +165,6 @@ def estimate_delta_us(
     batch_u_lhs = jax.jit(jax.vmap(u_lhs))
     batch_u_rhs = jax.jit(jax.vmap(u_rhs))
 
-    print("<u_lhs(lhs_xs)>", np.mean(batch_u_lhs(lhs_xs)), "<u_rhs(lhs_xs)>", np.mean(batch_u_rhs(lhs_xs)), " | <u_lhs(rhs_xs)>", np.mean(batch_u_lhs(rhs_xs)), "<u_rhs(rhs_xs)>", np.mean(batch_u_rhs(rhs_xs)))
-
     sample_size = rhs_xs.shape[0]
     rotation_samples = sample_multiple_rotations(k_rotation, beta, sample_size)
     covariance = np.eye(3)/(2*beta*k_translation)
@@ -181,6 +179,9 @@ def estimate_delta_us(
 
     batch_align_fn = jax.jit(jax.vmap(align, (0, 0, 0)))
     rhs_xs_aligned = batch_align_fn(rhs_xs, rotation_samples, translation_samples)
+
+    print("<u_lhs(lhs_xs)>", np.mean(batch_u_lhs(lhs_xs)), "<u_rhs(lhs_xs)>", np.mean(batch_u_rhs(lhs_xs)), " | <u_lhs(rhs_xs)>", np.mean(batch_u_lhs(rhs_xs_aligned)), "<u_rhs(rhs_xs)>", np.mean(batch_u_rhs(rhs_xs_aligned)))
+
     rhs_du = delta_u_rev_batch(rhs_xs_aligned)
 
     return lhs_du, rhs_du, rotation_samples, translation_samples
