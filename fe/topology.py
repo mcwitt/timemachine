@@ -1,4 +1,6 @@
+import networkx
 from abc import ABC
+from rdkit import Chem
 
 import numpy as np
 import jax
@@ -110,7 +112,14 @@ class HostGuestTopology():
         combined_lambda_mult = np.concatenate([host_lambda_mult, guest_lambda_mult]).astype(np.int32)
         combined_lambda_offset = np.concatenate([host_lambda_offset, guest_lambda_offset]).astype(np.int32)
 
+
+        # print("GUEST MULT", guest_lambda_mult)
+        # print("GUEST OFFSET", guest_lambda_offset)
+
         ctor = type(guest_potential)
+
+        # print("HG", combined_lambda_offset, ctor)
+        # print("HG", combined_lambda_mult, ctor)
 
         return combined_params, ctor(combined_idxs, combined_lambda_mult, combined_lambda_offset)
 
@@ -260,7 +269,28 @@ class BaseTopology():
         improper_params, improper_potential = self.parameterize_improper_torsion(improper_params)
         combined_params = jnp.concatenate([proper_params, improper_params])
         combined_idxs = np.concatenate([proper_potential.get_idxs(), improper_potential.get_idxs()])
-        combined_potential = potentials.PeriodicTorsion(combined_idxs)
+
+        # dual topology needs this fix too... probably
+        proper_lambda_mult = proper_potential.get_lambda_mult()
+        proper_lambda_offset = proper_potential.get_lambda_offset()
+
+        if proper_lambda_mult is None:
+            proper_lambda_mult = np.zeros(len(proper_params))
+        if proper_lambda_offset is None:
+            proper_lambda_offset = np.ones(len(proper_params))
+
+        improper_lambda_mult = improper_potential.get_lambda_mult()
+        improper_lambda_offset = improper_potential.get_lambda_offset()
+
+        if improper_lambda_mult is None:
+            improper_lambda_mult = np.zeros(len(improper_params))
+        if improper_lambda_offset is None:
+            improper_lambda_offset = np.ones(len(improper_params))
+
+        combined_lambda_mult = np.concatenate([proper_lambda_mult, improper_lambda_mult]).astype(np.int32)
+        combined_lambda_offset = np.concatenate([proper_lambda_offset, improper_lambda_offset]).astype(np.int32)
+
+        combined_potential = potentials.PeriodicTorsion(combined_idxs, combined_lambda_mult, combined_lambda_offset)
         return combined_params, combined_potential
 
 class BaseTopologyConversion(BaseTopology):
@@ -272,15 +302,38 @@ class BaseTopologyConversion(BaseTopology):
     lambda=1 forcefield independent state
     """
 
+    def parameterize_proper_torsion(self, ff_params):
+        # alchemically turn off proper torsions.
+        torsion_params, torsion_potential = super().parameterize_proper_torsion(ff_params)
+        membership = get_ring_membership(self.mol)
+
+        num_torsions = torsion_params.shape[0]
+
+        lambda_mult_idxs = np.zeros(num_torsions, dtype=np.int32)
+        lambda_offset_idxs = np.ones(num_torsions, dtype=np.int32)
+
+        for torsion_idx, (_, b, c, _) in enumerate(torsion_potential.get_idxs()):
+            if membership[b] != membership[c]:
+                lambda_mult_idxs[torsion_idx] = -1
+
+        torsion_potential.set_lambda_mult_and_offset(lambda_mult_idxs, lambda_offset_idxs)
+
+        # print("mult..", torsion_potential.get_lambda_mult())
+        # print("offset...", torsion_potential.get_lambda_offset())
+
+        return torsion_params, torsion_potential
+
+
     def parameterize_nonbonded(self,
         ff_q_params,
         ff_lj_params):
 
         qlj_params, nb_potential = super().parameterize_nonbonded(ff_q_params, ff_lj_params)
         src_qlj_params = qlj_params
-        dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], _STANDARD_CHARGE)
-        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], _STANDARD_HALF_SIG)
-        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], _STANDARD_SQRT_EPS)
+        dst_qlj_params = qlj_params
+        # dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], _STANDARD_CHARGE)
+        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], _STANDARD_HALF_SIG)
+        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], _STANDARD_SQRT_EPS)
 
         combined_qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
         lambda_plane_idxs = np.zeros(self.mol.GetNumAtoms(), dtype=np.int32)
@@ -298,6 +351,24 @@ class BaseTopologyStandardDecoupling(BaseTopology):
     lambda=0 fully interacting
     lambda=1 fully non-interacting.
     """
+    def parameterize_proper_torsion(self, ff_params):
+        # (ytz): TBD need to do this for Base Topology as well
+
+        torsion_params, torsion_potential = super().parameterize_proper_torsion(ff_params)
+
+        membership = get_ring_membership(self.mol)
+
+        standard_torsion_params = []
+
+        for torsion_idx, (_, b, c, _) in enumerate(torsion_potential.get_idxs()):
+            if membership[b] != membership[c]:
+                standard_torsion_params.append(np.array([0.0, 0.0, 0.0], dtype=np.float64))
+            else:
+                standard_torsion_params.append(torsion_params[torsion_idx])
+
+        standard_torsion_params = jnp.array(standard_torsion_params)
+
+        return standard_torsion_params, torsion_potential
 
     def parameterize_nonbonded(self,
         ff_q_params,
@@ -500,6 +571,7 @@ class DualTopology(ABC):
         """
         proper_params, proper_potential = self.parameterize_proper_torsion(proper_params)
         improper_params, improper_potential = self.parameterize_improper_torsion(improper_params)
+
         combined_params = jnp.concatenate([proper_params, improper_params])
         combined_idxs = np.concatenate([proper_potential.get_idxs(), improper_potential.get_idxs()])
         combined_potential = potentials.PeriodicTorsion(combined_idxs)
@@ -545,13 +617,56 @@ class DualTopologyRHFE(DualTopology):
 
         return combined_qlj_params, nb_potential.interpolate()
 
+def get_ring_membership(mol):
+
+    # for _ in mol_a.
+    g = networkx.Graph()
+    for bond in mol.GetBonds():
+        g.add_edge(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
+
+    # find bridges and remove them
+    for bridge in networkx.bridges(g):
+        g.remove_edge(*bridge)
+
+    # find connected components after bridge removal
+    membership = np.zeros(mol.GetNumAtoms(), dtype=np.int32)
+    for group_idx, atom_list in enumerate(networkx.connected_components(g)):
+        for atom_idx in atom_list:
+            membership[atom_idx] = group_idx
+
+    return membership
+
 class DualTopologyStandardDecoupling(DualTopology):
     """
     Standardized variant, where both ligands A and B have their charges, sigma, and epsilons are set
     to standard, forcefield-independent values. There is no parameter interpolation. lambda=0 has both
     Ligand A and B fully in the pocket. lambda=1 has ligand b fully decoupled, while ligand a is kept
     in place.
+
+    Furthermore, the ligand's non-ring torsions are turned off at the standard state to improve
+    sampling.
+
     """
+
+    def parameterize_proper_torsion(self, ff_params):
+        # (ytz): TBD need to do this for Base Topology as well
+
+        torsion_params, torsion_potential = super().parameterize_proper_torsion(ff_params)
+
+        mol_c = Chem.CombineMols(self.mol_a, self.mol_b)
+        membership = get_ring_membership(mol_c)
+
+        standard_torsion_params = []
+
+        for torsion_idx, (_, b, c, _) in enumerate(torsion_potential.get_idxs()):
+            if membership[b] != membership[c]:
+                standard_torsion_params.append(np.array([0.0, 0.0, 0.0], dtype=np.float64))
+            else:
+                standard_torsion_params.append(torsion_params[torsion_idx])
+
+        standard_torsion_params = jnp.array(standard_torsion_params)
+
+        return standard_torsion_params, torsion_potential
 
     def parameterize_nonbonded(self,
         ff_q_params,

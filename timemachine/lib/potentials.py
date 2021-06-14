@@ -120,6 +120,14 @@ class BondedWrapper(CustomOpWrapper):
     def set_idxs(self, new_idxs):
         self.args[0] = new_idxs
 
+    def set_lambda_mult_and_offset(self, mult, offset):
+        if len(self.args) > 1:
+            self.args[1] = mult
+            self.args[2] = offset
+        else:
+            self.args.append(mult)
+            self.args.append(offset)
+
     def get_lambda_mult(self):
         if len(self.args) > 1:
             return self.args[1]

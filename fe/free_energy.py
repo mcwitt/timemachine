@@ -270,6 +270,6 @@ def construct_absolute_lambda_schedule(num_windows):
 
     # print(lambda_schedule)
     # assert len(lambda_schedule) == num_windows
-    # lambda_schedule = np.ones_like(lambda_schedule)
+    lambda_schedule = np.ones_like(lambda_schedule)
 
     return lambda_schedule

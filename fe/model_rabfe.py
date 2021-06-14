@@ -279,6 +279,10 @@ class ReferenceAbsoluteModel():
             combined_coords,
             prefix+"_ref_to_mol")
 
+        # do only one pass
+
+        return dG_0
+
         combined_core_idxs = np.copy(core_idxs)
         # swap
         combined_core_idxs[:, 0] = core_idxs[:, 1]
