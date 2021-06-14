@@ -301,15 +301,14 @@ if __name__ == "__main__":
     #     return  dG_complex
 
     def pred_fn(params, mol):
-        # dG_complex_decouple = binding_model_complex_decouple.predict(
-        #     params,
-        #     mol,
-        #     prefix='complex_decouple_'+str(epoch)
-        # )
-        # print("mol", mol.GetProp("_Name"), "dG_complex", dG_complex_decouple)
-        # return  dG_complex_decouple
+        dG_complex_decouple = binding_model_complex_decouple.predict(
+            params,
+            mol,
+            prefix='complex_decouple_'+str(epoch)
+        )
         dG_complex_conversion = binding_model_complex_conversion.predict(params, mol, prefix='complex_conversion_'+str(epoch))
-        return dG_complex_conversion
+        print("mol", mol.GetProp("_Name"), "dG_complex", dG_complex_conversion + dG_complex_decouple)
+        return dG_complex_conversion + dG_complex_decouple
 
     # def loss_fn(params, mol, label_dG_bind, epoch):
     #     # dG_complex = binding_model_complex.predict(params, mol, prefix='complex_'+str(epoch))

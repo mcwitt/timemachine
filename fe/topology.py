@@ -318,9 +318,6 @@ class BaseTopologyConversion(BaseTopology):
 
         torsion_potential.set_lambda_mult_and_offset(lambda_mult_idxs, lambda_offset_idxs)
 
-        # print("mult..", torsion_potential.get_lambda_mult())
-        # print("offset...", torsion_potential.get_lambda_offset())
-
         return torsion_params, torsion_potential
 
 
@@ -330,10 +327,9 @@ class BaseTopologyConversion(BaseTopology):
 
         qlj_params, nb_potential = super().parameterize_nonbonded(ff_q_params, ff_lj_params)
         src_qlj_params = qlj_params
-        dst_qlj_params = qlj_params
-        # dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], _STANDARD_CHARGE)
-        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], _STANDARD_HALF_SIG)
-        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], _STANDARD_SQRT_EPS)
+        dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], _STANDARD_CHARGE)
+        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], _STANDARD_HALF_SIG)
+        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], _STANDARD_SQRT_EPS)
 
         combined_qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
         lambda_plane_idxs = np.zeros(self.mol.GetNumAtoms(), dtype=np.int32)
