@@ -330,6 +330,7 @@ class BaseTopologyConversion(BaseTopology):
         dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], _STANDARD_CHARGE)
         # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], _STANDARD_HALF_SIG)
         # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], _STANDARD_SQRT_EPS)
+        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], qlj_params[:, 2])
 
         combined_qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
         lambda_plane_idxs = np.zeros(self.mol.GetNumAtoms(), dtype=np.int32)
@@ -375,6 +376,7 @@ class BaseTopologyStandardDecoupling(BaseTopology):
         qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], _STANDARD_CHARGE)
         # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], _STANDARD_HALF_SIG)
         # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], _STANDARD_SQRT_EPS)
+        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], qlj_params[:, 2])
 
         return qlj_params, nb_potential
 
@@ -674,6 +676,8 @@ class DualTopologyStandardDecoupling(DualTopology):
         qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], _STANDARD_CHARGE)
         # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], _STANDARD_HALF_SIG)
         # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], _STANDARD_SQRT_EPS)
+        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], qlj_params[:, 2])
+
 
         combined_lambda_plane_idxs = np.zeros(
             self.mol_a.GetNumAtoms() + self.mol_b.GetNumAtoms(),
