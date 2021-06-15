@@ -17,8 +17,54 @@ _CUTOFF = 1.2
 
 
 _STANDARD_CHARGE = 0.0
-_STANDARD_HALF_SIG = 0.1
-_STANDARD_SQRT_EPS = 0.2
+# _STANDARD_HALF_SIG = 0.1
+# _STANDARD_SQRT_EPS = 0.2
+
+
+# ff independent "standard" sig/eps
+def simple_lj_typer(mol):
+
+    sig_eps = []
+
+    for atom in mol.GetAtoms():
+        a_num = atom.GetAtomicNum()
+        if a_num == 1:
+            assert len(atom.GetNeighbors()) == 1
+            neighbor = atom.GetNeighbors()[0]
+            b_num = neighbor.GetAtomicNum()
+            if b_num == 6:
+                val = (0.25, 0.25)
+            elif b_num == 7:
+                val = (0.10, 0.25)
+            elif b_num == 8:
+                val = (0.05, 0.02)
+            elif b_num == 16:
+                val = (0.10, 0.25)
+            else:
+                val = (0.10, 0.25)
+        elif a_num == 6:
+            val = (0.3, 0.7)
+        elif a_num == 7:
+            val = (0.3, 0.8)
+        elif a_num == 8:
+            val = (0.3, 0.9)
+        elif a_num == 9:
+            val = (0.3, 0.5)
+        elif a_num == 15:
+            val = (0.37, 0.9)
+        elif a_num == 16:
+            val = (0.35, 1.0)
+        else:
+            assert 0
+
+        # sigmas need to be halved
+        # val[0] = val[0]/2
+        sig_eps.append((val[0]/2, val[1]))
+
+    sig_eps = np.array(sig_eps)
+
+    return sig_eps
+
 
 
 class AtomMappingError(Exception):
@@ -328,9 +374,12 @@ class BaseTopologyConversion(BaseTopology):
         qlj_params, nb_potential = super().parameterize_nonbonded(ff_q_params, ff_lj_params)
         src_qlj_params = qlj_params
         dst_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], _STANDARD_CHARGE)
+        sig_eps = simple_lj_typer(self.mol)
+        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], sig_eps[:, 0])
+        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], sig_eps[:, 1])
         # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], _STANDARD_HALF_SIG)
         # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], _STANDARD_SQRT_EPS)
-        dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], qlj_params[:, 2])
+        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], qlj_params[:, 2])
 
         combined_qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
         lambda_plane_idxs = np.zeros(self.mol.GetNumAtoms(), dtype=np.int32)
@@ -341,6 +390,7 @@ class BaseTopologyConversion(BaseTopology):
         interpolated_potential.set_lambda_offset_idxs(lambda_offset_idxs)
 
         return combined_qlj_params, interpolated_potential
+
 
 class BaseTopologyStandardDecoupling(BaseTopology):
     """
@@ -374,9 +424,13 @@ class BaseTopologyStandardDecoupling(BaseTopology):
         # mol is standardized into a forcefield independent state.
         qlj_params, nb_potential = super().parameterize_nonbonded(ff_q_params, ff_lj_params)
         qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], _STANDARD_CHARGE)
+
+        sig_eps = simple_lj_typer(self.mol)
+        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], sig_eps[:, 0])
+        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], sig_eps[:, 1])
         # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], _STANDARD_HALF_SIG)
         # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], _STANDARD_SQRT_EPS)
-        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], qlj_params[:, 2])
+        # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], qlj_params[:, 2])
 
         return qlj_params, nb_potential
 
@@ -674,9 +728,13 @@ class DualTopologyStandardDecoupling(DualTopology):
         # we don't actually need derivatives for this stage.
         qlj_params, nb_potential = super().parameterize_nonbonded(ff_q_params, ff_lj_params)
         qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], _STANDARD_CHARGE)
+        mol_c = Chem.CombineMols(self.mol_a, self.mol_b)
+        sig_eps = simple_lj_typer(mol_c)
+        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], sig_eps[:, 0])
+        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], sig_eps[:, 1])
         # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], _STANDARD_HALF_SIG)
         # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], _STANDARD_SQRT_EPS)
-        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], qlj_params[:, 2])
+        # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], qlj_params[:, 2])
 
 
         combined_lambda_plane_idxs = np.zeros(
