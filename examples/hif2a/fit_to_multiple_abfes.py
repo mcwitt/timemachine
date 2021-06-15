@@ -278,19 +278,19 @@ if __name__ == "__main__":
             return x
 
 
-    # def pred_fn(params, mol):
-    #     dG_complex_conversion = binding_model_complex_conversion.predict(params, mol, prefix='complex_conversion_'+str(epoch))
-    #     dG_complex_decouple = binding_model_complex_decouple.predict(params, mol, prefix='complex_decouple_'+str(epoch))
-    #     dG_solvent_conversion = binding_model_solvent_conversion.predict(params, mol, prefix='solvent_conversion_'+str(epoch))
-    #     dG_solvent_decouple = binding_model_solvent_decouple.predict(params, mol, prefix='solvent_decouple'+str(epoch), standardize=True)
-    #     print("complex dG_conversion", dG_complex_conversion)
-    #     print("complex dG_decouple", dG_complex_decouple)
-    #     print("solvent dG_conversion", dG_solvent_conversion)
-    #     print("solvent dG_decouple", dG_solvent_decouple)
-    #     dG_solvent = dG_solvent_conversion + dG_solvent_decouple
-    #     dG_complex = dG_complex_conversion + dG_complex_decouple
-    #     print("mol", mol.GetProp("_Name"), "dG_solvent", dG_solvent, "dG_complex", dG_complex)
-    #     return dG_solvent - dG_complex
+    def pred_fn(params, mol):
+        dG_complex_conversion = binding_model_complex_conversion.predict(params, mol, prefix='complex_conversion_'+str(epoch))
+        dG_complex_decouple = binding_model_complex_decouple.predict(params, mol, prefix='complex_decouple_'+str(epoch))
+        dG_solvent_conversion = binding_model_solvent_conversion.predict(params, mol, prefix='solvent_conversion_'+str(epoch))
+        dG_solvent_decouple = binding_model_solvent_decouple.predict(params, mol, prefix='solvent_decouple'+str(epoch), standardize=True)
+        print("complex dG_conversion", dG_complex_conversion)
+        print("complex dG_decouple", dG_complex_decouple)
+        print("solvent dG_conversion", dG_solvent_conversion)
+        print("solvent dG_decouple", dG_solvent_decouple)
+        dG_solvent = dG_solvent_conversion + dG_solvent_decouple
+        dG_complex = dG_complex_conversion + dG_complex_decouple
+        print("mol", mol.GetProp("_Name"), "dG_solvent", dG_solvent, "dG_complex", dG_complex)
+        return dG_solvent - dG_complex
 
     # def pred_fn(params, mol):
     #     dG_complex_conversion = binding_model_complex_conversion.predict(params, mol, prefix='complex_conversion_'+str(epoch))
@@ -300,16 +300,16 @@ if __name__ == "__main__":
     #     print("mol", mol.GetProp("_Name"), "dG_complex", dG_complex)
     #     return  dG_complex
 
-    def pred_fn(params, mol):
-        dG_complex_conversion = binding_model_complex_conversion.predict(params, mol, prefix='complex_conversion_'+str(epoch))
-        dG_complex_decouple = binding_model_complex_decouple.predict(
-            params,
-            mol,
-            prefix='complex_decouple_'+str(epoch)
-        )
+    # def pred_fn(params, mol):
+    #     dG_complex_conversion = binding_model_complex_conversion.predict(params, mol, prefix='complex_conversion_'+str(epoch))
+    #     dG_complex_decouple = binding_model_complex_decouple.predict(
+    #         params,
+    #         mol,
+    #         prefix='complex_decouple_'+str(epoch)
+    #     )
 
-        print("mol", mol.GetProp("_Name"), "dG_complex", dG_complex_conversion + dG_complex_decouple)
-        return dG_complex_conversion + dG_complex_decouple
+    #     print("mol", mol.GetProp("_Name"), "dG_complex", dG_complex_conversion + dG_complex_decouple)
+    #     return dG_complex_conversion + dG_complex_decouple
 
     # def loss_fn(params, mol, label_dG_bind, epoch):
     #     # dG_complex = binding_model_complex.predict(params, mol, prefix='complex_'+str(epoch))
