@@ -43,11 +43,11 @@ def simple_lj_typer(mol):
             else:
                 val = (0.10, 0.25)
         elif a_num == 6:
-            val = (0.3, 0.7)
+            val = (0.34, 0.6)
         elif a_num == 7:
-            val = (0.3, 0.8)
+            val = (0.32, 0.8)
         elif a_num == 8:
-            val = (0.3, 0.9)
+            val = (0.30, 0.9)
         elif a_num == 9:
             val = (0.3, 0.5)
         elif a_num == 15:
@@ -377,6 +377,10 @@ class BaseTopologyConversion(BaseTopology):
         sig_eps = simple_lj_typer(self.mol)
         dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], sig_eps[:, 0])
         dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], sig_eps[:, 1])
+
+        # print(qlj_params)
+        # print(dst_qlj_params)
+        # assert 0
         # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], _STANDARD_HALF_SIG)
         # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], _STANDARD_SQRT_EPS)
         # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], qlj_params[:, 2])
