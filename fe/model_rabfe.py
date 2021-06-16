@@ -32,9 +32,7 @@ def get_romol_conf(mol):
     guest_conf = np.array(conformer.GetPositions(), dtype=np.float64)
     return guest_conf/10 # from angstroms to nm
 
-def setup_relative_restraints(
-    mol_a,
-    mol_b):
+def setup_relative_restraints(mol_a, mol_b):
     """
     Setup restraints between ring atoms in two molecules.
 
@@ -153,7 +151,7 @@ class ReferenceAbsoluteModel():
         traj = mdtraj.Trajectory([coords], mdtraj.Topology.from_openmm(combined_topology))
         traj.save_xtc("initial_coords_aligned.xtc")
 
-        k_core = 75.0
+        k_core = 150.0
         core_params = np.zeros_like(core_idxs).astype(np.float64)
         core_params[:, 0] = k_core
 
@@ -280,9 +278,6 @@ class ReferenceAbsoluteModel():
             prefix+"_ref_to_mol")
 
         # do only one pass
-
-        return dG_0
-
         combined_core_idxs = np.copy(core_idxs)
         # swap
         combined_core_idxs[:, 0] = core_idxs[:, 1]
