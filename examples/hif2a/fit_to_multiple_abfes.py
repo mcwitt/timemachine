@@ -269,7 +269,6 @@ if __name__ == "__main__":
     # arbitrary right now
     dG_reorg = 10
 
-
     def safe_repr(x):
         try:
             # get rid of ConcreteArray string shenanigans
@@ -277,47 +276,16 @@ if __name__ == "__main__":
         except:
             return x
 
-
     def pred_fn(params, mol):
         dG_complex_conversion = binding_model_complex_conversion.predict(params, mol, prefix='complex_conversion_'+str(epoch))
-        dG_complex_decouple = binding_model_complex_decouple.predict(params, mol, prefix='complex_decouple_'+str(epoch))
         dG_solvent_conversion = binding_model_solvent_conversion.predict(params, mol, prefix='solvent_conversion_'+str(epoch))
-        dG_solvent_decouple = binding_model_solvent_decouple.predict(params, mol, prefix='solvent_decouple'+str(epoch), standardize=True)
-        print("complex dG_conversion", dG_complex_conversion)
-        print("complex dG_decouple", dG_complex_decouple)
-        print("solvent dG_conversion", dG_solvent_conversion)
-        print("solvent dG_decouple", dG_solvent_decouple)
+
+        # should not depend on forcefield parameters
+        dG_complex_decouple = binding_model_complex_decouple.predict(params, mol, prefix='complex_decouple_'+str(epoch))
+        dG_solvent_decouple = binding_model_solvent_decouple.predict(params, mol, prefix='solvent_decouple_'+str(epoch), standardize=True)
         dG_solvent = dG_solvent_conversion + dG_solvent_decouple
         dG_complex = dG_complex_conversion + dG_complex_decouple
-        print("mol", mol.GetProp("_Name"), "dG_solvent", dG_solvent, "dG_complex", dG_complex)
         return dG_solvent - dG_complex
-
-    # def pred_fn(params, mol):
-    #     dG_complex_conversion = binding_model_complex_conversion.predict(params, mol, prefix='complex_conversion_'+str(epoch))
-    #     dG_complex_decouple = binding_model_complex_decouple.predict(params, mol, prefix='complex_decouple_'+str(epoch))
-    #     print("complex dG_conversion", dG_complex_conversion, "complex dG_decouple", dG_complex_decouple)
-    #     dG_complex = dG_complex_conversion + dG_complex_decouple
-    #     print("mol", mol.GetProp("_Name"), "dG_complex", dG_complex)
-    #     return  dG_complex
-
-    # def pred_fn(params, mol):
-    #     dG_complex_conversion = binding_model_complex_conversion.predict(params, mol, prefix='complex_conversion_'+str(epoch))
-    #     dG_complex_decouple = binding_model_complex_decouple.predict(
-    #         params,
-    #         mol,
-    #         prefix='complex_decouple_'+str(epoch)
-    #     )
-
-    #     print("mol", mol.GetProp("_Name"), "dG_complex", dG_complex_conversion + dG_complex_decouple)
-    #     return dG_complex_conversion + dG_complex_decouple
-
-    # def loss_fn(params, mol, label_dG_bind, epoch):
-    #     # dG_complex = binding_model_complex.predict(params, mol, prefix='complex_'+str(epoch))
-    #     dG_solvent = binding_model_solvent_decouple.predict(params, mol, prefix='solvent_'+str(epoch))
-    #     dG_solvent = binding_model_solvent_conversion.predict(params, mol, prefix='solvent_'+str(epoch))
-    #     return dG_solvent
-        # pred_dG_bind = dG_solvent - dG_complex  + dG_reorg # deltaG of binding, move from solvent into complex
-
 
     for epoch in range(10):
         epoch_params = serialize_handlers(ordered_handles)
@@ -331,7 +299,7 @@ if __name__ == "__main__":
 
             print("processing mol", mol.GetProp("_Name"), "with binding dG", label_dG, "SMILES", Chem.MolToSmiles(mol))
 
-            # buggy
+            # grad doesn't quite work yet.
             # (loss, (complex_results, solvent_results)), loss_grad = vg_fn(
             #     ordered_params,
             #     mol,

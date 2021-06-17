@@ -17,9 +17,6 @@ _CUTOFF = 1.2
 
 
 _STANDARD_CHARGE = 0.0
-# _STANDARD_HALF_SIG = 0.1
-# _STANDARD_SQRT_EPS = 0.2
-
 
 # ff independent "standard" sig/eps
 def simple_lj_typer(mol):
@@ -58,7 +55,6 @@ def simple_lj_typer(mol):
             assert 0
 
         # sigmas need to be halved
-        # val[0] = val[0]/2
         sig_eps.append((val[0]/2, val[1]))
 
     sig_eps = np.array(sig_eps)
@@ -342,7 +338,8 @@ class BaseTopology():
 class BaseTopologyConversion(BaseTopology):
     """
     Converts a single ligand into a standard, forcefield independent state. The ligand has its 4D
-    coordinate set to zero at all times, so that it will be fully interacting with the host.
+    coordinate set to zero at all times, so that it will be fully interacting with the host. The
+    ligand is converted to a chargeless state, with torsions between non-ring atoms fully disabled.
 
     lambda=0 forcefield dependent state
     lambda=1 forcefield independent state
@@ -377,13 +374,6 @@ class BaseTopologyConversion(BaseTopology):
         sig_eps = simple_lj_typer(self.mol)
         dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], sig_eps[:, 0])
         dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], sig_eps[:, 1])
-
-        # print(qlj_params)
-        # print(dst_qlj_params)
-        # assert 0
-        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 1], _STANDARD_HALF_SIG)
-        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], _STANDARD_SQRT_EPS)
-        # dst_qlj_params = jax.ops.index_update(dst_qlj_params, jax.ops.index[:, 2], qlj_params[:, 2])
 
         combined_qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
         lambda_plane_idxs = np.zeros(self.mol.GetNumAtoms(), dtype=np.int32)
@@ -703,7 +693,6 @@ class DualTopologyStandardDecoupling(DualTopology):
     sampling.
 
     """
-
     def parameterize_proper_torsion(self, ff_params):
         # (ytz): TBD need to do this for Base Topology as well
 
@@ -730,6 +719,11 @@ class DualTopologyStandardDecoupling(DualTopology):
 
         # both mol_a and mol_b are standardized.
         # we don't actually need derivatives for this stage.
+
+        # zero out/stop grad
+        ff_q_params = np.zeros_like(ff_q_params)
+        ff_lj_params = np.zeros_like(ff_lj_params)
+
         qlj_params, nb_potential = super().parameterize_nonbonded(ff_q_params, ff_lj_params)
         qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], _STANDARD_CHARGE)
         mol_c = Chem.CombineMols(self.mol_a, self.mol_b)
