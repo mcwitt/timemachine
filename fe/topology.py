@@ -736,11 +736,15 @@ class DualTopologyStandardDecoupling(DualTopology):
         sig_eps = simple_lj_typer(mol_c)
         qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], sig_eps[:, 0])
         qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], sig_eps[:, 1])
-        # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 1], _STANDARD_HALF_SIG)
-        # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], _STANDARD_SQRT_EPS)
-        # qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], qlj_params[:, 2])
 
+        # ligand is already decharged by now
+        # super-ligand state should have half the epsilons
+        src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], qlj_params[:, 2]*0.5)
+        dst_qlj_params = qlj_params
 
+        combined_qlj_params = jnp.concatenate([src_qlj_params, dst_qlj_params])
+
+        interpolated_potential = nb_potential.interpolate()
         combined_lambda_plane_idxs = np.zeros(
             self.mol_a.GetNumAtoms() + self.mol_b.GetNumAtoms(),
             dtype=np.int32
@@ -749,11 +753,10 @@ class DualTopologyStandardDecoupling(DualTopology):
             np.zeros(self.mol_a.GetNumAtoms(), dtype=np.int32),
             np.ones(self.mol_b.GetNumAtoms(), dtype=np.int32)
         ])
+        interpolated_potential.set_lambda_plane_idxs(combined_lambda_plane_idxs)
+        interpolated_potential.set_lambda_offset_idxs(combined_lambda_offset_idxs)
 
-        nb_potential.set_lambda_plane_idxs(combined_lambda_plane_idxs)
-        nb_potential.set_lambda_offset_idxs(combined_lambda_offset_idxs)
-
-        return qlj_params, nb_potential
+        return combined_qlj_params, interpolated_potential
 
 
 class DualTopologyMinimization(DualTopology):
