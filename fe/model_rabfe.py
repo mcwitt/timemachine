@@ -151,7 +151,7 @@ class ReferenceAbsoluteModel():
         traj = mdtraj.Trajectory([coords], mdtraj.Topology.from_openmm(combined_topology))
         traj.save_xtc("initial_coords_aligned.xtc")
 
-        k_core = 150.0
+        k_core = 100.0
         core_params = np.zeros_like(core_idxs).astype(np.float64)
         core_params[:, 0] = k_core
 
