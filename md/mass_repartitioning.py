@@ -126,7 +126,3 @@ def maximize_shortest_bond_vibration(bond_indices, ks, total_mass):
         bounds=reasonable_range, constraints=sum_constraint,
     )
     return result.x
-
-    atom_indices = np.array(sorted(set(_bond_indices.flatten())))
-    atom_map = atom_indices_to_dict(atom_indices)
-    mapped_bond_indices = apply_atom_map_to_bond_indices(bond_indices, atom_map)
