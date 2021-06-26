@@ -47,7 +47,7 @@ def sample_multiple_rotations(k, beta, size):
         # larger than it needed to be, by implicitly using q_proposal(x) = 1, and picking M = pi^2.
         # Setting M=1 here doesn't change the correctness of the sampler, but increases its acceptance
         # rate relative to that version.
-        M = 1
+        # M = 1
         acceptance_prob = exp_batch(Rs, k, beta)/M
         locations = np.argwhere(tests < acceptance_prob).reshape(-1)
 
