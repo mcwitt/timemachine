@@ -149,6 +149,9 @@ if __name__ == "__main__":
 
             for j in range(i+1, M):
 
+                if i != 0 and j != 5:
+                    continue
+
                 mol_a = dataset.data[i]
                 mol_b = dataset.data[j]
 
