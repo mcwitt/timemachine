@@ -593,6 +593,11 @@ class BaseTopologyRHFE(BaseTopology):
 
         return torsion_params, torsion_potential
 
+    def parameterize_nonbonded(self, ff_params):
+        qlj_params, nb_potential = super().parameterize_proper_torsion(ff_params)
+        qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0.0)
+        return qlj_params, nb_potential
+
 
 class DualTopologyRHFE(DualTopology):
     """
@@ -628,14 +633,16 @@ class DualTopologyRHFE(DualTopology):
 
         qlj_params, nb_potential = super().parameterize_nonbonded(ff_q_params, ff_lj_params)
 
-        # halve the strength of the charge and the epsilon parameters
-        src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], qlj_params[:, 0]*0.5)
-        src_qlj_params = jax.ops.index_update(src_qlj_params, jax.ops.index[:, 2], qlj_params[:, 2]*0.5)
+        # halve the strength of the epsilon parameters
+        src_qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 2], qlj_params[:, 2]*0.5)
         dst_qlj_params = qlj_params
         combined_qlj_params = jnp.concatenate([
             src_qlj_params,
             dst_qlj_params
         ])
+
+        # fully decharge the ligand
+        combined_qlj_params = jax.ops.index_update(combined_qlj_params, jax.ops.index[:, 0], 0.0)
 
         combined_lambda_plane_idxs = np.zeros(
             self.mol_a.GetNumAtoms() + self.mol_b.GetNumAtoms(),
