@@ -593,8 +593,8 @@ class BaseTopologyRHFE(BaseTopology):
 
         return torsion_params, torsion_potential
 
-    def parameterize_nonbonded(self, ff_params):
-        qlj_params, nb_potential = super().parameterize_proper_torsion(ff_params)
+    def parameterize_nonbonded(self, ff_q_params, ff_lj_params):
+        qlj_params, nb_potential = super().parameterize_nonbonded(ff_q_params, ff_lj_params)
         qlj_params = jax.ops.index_update(qlj_params, jax.ops.index[:, 0], 0.0)
         return qlj_params, nb_potential
 
