@@ -88,6 +88,23 @@ def construct_loss(bond_indices, ks, total_mass) -> Tuple[LossFxn, AtomIndices]:
     atom_map = atom_indices_to_dict(atom_indices)
     mapped_bond_indices = apply_atom_map_to_bond_indices(bond_indices, atom_map)
 
+    # find edge subgraphs from bond indices, sum up the components separately
+    components = list(nx.connected_components(g))
+    bond_map = dict()
+    for i, bond in enumerate(bond_indices):
+        key = tuple(sorted(bond))
+        bond_map[key] = i
+    edge_sets = []
+
+    for component in components:
+        subgraph = nx.subgraph(g, list(component))
+        edge_set = []
+
+        for edge in subgraph.edges:
+            edge_set.append(bond_map[tuple(sorted(edge))])
+
+        edge_sets.append(np.array(edge_set))
+
     @jit
     def loss(masses: Array) -> Float:
         """Minimize this to maximize the shortest vibration period.
@@ -99,7 +116,10 @@ def construct_loss(bond_indices, ks, total_mass) -> Tuple[LossFxn, AtomIndices]:
         normalized_masses = masses / np.sum(masses) * total_mass
         periods = bond_vibration_periods(ks, mapped_bond_indices, normalized_masses)
         mass_sum_penalty = (total_mass - np.sum(masses))**2
-        return - np.min(periods) + mass_sum_penalty
+
+        min_periods = np.array([np.min(periods[edges]) for edges in edge_sets])
+
+        return - np.sum(min_periods) + mass_sum_penalty
 
     return loss, atom_indices
 
