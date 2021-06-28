@@ -5,6 +5,8 @@ from jax.config import config;
 config.update("jax_enable_x64", True)
 
 from jax import value_and_grad, jit, numpy as jnp
+from jax.ops.scatter import segment_min
+
 import networkx as nx
 
 from scipy.optimize import minimize, Bounds
@@ -15,7 +17,6 @@ Graph = nx.Graph
 Array = np.array
 Float = float
 
-@jit
 def bond_vibration_periods(ks, bond_indices, masses):
     """2 * pi * sqrt(reduced_masses/ks)"""
     m1, m2 = masses[bond_indices[:, 0]], masses[bond_indices[:, 1]]
@@ -97,15 +98,20 @@ def construct_loss(bond_indices, ks, total_mass) -> Tuple[LossFxn, AtomIndices]:
         bond_map[key] = i
     edge_sets = []
 
-    for component in components:
+    segment_ids = np.zeros(len(bond_indices), dtype=int) - 1
+
+    for i, component in enumerate(components):
         subgraph = nx.subgraph(g, list(component))
-        edge_set = []
 
         for edge in subgraph.edges:
-            edge_set.append(bond_map[tuple(sorted(edge))])
+            key = tuple(sorted(edge))
+            if segment_ids[bond_map[key]] == -1:
+                segment_ids[bond_map[key]] = i
+            else:
+                raise (RuntimeError('overlapping segments'))
+    num_segments = len(set(segment_ids))
 
-        edge_sets.append(np.array(edge_set))
-
+    @jit
     def loss(masses: Array) -> Float:
         """Minimize this to maximize the shortest vibration period.
         Encodes the mass sum constraint (sum(masses) = total_mass) as a penalty.
@@ -117,7 +123,7 @@ def construct_loss(bond_indices, ks, total_mass) -> Tuple[LossFxn, AtomIndices]:
         periods = bond_vibration_periods(ks, mapped_bond_indices, normalized_masses)
         mass_sum_penalty = (total_mass - np.sum(masses))**2
 
-        min_periods = np.array([np.min(periods[edges]) for edges in edge_sets])
+        min_periods = segment_min(periods, segment_ids, num_segments=num_segments)
 
         return - np.sum(min_periods) + mass_sum_penalty
 
