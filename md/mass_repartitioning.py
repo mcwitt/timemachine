@@ -152,6 +152,12 @@ if __name__ == '__main__':
     ks = np.array(sys_params[0][:, 0])
     bond_indices = np.array(get_bond_list(harmonic_bond_potential))
 
+    # apply optimization to whole system at once, without breaking into components
+    t0 = time()
+    optimized_masses = maximize_shortest_bond_vibration(bond_indices, ks, np.sum(masses))
+    t1 = time()
+    print(f'optimized masses for {len(optimized_masses)}-atom system in {(t1 - t0):.3f} s')
+
     # convert to a graph
     g = arrays_to_graph(bond_indices, ks)
 
