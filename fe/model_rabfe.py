@@ -425,7 +425,8 @@ class RelativeModel(ABC):
         num_host_atoms = self.host_coords.shape[0]
 
         # generate indices
-        core_idxs = setup_relative_restraints(mol_a, mol_b)
+        # core_idxs = setup_relative_restraints(mol_a, mol_b)
+        core_idxs = np.array([[0,0],[1,1],[2,2],[3,3],[4,4],[5,5]], dtype=np.int32)
 
         mol_a_coords = get_romol_conf(mol_a)
         mol_b_coords = get_romol_conf(mol_b)
@@ -467,9 +468,9 @@ class RelativeModel(ABC):
             combined_coords,
             prefix+"_mol_to_ref")
 
-        # dG_0 is the free energy of moving X-B-A into X-B+A
-        # dG_1 is the free energy of moving X-A-B into X-A+B
-        # -dG_1 + dG_0 is the free energy of moving X-A+B -> X-B+A
+        # dG_0 is the free energy of moving X-A-B into X-A+B
+        # dG_1 is the free energy of moving X-B-A into X-B+A
+        # -dG_0 + dG_1 is the free energy of moving X-A+B -> X-B+A
         # i.e. the free energy of "unbinding" A
 
         dG_err = np.sqrt(dG_0_err**2 + dG_1_err**2)

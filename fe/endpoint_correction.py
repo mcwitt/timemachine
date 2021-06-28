@@ -166,6 +166,8 @@ def estimate_delta_us(
     rotation_samples = sample_multiple_rotations(k_rotation, beta, sample_size)
     covariance = np.eye(3)/(2*beta*k_translation)
     translation_samples = np.random.multivariate_normal((0,0,0), covariance, sample_size)
+    # std = np.sqrt(1/(2*beta*k_translation))
+    # translation_samples = np.random.normal(0, scale=std, size=(sample_size, 3))
 
     def align(x, r, t):
         x_a, x_b = rmsd.rmsd_align(x[restr_group_idxs_a], x[restr_group_idxs_b])

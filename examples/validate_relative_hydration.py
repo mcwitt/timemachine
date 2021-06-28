@@ -58,21 +58,21 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num_windows",
         type=int,
-        help="number of solvent lambda windows",
+        help="number of lambda windows",
         required=True
     )
 
     parser.add_argument(
         "--num_equil_steps",
         type=int,
-        help="number of equilibration steps for each solvent lambda window",
+        help="number of equilibration steps for each lambda window",
         required=True
     )
 
     parser.add_argument(
         "--num_prod_steps",
         type=int,
-        help="number of production steps for each solvent lambda window",
+        help="number of production steps for each lambda window",
         required=True
     )
 
@@ -89,29 +89,18 @@ if __name__ == "__main__":
     client.verify()
 
     path_to_ligand = 'tests/data/ligands_40.sdf'
-    suppl = Chem.SDMolSupplier(path_to_ligand, removeHs=False)
+    # suppl = Chem.SDMolSupplier(path_to_ligand, removeHs=False)
 
     with open('ff/params/smirnoff_1_1_0_ccc.py') as f:
         ff_handlers = deserialize_handlers(f.read())
 
     forcefield = Forcefield(ff_handlers)
-    mols = [x for x in suppl]
-
-    dataset = Dataset(mols)
+    # mols = [x for x in suppl]
+    # dataset = Dataset(mols)
 
     absolute_solvent_schedule = construct_absolute_lambda_schedule(cmd_args.num_windows)
     relative_solvent_schedule = construct_relative_lambda_schedule(cmd_args.num_windows-1)
     solvent_system, solvent_coords, solvent_box, solvent_topology = builders.build_water_system(4.0)
-
-    # pick the largest mol as the blocker
-    largest_size = 0
-    ref_mol = None
-    for mol in mols:
-        if mol.GetNumAtoms() > largest_size:
-            largest_size = mol.GetNumAtoms()
-            ref_mol = mol
-
-    print("Reference Molecule:", ref_mol.GetProp("_Name"), Chem.MolToSmiles(ref_mol))
 
     model_relative = model_rabfe.RelativeHydrationModel(
         client,
@@ -140,29 +129,56 @@ if __name__ == "__main__":
     ordered_params = forcefield.get_ordered_params()
     ordered_handles = forcefield.get_ordered_handles()
 
-    M = len(dataset.data)
-
+    mol_a_name = "cyclohexane"
+    mol_b_name = "hexane"
 
     for epoch in range(100):
 
-        for i in range(M):
+        mol_a = list(Chem.SDMolSupplier("tests/data/cyclohexane.sdf", removeHs=False))[0]
+        mol_b = list(Chem.SDMolSupplier("tests/data/hexane.sdf", removeHs=False))[0]
 
-            for j in range(i+1, M):
+        ddG_ab, ddG_ab_err = model_relative.predict(
+            ordered_params,
+            mol_a,
+            mol_b,
+            prefix='epoch_'+str(epoch)+'_solvent_relative_'+mol_a_name+'_'+mol_b_name
+        )
 
-                if i == 0 and j == 5:
+        dG_a, dG_a_err = model_absolute.predict(ordered_params, mol_a, prefix='solvent_absolute_'+mol_a_name)
+        dG_b, dG_b_err = model_absolute.predict(ordered_params, mol_b, prefix='solvent_absolute_'+mol_b_name)
+        dG_ab_err = np.sqrt(dG_a_err**2 + dG_b_err**2)
 
-                    mol_a = dataset.data[i]
-                    mol_b = dataset.data[j]
+        # ddG_ab is the free energy of X-A+B -> X-B+A
+        # dG_a is the free energy of X-A -> X+A
+        # -dG_b is the free energy of X+B -> X-B
+        # dG_a - dG_b is the free energy of X-A+X+B->X+A+X-B = X-A+B->X-B+A (+X term cancels out)
 
-                    ddG_ab, ddG_ab_err = model_relative.predict(
-                        ordered_params,
-                        mol_a,
-                        mol_b,
-                        prefix='epoch_'+str(epoch)+'_solvent_relative_'+mol_a.GetProp('_Name')+'_'+mol_b.GetProp('_Name')
-                    )
+        print(f"final {mol_a_name} -> {mol_b_name} ddG_ab {ddG_ab:.3f} +- {ddG_ab_err:.3f} dG_a-dG_b {dG_a-dG_b:.3f} +- {dG_ab_err:.3f}")
 
-                    dG_a, dG_a_err = model_absolute.predict(ordered_params, mol_a, prefix='solvent_absolute_'+mol_a.GetProp('_Name'))
-                    dG_b, dG_b_err = model_absolute.predict(ordered_params, mol_b, prefix='solvent_absolute_'+mol_b.GetProp('_Name'))
-                    dG_ab_err = np.sqrt(dG_a_err**2 + dG_b_err**2)
 
-                    print(f"mol_i {i} {mol_a.GetProp('_Name')} mol_j {j} {mol_b.GetProp('_Name')} ddG_ab {ddG_ab:.3f} +- {ddG_ab_err:.3f} dG_a-dG_b {dG_a-dG_b:.3f} +- {dG_ab_err:.3f}")
+        # for i in range(M):
+
+        #     for j in range(i+1, M):
+
+        #         if i == 0 and j == 5:
+
+        #             mol_a = dataset.data[i]
+        #             mol_b = dataset.data[j]
+
+        #             ddG_ab, ddG_ab_err = model_relative.predict(
+        #                 ordered_params,
+        #                 mol_a,
+        #                 mol_b,
+        #                 prefix='epoch_'+str(epoch)+'_solvent_relative_'+mol_a.GetProp('_Name')+'_'+mol_b.GetProp('_Name')
+        #             )
+
+        #             dG_a, dG_a_err = model_absolute.predict(ordered_params, mol_a, prefix='solvent_absolute_'+mol_a.GetProp('_Name'))
+        #             dG_b, dG_b_err = model_absolute.predict(ordered_params, mol_b, prefix='solvent_absolute_'+mol_b.GetProp('_Name'))
+        #             dG_ab_err = np.sqrt(dG_a_err**2 + dG_b_err**2)
+
+        #             # ddG_ab is the free energy of X-A+B -> X-B+A
+        #             # dG_a is the free energy of X-A -> X+A
+        #             # -dG_b is the free energy of X+B -> X-B
+        #             # dG_a - dG_b is the free energy of X-A+X+B->X+A+X-B = X-A+B->X-B+A (+X term cancels out)
+
+        #             print(f"mol_i {i} {mol_a.GetProp('_Name')} mol_j {j} {mol_b.GetProp('_Name')} ddG_ab {ddG_ab:.3f} +- {ddG_ab_err:.3f} dG_a-dG_b {dG_a-dG_b:.3f} +- {dG_ab_err:.3f}")

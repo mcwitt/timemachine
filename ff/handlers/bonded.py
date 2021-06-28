@@ -214,6 +214,6 @@ class ImproperTorsionHandler(SerializableMixIn):
                 improper_idxs.append((center, p[0], p[1], p[2]))
                 param_idxs.append(p_idx)
 
-        param_idxs = np.array(param_idxs)
+        param_idxs = np.array(param_idxs, dtype=np.int32)
 
-        return params[param_idxs], np.array(improper_idxs, dtype=np.int32)
+        return params[param_idxs], np.array(improper_idxs, dtype=np.int32).reshape((-1, 4))
