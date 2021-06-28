@@ -89,6 +89,7 @@ def construct_loss(bond_indices, ks, total_mass) -> Tuple[LossFxn, AtomIndices]:
     mapped_bond_indices = apply_atom_map_to_bond_indices(bond_indices, atom_map)
 
     # find edge subgraphs from bond indices, sum up the components separately
+    g = arrays_to_graph(bond_indices, ks)
     components = list(nx.connected_components(g))
     bond_map = dict()
     for i, bond in enumerate(bond_indices):
