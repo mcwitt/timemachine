@@ -106,6 +106,7 @@ def construct_loss(bond_indices, ks, total_mass) -> Tuple[LossFxn, AtomIndices]:
 
 def maximize_shortest_bond_vibration(bond_indices, ks, total_mass):
     loss, atom_indices = construct_loss(bond_indices, ks, total_mass)
+    n = len(atom_indices)
 
     def fun(masses):
         v, g = value_and_grad(loss)(masses)
@@ -113,7 +114,7 @@ def maximize_shortest_bond_vibration(bond_indices, ks, total_mass):
 
     # bounds to enforce on the optimized masses
     reasonable_range = Bounds(0.25, 100.0)
-    initial_masses = np.ones(n) * total_mass / len(atom_indices)
+    initial_masses = total_mass * (np.ones(n) / n)
 
     result = minimize(
         fun, initial_masses,
