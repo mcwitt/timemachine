@@ -15,7 +15,7 @@ Graph = nx.Graph
 Array = np.array
 Float = float
 
-
+@jit
 def bond_vibration_periods(ks, bond_indices, masses):
     """2 * pi * sqrt(reduced_masses/ks)"""
     m1, m2 = masses[bond_indices[:, 0]], masses[bond_indices[:, 1]]
@@ -106,7 +106,6 @@ def construct_loss(bond_indices, ks, total_mass) -> Tuple[LossFxn, AtomIndices]:
 
         edge_sets.append(np.array(edge_set))
 
-    @jit
     def loss(masses: Array) -> Float:
         """Minimize this to maximize the shortest vibration period.
         Encodes the mass sum constraint (sum(masses) = total_mass) as a penalty.
