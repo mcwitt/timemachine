@@ -5,9 +5,6 @@ from jax.config import config;
 config.update("jax_enable_x64", True)
 
 from jax import value_and_grad, jit, numpy as jnp
-
-from scipy.optimize import LinearConstraint
-from md.barostat.utils import get_bond_list
 import networkx as nx
 
 from scipy.optimize import minimize, Bounds
@@ -94,47 +91,34 @@ def construct_loss(bond_indices, ks, total_mass) -> Tuple[LossFxn, AtomIndices]:
     @jit
     def loss(masses: Array) -> Float:
         """Minimize this to maximize the shortest vibration period.
+        Encodes the mass sum constraint (sum(masses) = total_mass) as a penalty.
 
         Alternate losses considered but not used here:
         * np.sum(frequencies**2) where frequencies = 1 / periods
         """
         normalized_masses = masses / np.sum(masses) * total_mass
         periods = bond_vibration_periods(ks, mapped_bond_indices, normalized_masses)
-        return - np.min(periods)
+        mass_sum_penalty = (total_mass - np.sum(masses))**2
+        return - np.min(periods) + mass_sum_penalty
 
     return loss, atom_indices
 
 
 def maximize_shortest_bond_vibration(bond_indices, ks, total_mass):
     loss, atom_indices = construct_loss(bond_indices, ks, total_mass)
-    n = len(atom_indices)
-    A = np.ones((1, n))
-    lb = ub = np.ones(1) * total_mass
-    sum_constraint = LinearConstraint(A, lb, ub, keep_feasible=False)
 
     def fun(masses):
         v, g = value_and_grad(loss)(masses)
         return float(v), np.array(g)
 
-    # possible bounds we may want to enforce on the optimized masses
-    # non_negative = Bounds(0, np.inf)
-    # greater_than_1 = Bounds(1, np.inf)
+    # bounds to enforce on the optimized masses
     reasonable_range = Bounds(0.25, 100.0)
-
-    opt_traj = []
-    loss_traj = []
-
-    def callback(x):
-        opt_traj.append(x)
-        loss_traj.append(loss(x))
-        print(len(opt_traj), min(loss_traj))
+    initial_masses = np.ones(n) * total_mass / len(atom_indices)
 
     result = minimize(
-        fun, np.ones(n) * total_mass / n,
+        fun, initial_masses,
         jac=True, tol=0, method='L-BFGS-B',
-        bounds=reasonable_range, constraints=sum_constraint,
-        callback=callback,
-        options=dict(maxiter=1000)
+        bounds=reasonable_range,
     )
     optimized_masses = result.x
     return optimized_masses / np.sum(optimized_masses) * total_mass
@@ -145,6 +129,7 @@ if __name__ == '__main__':
     from md.builders import build_water_system, build_protein_system
     from fe.free_energy import AbsoluteFreeEnergy
     from md.barostat.utils import get_bond_list
+    from time import time
 
     import matplotlib.pyplot as plt
 
@@ -195,7 +180,10 @@ if __name__ == '__main__':
         total_mass = np.sum(original_masses)
         uniform_masses = np.ones(n) * total_mass / n
 
+        t0 = time()
         optimized_masses = maximize_shortest_bond_vibration(subgraph_bond_indices, subgraph_ks, total_mass)
+        t1 = time()
+        print(f'optimized masses for {len(optimized_masses)}-atom component in {(t1 - t0):.3f} s')
         physical_periods = bond_vibration_periods(subgraph_ks, mapped_bond_indices, original_masses)
         initial_periods = bond_vibration_periods(subgraph_ks, mapped_bond_indices, uniform_masses)
         optimized_periods = bond_vibration_periods(subgraph_ks, mapped_bond_indices, optimized_masses)
@@ -205,29 +193,32 @@ if __name__ == '__main__':
             plt.ylabel('bond vibration period')
             plt.xlabel('bond')
 
+        ylim = (0, 1.1 * np.max(list(map(max, [physical_periods, initial_periods, optimized_periods]))))
 
-        ax = plt.subplot(n_components, 3, plot_index)
+        plt.subplot(n_components, 3, plot_index)
         plot_index += 1
         plt.plot(physical_periods, '.')
         plt.title('physical masses')
         add_labels()
         plt.hlines(min(physical_periods), 0, len(physical_periods), color='grey')
-        plt.ylim(0, )
+        plt.ylim(*ylim)
 
         min_physical = np.min(physical_periods)
 
-        ax = plt.subplot(n_components, 3, plot_index, sharey=ax)
+        plt.subplot(n_components, 3, plot_index)
         plot_index += 1
         plt.plot(initial_periods, '.')
         plt.title(f'uniform masses\n({np.min(initial_periods) / min_physical:.3f}x)')
         add_labels()
+        plt.ylim(*ylim)
         plt.hlines(min(initial_periods), 0, len(initial_periods), color='grey')
 
-        ax = plt.subplot(n_components, 3, plot_index, sharey=ax)
+        plt.subplot(n_components, 3, plot_index)
         plot_index += 1
         plt.plot(optimized_periods, '.')
         plt.title(f'optimized masses\n({np.min(optimized_periods) / min_physical:.3f}x)')
         add_labels()
+        plt.ylim(*ylim)
         plt.hlines(min(optimized_periods), 0, len(optimized_periods), color='grey')
 
         plt.tight_layout()
