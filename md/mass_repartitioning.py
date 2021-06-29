@@ -1,3 +1,34 @@
+"""Shuffle masses around within each molecule -- without changing the total mass of each molecule.
+Intent: slow down the fastest vibration timescales, thus increasing the maximum stable timestep.
+
+Questions
+---------
+* Why aren't uniform masses more commonly used in the literature?
+    Even simpler to implement than HMR, and comparable in efficiency gain...
+
+* To be on the safe side, we're currently preserving the total mass of
+    each molecule independently. This is a stronger condition than
+    preserving the total system mass.
+    Is it valid for a mass repartitioning scheme to preserve total system mass,
+    but not the total mass of each molecule independently?
+
+
+References
+----------
+* [Bennett, 1975] Mass tensor molecular dynamics.
+    https://www.sciencedirect.com/science/article/pii/0021999175900777
+
+    (Describes several practical strategies for constructing non-diagonal
+    mass matrices, and for making the mass matrix position-dependent.)
+
+* [Hopkins et al., 2015] Long-Time-Step Molecular Dynamics through
+    Hydrogen Mass Repartitioning.
+    https://pubs.acs.org/doi/abs/10.1021/ct5010406
+
+    (Demonstrates that increasing the hydrogen masses and doubling
+    the stepsize doesn't introduce much sampling error.)
+"""
+
 import numpy as np
 
 from jax.config import config;
