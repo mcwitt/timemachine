@@ -5,7 +5,7 @@ from jax.config import config;
 config.update("jax_enable_x64", True)
 
 from jax import value_and_grad, jit, numpy as jnp
-from jax.ops.scatter import segment_min
+from jax.ops import segment_min
 
 import networkx as nx
 
