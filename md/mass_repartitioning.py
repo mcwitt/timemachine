@@ -224,7 +224,7 @@ if __name__ == '__main__':
     print('n_components', n_components)
 
     plot_index = 1
-    plt.figure(figsize=(12, 9))
+    plt.figure(figsize=(9, 9))
 
     whole_system_optimized_masses = np.array(masses)
 
@@ -282,7 +282,7 @@ if __name__ == '__main__':
         plt.subplot(n_components, 3, plot_index)
         plot_index += 1
         plt.plot(initial_periods, '.')
-        plt.title(f'uniform masses\n({np.min(initial_periods) / min_physical:.3f}x)')
+        plt.title(f'uniform masses\n({np.min(initial_periods):.3f}, {np.min(initial_periods) / min_physical:.3f}x)')
         add_labels()
         plt.ylim(*ylim)
         plt.hlines(min(initial_periods), 0, len(initial_periods), color='grey')
@@ -290,7 +290,7 @@ if __name__ == '__main__':
         plt.subplot(n_components, 3, plot_index)
         plot_index += 1
         plt.plot(optimized_periods, '.')
-        plt.title(f'optimized masses per-component\n({np.min(optimized_periods) / min_physical:.3f}x)')
+        plt.title(f'optimized masses per-component\n({np.min(optimized_periods):.3f}, {np.min(optimized_periods) / min_physical:.3f}x)')
         add_labels()
         plt.ylim(*ylim)
         plt.hlines(min(optimized_periods), 0, len(optimized_periods), color='grey')
