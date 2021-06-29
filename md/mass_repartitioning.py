@@ -56,9 +56,9 @@ def get_unique_subgraphs(g: Graph) -> Tuple[List[NodeIndices], Counts]:
                 already_there = True
                 counts[i] += 1
         if not already_there:
-            unique_components.append(component)
+            unique_components.append(np.array(list(component), dtype=int))
             counts.append(1)
-    return [np.array(component, dtype=int) for component in unique_components], counts
+    return unique_components, counts
 
 
 def get_water_indices(bond_list: List[Tuple[int, int]]) -> np.array:
