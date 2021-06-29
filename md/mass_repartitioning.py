@@ -14,6 +14,7 @@ from typing import Tuple, List, Callable
 Graph = nx.Graph
 Array = np.array
 Float = float
+Int = int
 
 
 def bond_vibration_periods(ks, bond_indices, masses):
@@ -40,20 +41,24 @@ def graph_to_arrays(g: Graph) -> Tuple[Array, Array]:
     ks = np.array([g.edges[e]['k'] for e in edges])
     return bond_indices, ks
 
-
-def get_unique_subgraphs(g: Graph) -> List[Graph]:
+NodeIndices = Array
+Counts = List[Int]
+def get_unique_subgraphs(g: Graph) -> Tuple[List[NodeIndices], Counts]:
     components = list(nx.connected_components(g))
 
     unique_components = []
+    counts = []
 
     for component in components:
         already_there = False
-        for unique in unique_components:
+        for i, unique in enumerate(unique_components):
             if nx.is_isomorphic(nx.subgraph(g, component), nx.subgraph(g, unique)):
                 already_there = True
+                counts[i] += 1
         if not already_there:
             unique_components.append(component)
-    return unique_components
+            counts.append(1)
+    return [np.array(component, dtype=int) for component in unique_components], counts
 
 
 def atom_indices_to_dict(atom_indices):
@@ -153,17 +158,13 @@ if __name__ == '__main__':
     ks = np.array(sys_params[0][:, 0])
     bond_indices = np.array(get_bond_list(harmonic_bond_potential))
 
-    # apply optimization to whole system at once, without breaking into components
-    t0 = time()
-    optimized_masses_one_shot = maximize_shortest_bond_vibration(bond_indices, ks, np.sum(masses))
-    t1 = time()
-    print(f'optimized masses for {len(optimized_masses_one_shot)}-atom system in {(t1 - t0):.3f} s')
-
     # convert to a graph
     g = arrays_to_graph(bond_indices, ks)
 
     # extract unique components
-    unique_components = get_unique_subgraphs(g)
+    unique_components, counts = get_unique_subgraphs(g)
+    contains_duplicates = [count > 1 for count in counts]
+    assert sum(contains_duplicates) == 1  # only expecting waters to see more than one copy of water
 
     # for each unique component, get bond_indices, ks, atom_indices
 
@@ -172,6 +173,8 @@ if __name__ == '__main__':
 
     plot_index = 1
     plt.figure(figsize=(12, 9))
+
+    whole_system_optimized_masses = np.array(masses)
 
     for i, component in enumerate(unique_components):
         subgraph = nx.subgraph(g, component)
@@ -191,10 +194,15 @@ if __name__ == '__main__':
         optimized_masses = maximize_shortest_bond_vibration(subgraph_bond_indices, subgraph_ks, total_mass)
         t1 = time()
         print(f'optimized masses for {len(optimized_masses)}-atom component in {(t1 - t0):.3f} s')
+
+        whole_system_optimized_masses[atom_indices] = optimized_masses
+        # TODO: special case code for water? or more generic (but probably slower) graph matcher?
+        #if n == 3:
+        #    ...
+
         physical_periods = bond_vibration_periods(subgraph_ks, mapped_bond_indices, original_masses)
         initial_periods = bond_vibration_periods(subgraph_ks, mapped_bond_indices, uniform_masses)
         optimized_periods = bond_vibration_periods(subgraph_ks, mapped_bond_indices, optimized_masses)
-        optimized_periods_global = bond_vibration_periods(subgraph_ks, mapped_bond_indices, optimized_masses_one_shot[atom_indices])
 
 
         def add_labels():
@@ -203,7 +211,7 @@ if __name__ == '__main__':
 
         ylim = (0, 1.1 * np.max(list(map(max, [physical_periods, initial_periods, optimized_periods]))))
 
-        plt.subplot(n_components, 4, plot_index)
+        plt.subplot(n_components, 3, plot_index)
         plot_index += 1
         plt.plot(physical_periods, '.')
         plt.title('physical masses')
@@ -213,7 +221,7 @@ if __name__ == '__main__':
 
         min_physical = np.min(physical_periods)
 
-        plt.subplot(n_components, 4, plot_index)
+        plt.subplot(n_components, 3, plot_index)
         plot_index += 1
         plt.plot(initial_periods, '.')
         plt.title(f'uniform masses\n({np.min(initial_periods) / min_physical:.3f}x)')
@@ -221,21 +229,13 @@ if __name__ == '__main__':
         plt.ylim(*ylim)
         plt.hlines(min(initial_periods), 0, len(initial_periods), color='grey')
 
-        plt.subplot(n_components, 4, plot_index)
+        plt.subplot(n_components, 3, plot_index)
         plot_index += 1
         plt.plot(optimized_periods, '.')
         plt.title(f'optimized masses per-component\n({np.min(optimized_periods) / min_physical:.3f}x)')
         add_labels()
         plt.ylim(*ylim)
         plt.hlines(min(optimized_periods), 0, len(optimized_periods), color='grey')
-
-        plt.subplot(n_components, 4, plot_index)
-        plot_index += 1
-        plt.plot(optimized_periods_global, '.')
-        plt.title(f'optimized masses altogether\n({np.min(optimized_periods_global) / min_physical:.3f}x)')
-        add_labels()
-        plt.ylim(*ylim)
-        plt.hlines(min(optimized_periods_global), 0, len(optimized_periods_global), color='grey')
 
         plt.tight_layout()
 
