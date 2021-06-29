@@ -148,7 +148,10 @@ def maximize_shortest_bond_vibration(bond_indices, ks, total_mass):
         bounds=reasonable_range,
     )
     optimized_masses = result.x
-    return optimized_masses / np.sum(optimized_masses) * total_mass
+    assert (optimized_masses > 0).all()
+    normalized_masses = (optimized_masses / np.sum(optimized_masses)) * total_mass
+    np.testing.assert_almost_equal(np.sum(normalized_masses), total_mass)
+    return normalized_masses
 
 
 if __name__ == '__main__':
@@ -184,6 +187,7 @@ if __name__ == '__main__':
     optimized_masses_one_shot = maximize_shortest_bond_vibration(bond_indices, ks, np.sum(masses))
     t1 = time()
     print(f'optimized masses for {len(optimized_masses_one_shot)}-atom system in {(t1 - t0):.3f} s')
+    np.testing.assert_almost_equal(np.sum(optimized_masses_one_shot), np.sum(masses))
 
     # convert to a graph
     g = arrays_to_graph(bond_indices, ks)
@@ -217,6 +221,9 @@ if __name__ == '__main__':
         optimized_masses = maximize_shortest_bond_vibration(subgraph_bond_indices, subgraph_ks, total_mass)
         t1 = time()
         print(f'optimized masses for {len(optimized_masses)}-atom component in {(t1 - t0):.3f} s')
+        np.testing.assert_almost_equal(np.sum(optimized_masses), total_mass)
+        np.testing.assert_almost_equal(np.sum(optimized_masses_one_shot[atom_indices]), total_mass)
+
         physical_periods = bond_vibration_periods(subgraph_ks, mapped_bond_indices, original_masses)
         initial_periods = bond_vibration_periods(subgraph_ks, mapped_bond_indices, uniform_masses)
         optimized_periods = bond_vibration_periods(subgraph_ks, mapped_bond_indices, optimized_masses)
