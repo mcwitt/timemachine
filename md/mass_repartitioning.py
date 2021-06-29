@@ -61,6 +61,25 @@ def get_unique_subgraphs(g: Graph) -> Tuple[List[NodeIndices], Counts]:
     return [np.array(component, dtype=int) for component in unique_components], counts
 
 
+def get_water_indices(bond_list: List[Tuple[int, int]]) -> np.array:
+    """Get array of indices of water atoms, each in the order HHO
+
+    Notes
+    -----
+    * Assumes (without checking) that any bonded collection of 3 atoms is a water molecule
+    """
+    topology = nx.Graph(bond_list)
+    components = [np.array(list(c)) for c in nx.algorithms.connected_components(topology)]
+    is_water = lambda c : len(c) == 3
+    waters = list(filter(is_water, components))
+
+    def sort_atoms(unordered_water_atoms):
+        """{HOH, OHH, HHO} -> HHO, without hardcoding an assumption on the masses"""
+        return sorted(unordered_water_atoms, key=lambda a: len(list(topology.neighbors(a))))
+
+    return np.array(list(map(sort_atoms, waters)))
+
+
 def atom_indices_to_dict(atom_indices):
     """map atom_indices[i] -> i
 
