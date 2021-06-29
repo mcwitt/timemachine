@@ -182,8 +182,10 @@ if __name__ == '__main__':
 
     # extract unique components
     unique_components, counts = get_unique_subgraphs(g)
-    contains_duplicates = [count > 1 for count in counts]
-    assert sum(contains_duplicates) == 1  # only expecting waters to see more than one copy of water
+    # only expecting to see more than one copy of water
+    for i, component in enumerate(unique_components):
+        if len(component) != 3:
+            assert counts[i] == 1
 
     # for each unique component, get bond_indices, ks, atom_indices
 
@@ -194,6 +196,9 @@ if __name__ == '__main__':
     plt.figure(figsize=(12, 9))
 
     whole_system_optimized_masses = np.array(masses)
+
+    bond_list = [tuple(b) for b in bond_indices]
+    water_indices = get_water_indices(bond_list)
 
     for i, component in enumerate(unique_components):
         subgraph = nx.subgraph(g, component)
@@ -215,9 +220,12 @@ if __name__ == '__main__':
         print(f'optimized masses for {len(optimized_masses)}-atom component in {(t1 - t0):.3f} s')
 
         whole_system_optimized_masses[atom_indices] = optimized_masses
-        # TODO: special case code for water? or more generic (but probably slower) graph matcher?
-        #if n == 3:
-        #    ...
+        # special case code for water. Other option: more generic (but probably slower) graph matcher?
+        if n == 3:
+            topology = nx.Graph(bond_list)
+            sorted_local_atom_indices = np.array(sorted(np.arange(n), key=lambda a: len(list(topology.neighbors(a)))))
+            for water in water_indices:
+                whole_system_optimized_masses[water_indices] = optimized_masses[sorted_local_atom_indices]
 
         physical_periods = bond_vibration_periods(subgraph_ks, mapped_bond_indices, original_masses)
         initial_periods = bond_vibration_periods(subgraph_ks, mapped_bond_indices, uniform_masses)
