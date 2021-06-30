@@ -201,7 +201,7 @@ def optimize_system_masses(harmonic_bond_potential, masses):
     print('n_components', n_components)
 
     # initialize with nans to detect if uninitialized
-    whole_system_optimized_masses = np.nan * np.ones(masses)
+    whole_system_optimized_masses = np.nan * np.ones(len(masses))
 
     bond_list = [tuple(b) for b in bond_indices]
     water_indices = get_water_indices(bond_list)
@@ -221,6 +221,8 @@ def optimize_system_masses(harmonic_bond_potential, masses):
         t1 = time()
         print(f'optimized masses for {len(optimized_masses)}-atom component in {(t1 - t0):.3f} s')
 
+        whole_system_optimized_masses[atom_indices] = optimized_masses
+
         # special case code for water. Other option: more generic (but probably slower) graph matcher?
         if n == 3:
             topology = nx.Graph(bond_list)
@@ -228,7 +230,9 @@ def optimize_system_masses(harmonic_bond_potential, masses):
             for water in water_indices:
                 whole_system_optimized_masses[water] = optimized_masses[sorted_local_atom_indices]
 
-    assert np.isfinite(whole_system_optimized_masses).all()
+    if not np.isfinite(whole_system_optimized_masses).all():
+        print(np.where(np.isnan(whole_system_optimized_masses)))
+
     np.testing.assert_almost_equal(np.sum(whole_system_optimized_masses), np.sum(masses))
 
     return whole_system_optimized_masses
@@ -270,7 +274,6 @@ if __name__ == '__main__':
     # for each unique component, get bond_indices, ks, atom_indices
 
     n_components = len(unique_components)
-    print('n_components', n_components)
 
     plot_index = 1
     plt.figure(figsize=(9, 9))
