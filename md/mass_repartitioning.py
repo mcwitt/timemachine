@@ -39,6 +39,7 @@ from jax import value_and_grad, jit, numpy as jnp
 import networkx as nx
 
 from scipy.optimize import minimize, Bounds
+from time import time
 
 from typing import Tuple, List, Callable
 
@@ -180,12 +181,64 @@ def maximize_shortest_bond_vibration(bond_indices, ks, total_mass):
     return optimized_masses / np.sum(optimized_masses) * total_mass
 
 
+def optimize_system_masses(harmonic_bond_potential, masses):
+    # get bond indices and ks from force object
+    ks = np.array(sys_params[0][:, 0])
+    bond_indices = np.array(get_bond_list(harmonic_bond_potential))
+
+    # convert to a graph
+    g = arrays_to_graph(bond_indices, ks)
+
+    # extract unique components
+    unique_components, counts = get_unique_subgraphs(g)
+    # only expecting to see more than one copy of water
+    for i, component in enumerate(unique_components):
+        if len(component) != 3:
+            assert counts[i] == 1
+
+    # for each unique component, get bond_indices, ks, atom_indices
+    n_components = len(unique_components)
+    print('n_components', n_components)
+
+    # initialize with nans to detect if uninitialized
+    whole_system_optimized_masses = np.nan * np.ones(masses)
+
+    bond_list = [tuple(b) for b in bond_indices]
+    water_indices = get_water_indices(bond_list)
+
+    for i, component in enumerate(unique_components):
+        subgraph = nx.subgraph(g, component)
+
+        subgraph_bond_indices, subgraph_ks = graph_to_arrays(subgraph)
+
+        atom_indices = np.array(sorted(set(subgraph_bond_indices.flatten())))
+        n = len(atom_indices)
+        original_masses = masses[atom_indices]
+        total_mass = np.sum(original_masses)
+
+        t0 = time()
+        optimized_masses = maximize_shortest_bond_vibration(subgraph_bond_indices, subgraph_ks, total_mass)
+        t1 = time()
+        print(f'optimized masses for {len(optimized_masses)}-atom component in {(t1 - t0):.3f} s')
+
+        # special case code for water. Other option: more generic (but probably slower) graph matcher?
+        if n == 3:
+            topology = nx.Graph(bond_list)
+            sorted_local_atom_indices = np.array(sorted(np.arange(n), key=lambda a: len(list(topology.neighbors(a)))))
+            for water in water_indices:
+                whole_system_optimized_masses[water] = optimized_masses[sorted_local_atom_indices]
+
+    assert np.isfinite(whole_system_optimized_masses).all()
+    np.testing.assert_almost_equal(np.sum(whole_system_optimized_masses), np.sum(masses))
+
+    return whole_system_optimized_masses
+
+
 if __name__ == '__main__':
     from testsystems.relative import hif2a_ligand_pair
     from md.builders import build_water_system, build_protein_system
     from fe.free_energy import AbsoluteFreeEnergy
     from md.barostat.utils import get_bond_list
-    from time import time
 
     import matplotlib.pyplot as plt
 
@@ -226,6 +279,7 @@ if __name__ == '__main__':
     plot_index = 1
     plt.figure(figsize=(9, 9))
 
+    # TODO: reduce code duplication with optimize_system_masses
     whole_system_optimized_masses = np.array(masses)
 
     bond_list = [tuple(b) for b in bond_indices]
