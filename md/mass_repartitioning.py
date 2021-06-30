@@ -181,9 +181,9 @@ def maximize_shortest_bond_vibration(bond_indices, ks, total_mass):
     return optimized_masses / np.sum(optimized_masses) * total_mass
 
 
-def optimize_system_masses(harmonic_bond_potential, masses):
-    # get bond indices and ks from force object
-    ks = np.array(sys_params[0][:, 0])
+def optimize_system_masses(harmonic_bond_potential, harmonic_bond_params, masses):
+    # get bond indices and ks associated with harmonic bond potential
+    ks = np.array(harmonic_bond_params[:, 0])
     bond_indices = np.array(get_bond_list(harmonic_bond_potential))
 
     # convert to a graph
@@ -259,10 +259,12 @@ if __name__ == '__main__':
     unbound_potentials, sys_params, masses, coords = afe.prepare_host_edge(
         ff.get_ordered_params(), complex_system, complex_coords
     )
+
     harmonic_bond_potential = unbound_potentials[0]
+    harmonic_bond_params = sys_params[0]
 
     # get bond indices and ks from force object
-    ks = np.array(sys_params[0][:, 0])
+    ks = np.array(harmonic_bond_params[:, 0])
     bond_indices = np.array(get_bond_list(harmonic_bond_potential))
 
     # convert to a graph
@@ -279,7 +281,7 @@ if __name__ == '__main__':
     plt.figure(figsize=(9, 9))
 
     # TODO: reduce code duplication with optimize_system_masses
-    whole_system_optimized_masses = optimize_system_masses(harmonic_bond_potential, masses)
+    whole_system_optimized_masses = optimize_system_masses(harmonic_bond_potential, harmonic_bond_params, masses)
 
     bond_list = [tuple(b) for b in bond_indices]
     water_indices = get_water_indices(bond_list)
