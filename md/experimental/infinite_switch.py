@@ -43,4 +43,4 @@ class AveragedPotential:
 
     def __call__(self, x, lambdas, log_weights):
         u_s = self.u_vec(x, lambdas)
-        return - logsumexp(u_s + log_weights)
+        return - logsumexp(-u_s + log_weights)
