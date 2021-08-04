@@ -423,7 +423,7 @@ def test_am1ccc_am1bcc_consistency(max_checks=10, abs_tolerance=1e-3):
     filtered_mols = [mols[i] for i in range(len(mols)) if i not in skip_inds]
     sorted_mols = sorted(filtered_mols, key=lambda m: m.GetNumAtoms())
 
-    # run both methods on all mols
+    # run both methods on up to max_checks selected mols
     inlined_constant = np.sqrt(timemachine.constants.ONE_4PI_EPS0)
 
     for mol in sorted_mols[:max_checks]:
