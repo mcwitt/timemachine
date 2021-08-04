@@ -453,7 +453,7 @@ def test_am1ccc_am1bcc_consistency_freesolv(max_checks=10, abs_tolerance=1e-3):
 
     # data
     root = Path(timemachine.__file__).parent.parent
-    path_to_hif2a_ligands = str(root.joinpath('datasets/freesolv/fressolv.sdf'))
+    path_to_hif2a_ligands = str(root.joinpath('datasets/freesolv/freesolv.sdf'))
     suppl = Chem.SDMolSupplier(path_to_hif2a_ligands, removeHs=False)
     mols = [x for x in suppl]
 
