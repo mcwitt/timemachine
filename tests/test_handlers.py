@@ -10,8 +10,8 @@ from pathlib import Path
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from ff.handlers import nonbonded, bonded
+from ff.handlers.nonbonded import assert_am1ccc_am1bcc_consistency
 from ff.handlers.deserialize import deserialize_handlers
-from ff.handlers.utils import assert_am1ccc_am1bcc_consistency
 
 import functools
 
