@@ -207,6 +207,15 @@ def build_models(client, forcefield, complex, solvent, temperature, pressure, dt
         binding_model_solvent_decouple,
     )
 
+
+def construct_lambda_schedules(cmd_args):
+    # construct lambda schedules for complex and solvent
+    complex_absolute_schedule = construct_absolute_lambda_schedule_complex(cmd_args.num_complex_windows)
+    solvent_absolute_schedule = construct_absolute_lambda_schedule_solvent(cmd_args.num_solvent_windows)
+
+    return complex_absolute_schedule, solvent_absolute_schedule
+
+
 if __name__ == "__main__":
 
     multiprocessing.set_start_method('spawn')
@@ -337,9 +346,8 @@ if __name__ == "__main__":
 
     forcefield = load_default_ff()
 
-    # construct lambda schedules for complex and solvent
-    complex_absolute_schedule = construct_absolute_lambda_schedule_complex(cmd_args.num_complex_windows)
-    solvent_absolute_schedule = construct_absolute_lambda_schedule_solvent(cmd_args.num_solvent_windows)
+
+    complex_absolute_schedule, solvent_absolute_schedule = construct_lambda_schedules(cmd_args)
 
     complex, solvent = build_systems(cmd_args.protein_pdb)
 
