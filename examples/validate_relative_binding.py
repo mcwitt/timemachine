@@ -229,6 +229,10 @@ def get_core_smarts(mol, mol_ref):
 
 if __name__ == "__main__":
 
+    temperature = 300.0
+    pressure = 1.0
+    dt = 2.5e-3
+
     multiprocessing.set_start_method('spawn')
 
     parser = argparse.ArgumentParser(
@@ -351,27 +355,16 @@ if __name__ == "__main__":
     print("cmd_args", cmd_args)
 
     client = setup_client(cmd_args)
-
     mols = load_mols(cmd_args.ligand_sdf)
     dataset = Dataset(mols)
-
     forcefield = load_default_ff()
-
-
     complex_absolute_schedule, solvent_absolute_schedule = construct_lambda_schedules(cmd_args)
-
     complex, solvent = build_systems(cmd_args.protein_pdb)
-
     blocker_mol = select_blocker(mols, cmd_args)
 
     print("Reference Molecule:", blocker_mol.GetProp("_Name"), Chem.MolToSmiles(blocker_mol))
 
-    temperature = 300.0
-    pressure = 1.0
-    dt = 2.5e-3
-
     complex_ref_x0, complex_ref_box0 = preequilibrate(blocker_mol, complex, temperature, pressure, forcefield, cmd_args.num_complex_preequil_steps)
-
     binding_model = build_models(client, forcefield, complex, solvent, temperature, pressure, dt, cmd_args)
 
     ordered_params = forcefield.get_ordered_params()
