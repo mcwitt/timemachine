@@ -202,6 +202,16 @@ if __name__ == "__main__":
 
     assert blocker_mol is not None
 
+    def get_label_dG(mol):
+        concentration = float(mol.GetProp(cmd_args.property_field))
+
+        if cmd_args.property_units == 'uM':
+            label_dG = convert_uM_to_kJ_per_mole(concentration)
+        elif cmd_args.property_units == 'nM':
+            label_dG = convert_uM_to_kJ_per_mole(concentration / 1000)
+        else:
+            assert 0, "Unknown property units"
+
     print("Reference Molecule:", blocker_mol.GetProp("_Name"), Chem.MolToSmiles(blocker_mol))
 
     temperature = 300.0
@@ -384,14 +394,7 @@ if __name__ == "__main__":
         epoch_params = serialize_handlers(ordered_handles)
         # dataset.shuffle()
         for mol in dataset.data:
-            concentration = float(mol.GetProp(cmd_args.property_field))
-
-            if cmd_args.property_units == 'uM':
-                label_dG = convert_uM_to_kJ_per_mole(concentration)
-            elif cmd_args.property_units == 'nM':
-                label_dG = convert_uM_to_kJ_per_mole(concentration/1000)
-            else:
-                assert 0, "Unknown property units"
+            label_dG = get_label_dG(mol)
 
             print("processing mol", mol.GetProp("_Name"), "with binding dG", label_dG, "SMILES", Chem.MolToSmiles(mol))
 
