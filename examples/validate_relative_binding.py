@@ -35,7 +35,7 @@ from timemachine.potentials import rmsd
 from md import builders, minimizer
 from rdkit.Chem import rdFMCS
 from fe.atom_mapping import CompareDistNonterminal
-
+from dataclasses import dataclass
 
 def setup_client(cmd_args):
     if not cmd_args.hosts:
@@ -90,6 +90,22 @@ def get_label_dG(mol, cmd_args):
         assert 0, "Unknown property units"
 
     return label_dG
+
+from typing import Any
+@dataclass
+class SysCoordsBoxTop:
+    system: Any
+    coords: Any
+    box: Any
+    top: Any
+
+def build_systems(protein_pdb):
+    complex_system, complex_coords, _, _, complex_box, complex_topology = builders.build_protein_system(
+        protein_pdb)
+    complex = SysCoordsBoxTop(complex_system, complex_coords, complex_box, complex_topology)
+    solvent = SysCoordsBoxTop(*builders.build_water_system(4.0))
+
+    return complex, solvent
 
 if __name__ == "__main__":
 
@@ -225,11 +241,7 @@ if __name__ == "__main__":
     complex_absolute_schedule = construct_absolute_lambda_schedule_complex(cmd_args.num_complex_windows)
     solvent_absolute_schedule = construct_absolute_lambda_schedule_solvent(cmd_args.num_solvent_windows)
 
-    # build the protein system.
-    complex_system, complex_coords, _, _, complex_box, complex_topology = builders.build_protein_system(
-        cmd_args.protein_pdb)
-
-    solvent_system, solvent_coords, solvent_box, solvent_topology = builders.build_water_system(4.0)
+    complex, solvent = build_systems(cmd_args.protein_pdb)
 
     blocker_mol = select_blocker(mols, cmd_args)
 
@@ -244,12 +256,12 @@ if __name__ == "__main__":
     if not os.path.exists("equil.pickle"):
         complex_ref_x0, complex_ref_box0 = minimizer.equilibrate_complex(
             blocker_mol,
-            complex_system,
-            complex_coords,
+            complex.system,
+            complex.coords,
             temperature,
             pressure,
             forcefield,
-            complex_box,
+            complex.box,
             cmd_args.num_complex_preequil_steps
         )
         with open("equil.pickle", "wb") as ofs:
@@ -264,9 +276,9 @@ if __name__ == "__main__":
     binding_model_complex_conversion = model_rabfe.AbsoluteConversionModel(
         client,
         forcefield,
-        complex_system,
+        complex.system,
         complex_conversion_schedule,
-        complex_topology,
+        complex.topology,
         temperature,
         pressure,
         dt,
@@ -277,9 +289,9 @@ if __name__ == "__main__":
     binding_model_complex_decouple = model_rabfe.RelativeBindingModel(
         client,
         forcefield,
-        complex_system,
+        complex.system,
         complex_absolute_schedule,
-        complex_topology,
+        complex.topology,
         temperature,
         pressure,
         dt,
@@ -293,9 +305,9 @@ if __name__ == "__main__":
     binding_model_solvent_conversion = model_rabfe.AbsoluteConversionModel(
         client,
         forcefield,
-        solvent_system,
+        solvent.system,
         solvent_conversion_schedule,
-        solvent_topology,
+        solvent.topology,
         temperature,
         pressure,
         dt,
@@ -306,9 +318,9 @@ if __name__ == "__main__":
     binding_model_solvent_decouple = model_rabfe.AbsoluteStandardHydrationModel(
         client,
         forcefield,
-        solvent_system,
+        solvent.system,
         solvent_absolute_schedule,
-        solvent_topology,
+        solvent.topology,
         temperature,
         pressure,
         dt,
@@ -338,7 +350,7 @@ if __name__ == "__main__":
         core_idxs = setup_relative_restraints_using_smarts(mol, mol_ref, core_smarts)
         mol_coords = get_romol_conf(mol) # original coords
         
-        num_complex_atoms = complex_coords.shape[0]
+        num_complex_atoms = complex.coords.shape[0]
 
         # Use core_idxs to generate
         R, t = rmsd.get_optimal_rotation_and_translation(
@@ -355,7 +367,8 @@ if __name__ == "__main__":
         mol_name = mol.GetProp("_Name")
 
         # compute the free energy of conversion in complex
-        complex_conversion_x0 = minimizer.minimize_host_4d([mol], complex_system, complex_host_coords, forcefield, complex_box0, [aligned_mol_coords])
+        complex_conversion_x0 = minimizer.minimize_host_4d([mol], complex.system, complex_host_coords, forcefield,
+                                                           complex_box0, [aligned_mol_coords])
         complex_conversion_x0 = np.concatenate([complex_conversion_x0, aligned_mol_coords])
         dG_complex_conversion, dG_complex_conversion_error = binding_model_complex_conversion.predict(
             params,
@@ -367,7 +380,8 @@ if __name__ == "__main__":
         )
 
         # compute the free energy of swapping an interacting mol with a non-interacting reference mol
-        complex_decouple_x0 = minimizer.minimize_host_4d([mol, mol_ref], complex_system, complex_host_coords, forcefield, complex_box0, [aligned_mol_coords, ref_coords])
+        complex_decouple_x0 = minimizer.minimize_host_4d([mol, mol_ref], complex.system, complex_host_coords,
+                                                         forcefield, complex_box0, [aligned_mol_coords, ref_coords])
         complex_decouple_x0 = np.concatenate([complex_decouple_x0, aligned_mol_coords, ref_coords])
         dG_complex_decouple, dG_complex_decouple_error = binding_model_complex_decouple.predict(
             params,
@@ -379,9 +393,9 @@ if __name__ == "__main__":
             prefix='complex_decouple_'+mol_name+"_"+str(epoch))
 
         # solvent
-        min_solvent_coords = minimizer.minimize_host_4d([mol], solvent_system, solvent_coords, forcefield, solvent_box)
+        min_solvent_coords = minimizer.minimize_host_4d([mol], solvent.system, solvent.coords, forcefield, solvent.box)
         solvent_x0 = np.concatenate([min_solvent_coords, mol_coords])
-        solvent_box0 = solvent_box
+        solvent_box0 = solvent.box
         dG_solvent_conversion, dG_solvent_conversion_error = binding_model_solvent_conversion.predict(
             params,
             mol,
