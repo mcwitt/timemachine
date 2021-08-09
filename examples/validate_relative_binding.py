@@ -215,6 +215,17 @@ def construct_lambda_schedules(cmd_args):
 
     return complex_absolute_schedule, solvent_absolute_schedule
 
+def get_core_smarts(mol, mol_ref):
+    mcs_params = rdFMCS.MCSParameters()
+    mcs_params.AtomTyper = CompareDistNonterminal()
+    mcs_params.BondTyper = rdFMCS.BondCompare.CompareAny
+
+    result = rdFMCS.FindMCS(
+        [mol, mol_ref],
+        mcs_params
+    )
+
+    return result.smartsString
 
 if __name__ == "__main__":
 
@@ -366,19 +377,10 @@ if __name__ == "__main__":
     ordered_params = forcefield.get_ordered_params()
     ordered_handles = forcefield.get_ordered_handles()
 
-    mcs_params = rdFMCS.MCSParameters()
-    mcs_params.AtomTyper = CompareDistNonterminal()
-    mcs_params.BondTyper = rdFMCS.BondCompare.CompareAny
 
     def pred_fn(params, mol, mol_ref):
 
-        result = rdFMCS.FindMCS(
-            [mol, mol_ref],
-            mcs_params
-        )
-
-        core_smarts = result.smartsString
-        
+        core_smarts = get_core_smarts(mol, mol_ref)
         print("core_smarts", core_smarts)
 
         # generate the core_idxs
