@@ -97,7 +97,8 @@ class SysCoordsBoxTop:
     system: Any
     coords: Any
     box: Any
-    top: Any
+    topology: Any
+
 
 def build_systems(protein_pdb):
     complex_system, complex_coords, _, _, complex_box, complex_topology = builders.build_protein_system(
@@ -133,6 +134,78 @@ def preequilibrate(blocker_mol, complex, temperature, pressure, forcefield, n_st
 
     return complex_ref_x0, complex_ref_box0
 
+@dataclass
+class BindingModel:
+    complex_conversion: Any
+    complex_decouple: Any
+    solvent_conversion: Any
+    solvent_decouple: Any
+
+def build_models(client, forcefield, complex, solvent, temperature, pressure, dt, cmd_args):
+    # complex models.
+    complex_conversion_schedule = construct_conversion_lambda_schedule(cmd_args.num_complex_conv_windows)
+
+    binding_model_complex_conversion = model_rabfe.AbsoluteConversionModel(
+        client,
+        forcefield,
+        complex.system,
+        complex_conversion_schedule,
+        complex.topology,
+        temperature,
+        pressure,
+        dt,
+        cmd_args.num_complex_equil_steps,
+        cmd_args.num_complex_prod_steps
+    )
+
+    binding_model_complex_decouple = model_rabfe.RelativeBindingModel(
+        client,
+        forcefield,
+        complex.system,
+        complex_absolute_schedule,
+        complex.topology,
+        temperature,
+        pressure,
+        dt,
+        cmd_args.num_complex_equil_steps,
+        cmd_args.num_complex_prod_steps
+    )
+
+    # solvent models.
+    solvent_conversion_schedule = construct_conversion_lambda_schedule(cmd_args.num_solvent_conv_windows)
+
+    binding_model_solvent_conversion = model_rabfe.AbsoluteConversionModel(
+        client,
+        forcefield,
+        solvent.system,
+        solvent_conversion_schedule,
+        solvent.topology,
+        temperature,
+        pressure,
+        dt,
+        cmd_args.num_solvent_equil_steps,
+        cmd_args.num_solvent_prod_steps
+    )
+
+    binding_model_solvent_decouple = model_rabfe.AbsoluteStandardHydrationModel(
+        client,
+        forcefield,
+        solvent.system,
+        solvent_absolute_schedule,
+        solvent.topology,
+        temperature,
+        pressure,
+        dt,
+        cmd_args.num_solvent_equil_steps,
+        cmd_args.num_solvent_prod_steps
+    )
+
+    return BindingModel(
+        binding_model_complex_conversion,
+        binding_model_complex_decouple,
+        binding_model_solvent_conversion,
+        binding_model_solvent_decouple,
+    )
 
 if __name__ == "__main__":
 
@@ -280,63 +353,7 @@ if __name__ == "__main__":
 
     complex_ref_x0, complex_ref_box0 = preequilibrate(blocker_mol, complex, temperature, pressure, forcefield, cmd_args.num_complex_preequil_steps)
 
-    # complex models.
-    complex_conversion_schedule = construct_conversion_lambda_schedule(cmd_args.num_complex_conv_windows)
-
-    binding_model_complex_conversion = model_rabfe.AbsoluteConversionModel(
-        client,
-        forcefield,
-        complex.system,
-        complex_conversion_schedule,
-        complex.topology,
-        temperature,
-        pressure,
-        dt,
-        cmd_args.num_complex_equil_steps,
-        cmd_args.num_complex_prod_steps
-    )
-
-    binding_model_complex_decouple = model_rabfe.RelativeBindingModel(
-        client,
-        forcefield,
-        complex.system,
-        complex_absolute_schedule,
-        complex.topology,
-        temperature,
-        pressure,
-        dt,
-        cmd_args.num_complex_equil_steps,
-        cmd_args.num_complex_prod_steps
-    )
-
-    # solvent models.
-    solvent_conversion_schedule = construct_conversion_lambda_schedule(cmd_args.num_solvent_conv_windows)
-
-    binding_model_solvent_conversion = model_rabfe.AbsoluteConversionModel(
-        client,
-        forcefield,
-        solvent.system,
-        solvent_conversion_schedule,
-        solvent.topology,
-        temperature,
-        pressure,
-        dt,
-        cmd_args.num_solvent_equil_steps,
-        cmd_args.num_solvent_prod_steps
-    )
-
-    binding_model_solvent_decouple = model_rabfe.AbsoluteStandardHydrationModel(
-        client,
-        forcefield,
-        solvent.system,
-        solvent_absolute_schedule,
-        solvent.topology,
-        temperature,
-        pressure,
-        dt,
-        cmd_args.num_solvent_equil_steps,
-        cmd_args.num_solvent_prod_steps
-    )
+    binding_model = build_models(client, forcefield, complex, solvent, temperature, pressure, dt, cmd_args)
 
     ordered_params = forcefield.get_ordered_params()
     ordered_handles = forcefield.get_ordered_handles()
@@ -380,7 +397,7 @@ if __name__ == "__main__":
         complex_conversion_x0 = minimizer.minimize_host_4d([mol], complex.system, complex_host_coords, forcefield,
                                                            complex_box0, [aligned_mol_coords])
         complex_conversion_x0 = np.concatenate([complex_conversion_x0, aligned_mol_coords])
-        dG_complex_conversion, dG_complex_conversion_error = binding_model_complex_conversion.predict(
+        dG_complex_conversion, dG_complex_conversion_error = binding_model.complex_conversion.predict(
             params,
             mol,
             complex_conversion_x0,
@@ -393,7 +410,7 @@ if __name__ == "__main__":
         complex_decouple_x0 = minimizer.minimize_host_4d([mol, mol_ref], complex.system, complex_host_coords,
                                                          forcefield, complex_box0, [aligned_mol_coords, ref_coords])
         complex_decouple_x0 = np.concatenate([complex_decouple_x0, aligned_mol_coords, ref_coords])
-        dG_complex_decouple, dG_complex_decouple_error = binding_model_complex_decouple.predict(
+        dG_complex_decouple, dG_complex_decouple_error = binding_model.complex_decouple.predict(
             params,
             mol,
             mol_ref,
@@ -406,14 +423,14 @@ if __name__ == "__main__":
         min_solvent_coords = minimizer.minimize_host_4d([mol], solvent.system, solvent.coords, forcefield, solvent.box)
         solvent_x0 = np.concatenate([min_solvent_coords, mol_coords])
         solvent_box0 = solvent.box
-        dG_solvent_conversion, dG_solvent_conversion_error = binding_model_solvent_conversion.predict(
+        dG_solvent_conversion, dG_solvent_conversion_error = binding_model.solvent_conversion.predict(
             params,
             mol,
             solvent_x0,
             solvent_box0,
             prefix='solvent_conversion_'+mol_name+"_"+str(epoch)
         )
-        dG_solvent_decouple, dG_solvent_decouple_error = binding_model_solvent_decouple.predict(
+        dG_solvent_decouple, dG_solvent_decouple_error = binding_model.solvent_decouple.predict(
             params,
             mol,
             solvent_x0,
