@@ -212,6 +212,8 @@ if __name__ == "__main__":
         else:
             assert 0, "Unknown property units"
 
+        return label_dG
+
     print("Reference Molecule:", blocker_mol.GetProp("_Name"), Chem.MolToSmiles(blocker_mol))
 
     temperature = 300.0
