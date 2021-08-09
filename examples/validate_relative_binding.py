@@ -107,6 +107,33 @@ def build_systems(protein_pdb):
 
     return complex, solvent
 
+
+def preequilibrate(blocker_mol, complex, temperature, pressure, forcefield, n_steps, cache_path="equil.pickle"):
+    """Generate an equilibrated reference structure to use"""
+
+    print("Equilibrating reference molecule in the complex.")
+
+    if not os.path.exists(cache_path):
+        complex_ref_x0, complex_ref_box0 = minimizer.equilibrate_complex(
+            blocker_mol,
+            complex.system,
+            complex.coords,
+            temperature,
+            pressure,
+            forcefield,
+            complex.box,
+            n_steps
+        )
+        with open(cache_path, "wb") as ofs:
+            pickle.dump((complex_ref_x0, complex_ref_box0), ofs)
+    else:
+        print("Loading existing pickle from cache")
+        with open(cache_path, "rb") as ifs:
+            complex_ref_x0, complex_ref_box0 = pickle.load(ifs)
+
+    return complex_ref_x0, complex_ref_box0
+
+
 if __name__ == "__main__":
 
     multiprocessing.set_start_method('spawn')
@@ -251,25 +278,8 @@ if __name__ == "__main__":
     pressure = 1.0
     dt = 2.5e-3
 
-    # Generate an equilibrated reference structure to use.
-    print("Equilibrating reference molecule in the complex.")
-    if not os.path.exists("equil.pickle"):
-        complex_ref_x0, complex_ref_box0 = minimizer.equilibrate_complex(
-            blocker_mol,
-            complex.system,
-            complex.coords,
-            temperature,
-            pressure,
-            forcefield,
-            complex.box,
-            cmd_args.num_complex_preequil_steps
-        )
-        with open("equil.pickle", "wb") as ofs:
-            pickle.dump((complex_ref_x0, complex_ref_box0), ofs)
-    else:
-        print("Loading existing pickle from cache")
-        with open("equil.pickle", "rb") as ifs:
-            complex_ref_x0, complex_ref_box0 = pickle.load(ifs)
+    complex_ref_x0, complex_ref_box0 = preequilibrate(blocker_mol, complex, temperature, pressure, forcefield, cmd_args.num_complex_preequil_steps)
+
     # complex models.
     complex_conversion_schedule = construct_conversion_lambda_schedule(cmd_args.num_complex_conv_windows)
 
