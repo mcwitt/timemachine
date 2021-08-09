@@ -50,17 +50,20 @@ def setup_client(cmd_args):
 
     return client
 
+
 def load_mols(path_to_sdf):
     path_to_ligand = path_to_sdf
     suppl = Chem.SDMolSupplier(path_to_ligand, removeHs=False)
     mols = [x for x in suppl]
     return mols
 
+
 def load_default_ff():
     with open('ff/params/smirnoff_1_1_0_ccc.py') as f:
         ff_handlers = deserialize_handlers(f.read())
     forcefield = Forcefield(ff_handlers)
     return forcefield
+
 
 def select_blocker(mols, cmd_args):
     blocker_mol = None
@@ -74,6 +77,19 @@ def select_blocker(mols, cmd_args):
     assert blocker_mol is not None
 
     return blocker_mol
+
+
+def get_label_dG(mol, cmd_args):
+    concentration = float(mol.GetProp(cmd_args.property_field))
+
+    if cmd_args.property_units == 'uM':
+        label_dG = convert_uM_to_kJ_per_mole(concentration)
+    elif cmd_args.property_units == 'nM':
+        label_dG = convert_uM_to_kJ_per_mole(concentration / 1000)
+    else:
+        assert 0, "Unknown property units"
+
+    return label_dG
 
 if __name__ == "__main__":
 
@@ -216,18 +232,6 @@ if __name__ == "__main__":
     solvent_system, solvent_coords, solvent_box, solvent_topology = builders.build_water_system(4.0)
 
     blocker_mol = select_blocker(mols, cmd_args)
-
-    def get_label_dG(mol):
-        concentration = float(mol.GetProp(cmd_args.property_field))
-
-        if cmd_args.property_units == 'uM':
-            label_dG = convert_uM_to_kJ_per_mole(concentration)
-        elif cmd_args.property_units == 'nM':
-            label_dG = convert_uM_to_kJ_per_mole(concentration / 1000)
-        else:
-            assert 0, "Unknown property units"
-
-        return label_dG
 
     print("Reference Molecule:", blocker_mol.GetProp("_Name"), Chem.MolToSmiles(blocker_mol))
 
@@ -411,7 +415,7 @@ if __name__ == "__main__":
         epoch_params = serialize_handlers(ordered_handles)
         # dataset.shuffle()
         for mol in dataset.data:
-            label_dG = get_label_dG(mol)
+            label_dG = get_label_dG(mol, cmd_args)
 
             print("processing mol", mol.GetProp("_Name"), "with binding dG", label_dG, "SMILES", Chem.MolToSmiles(mol))
 
