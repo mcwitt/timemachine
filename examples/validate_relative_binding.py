@@ -50,6 +50,18 @@ def setup_client(cmd_args):
 
     return client
 
+def load_mols(path_to_sdf):
+    path_to_ligand = path_to_sdf
+    suppl = Chem.SDMolSupplier(path_to_ligand, removeHs=False)
+    mols = [x for x in suppl]
+    return mols
+
+def load_default_ff():
+    with open('ff/params/smirnoff_1_1_0_ccc.py') as f:
+        ff_handlers = deserialize_handlers(f.read())
+    forcefield = Forcefield(ff_handlers)
+    return forcefield
+
 if __name__ == "__main__":
 
     multiprocessing.set_start_method('spawn')
@@ -175,16 +187,10 @@ if __name__ == "__main__":
 
     client = setup_client(cmd_args)
 
-    path_to_ligand =  cmd_args.ligand_sdf
-    suppl = Chem.SDMolSupplier(path_to_ligand, removeHs=False)
-
-    with open('ff/params/smirnoff_1_1_0_ccc.py') as f:
-        ff_handlers = deserialize_handlers(f.read())
-
-    forcefield = Forcefield(ff_handlers)
-    mols = [x for x in suppl]
-
+    mols = load_mols(cmd_args.ligand_sdf)
     dataset = Dataset(mols)
+
+    forcefield = load_default_ff()
 
     # construct lambda schedules for complex and solvent
     complex_absolute_schedule = construct_absolute_lambda_schedule_complex(cmd_args.num_complex_windows)
