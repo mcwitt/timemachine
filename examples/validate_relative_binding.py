@@ -405,7 +405,7 @@ if __name__ == "__main__":
             mol,
             complex_conversion_x0,
             complex_box0,
-            prefix='complex_conversion_'+str(epoch),
+            prefix='complex_conversion_'+mol_name+"_"+str(epoch),
             core_idxs=core_idxs[:, 0]
         )
 
