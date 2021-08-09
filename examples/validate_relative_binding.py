@@ -62,6 +62,19 @@ def load_default_ff():
     forcefield = Forcefield(ff_handlers)
     return forcefield
 
+def select_blocker(mols, cmd_args):
+    blocker_mol = None
+
+    for mol in mols:
+        if mol.GetProp("_Name") == cmd_args.blocker_name:
+            # we should only have one copy.
+            assert blocker_mol is None
+            blocker_mol = mol
+
+    assert blocker_mol is not None
+
+    return blocker_mol
+
 if __name__ == "__main__":
 
     multiprocessing.set_start_method('spawn')
@@ -202,17 +215,7 @@ if __name__ == "__main__":
 
     solvent_system, solvent_coords, solvent_box, solvent_topology = builders.build_water_system(4.0)
 
-    # pick the largest mol as the blocker
-    largest_size = 0
-    blocker_mol = None
-
-    for mol in mols:
-        if mol.GetProp("_Name") == cmd_args.blocker_name:
-            # we should only have one copy.
-            assert blocker_mol is None
-            blocker_mol = mol
-
-    assert blocker_mol is not None
+    blocker_mol = select_blocker(mols, cmd_args)
 
     def get_label_dG(mol):
         concentration = float(mol.GetProp(cmd_args.property_field))
