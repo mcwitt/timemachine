@@ -36,6 +36,20 @@ from md import builders, minimizer
 from rdkit.Chem import rdFMCS
 from fe.atom_mapping import CompareDistNonterminal
 
+
+def setup_client(cmd_args):
+    if not cmd_args.hosts:
+        num_gpus = cmd_args.num_gpus
+        # set up multi-GPU client
+        client = CUDAPoolClient(max_workers=num_gpus)
+    else:
+        # Setup GRPC client
+        print("Connecting to GRPC workers...")
+        client = GRPCClient(hosts=cmd_args.hosts)
+    client.verify()
+
+    return client
+
 if __name__ == "__main__":
 
     multiprocessing.set_start_method('spawn')
@@ -159,15 +173,7 @@ if __name__ == "__main__":
 
     print("cmd_args", cmd_args)
 
-    if not cmd_args.hosts:
-        num_gpus = cmd_args.num_gpus
-        # set up multi-GPU client
-        client = CUDAPoolClient(max_workers=num_gpus)
-    else:
-        # Setup GRPC client
-        print("Connecting to GRPC workers...")
-        client = GRPCClient(hosts=cmd_args.hosts)
-    client.verify()
+    client = setup_client(cmd_args)
 
     path_to_ligand =  cmd_args.ligand_sdf
     suppl = Chem.SDMolSupplier(path_to_ligand, removeHs=False)
