@@ -42,6 +42,12 @@ from md import builders, minimizer
 from rdkit.Chem import rdFMCS
 from fe.atom_mapping import CompareDistNonterminal
 
+def load_cache(mol, mol_ref):
+    # log_line = ... load appropriate (mol, mol_ref) line from log
+    #return RABFEResult.from_log(log_line)
+    raise NotImplementedError
+
+
 if __name__ == "__main__":
 
     multiprocessing.set_start_method('spawn')
@@ -158,6 +164,13 @@ if __name__ == "__main__":
         "--ligand_sdf",
         type=str,
         help="Path to the ligand's sdf",
+        required=True
+    )
+
+    parser.add_argument(
+        "--cache_log",
+        type=str,
+        help="Path to log file written in 'inference' mode",
         required=True
     )
 
@@ -347,14 +360,14 @@ if __name__ == "__main__":
         complex_decouple_x0 = minimizer.minimize_host_4d([mol, mol_ref], complex_system, complex_host_coords,
                                                          forcefield, complex_box0, [aligned_mol_coords, ref_coords])
         complex_decouple_x0 = np.concatenate([complex_decouple_x0, aligned_mol_coords, ref_coords])
-        dG_complex_decouple, dG_complex_decouple_error = binding_model_complex_decouple.predict(
-            params,
-            mol,
-            mol_ref,
-            core_idxs,
-            complex_decouple_x0,
-            complex_box0,
-            prefix='complex_decouple_' + mol_name + "_" + str(epoch))
+        # dG_complex_decouple, dG_complex_decouple_error = binding_model_complex_decouple.predict(
+        #     params,
+        #     mol,
+        #     mol_ref,
+        #     core_idxs,
+        #     complex_decouple_x0,
+        #     complex_box0,
+        #     prefix='complex_decouple_' + mol_name + "_" + str(epoch))
 
         # solvent
         min_solvent_coords = minimizer.minimize_host_4d([mol], solvent_system, solvent_coords, forcefield, solvent_box)
@@ -367,26 +380,31 @@ if __name__ == "__main__":
             solvent_box0,
             prefix='solvent_conversion_' + mol_name + "_" + str(epoch)
         )
-        dG_solvent_decouple, dG_solvent_decouple_error = binding_model_solvent_decouple.predict(
-            params,
-            mol,
-            solvent_x0,
-            solvent_box0,
-            prefix='solvent_decouple_' + mol_name + "_" + str(epoch),
-        )
+        # dG_solvent_decouple, dG_solvent_decouple_error = binding_model_solvent_decouple.predict(
+        #     params,
+        #     mol,
+        #     solvent_x0,
+        #     solvent_box0,
+        #     prefix='solvent_decouple_' + mol_name + "_" + str(epoch),
+        # )
+
+        cached_result = load_cache(mol, mol_ref)
 
         rabfe_result = RABFEResult(
             mol_name=mol_name,
             dG_complex_conversion=dG_complex_conversion,
-            dG_complex_decouple=dG_complex_decouple,
+            dG_complex_decouple=cached_result.dG_complex_decouple,
             dG_solvent_conversion=dG_solvent_conversion,
-            dG_solvent_decouple=dG_solvent_decouple,
+            dG_solvent_decouple=cached_result.dG_solvent_decouple,
         )
         rabfe_result.log()
 
+        # dG_err = np.sqrt(
+        #     dG_complex_conversion_error ** 2 + dG_complex_decouple_error ** 2 + dG_solvent_conversion_error ** 2 +
+        #     dG_solvent_decouple_error ** 2)
+
         dG_err = np.sqrt(
-            dG_complex_conversion_error ** 2 + dG_complex_decouple_error ** 2 + dG_solvent_conversion_error ** 2 +
-            dG_solvent_decouple_error ** 2)
+            dG_complex_conversion_error ** 2 + dG_solvent_conversion_error ** 2)
 
         return rabfe_result.dG_bind, dG_err
 
