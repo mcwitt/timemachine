@@ -245,18 +245,18 @@ if __name__ == "__main__":
         cmd_args.num_complex_prod_steps
     )
 
-    binding_model_complex_decouple = model_rabfe.RelativeBindingModel(
-        client,
-        forcefield,
-        complex_system,
-        complex_absolute_schedule,
-        complex_topology,
-        temperature,
-        pressure,
-        dt,
-        cmd_args.num_complex_equil_steps,
-        cmd_args.num_complex_prod_steps
-    )
+    # binding_model_complex_decouple = model_rabfe.RelativeBindingModel(
+    #     client,
+    #     forcefield,
+    #     complex_system,
+    #     complex_absolute_schedule,
+    #     complex_topology,
+    #     temperature,
+    #     pressure,
+    #     dt,
+    #     cmd_args.num_complex_equil_steps,
+    #     cmd_args.num_complex_prod_steps
+    # )
 
     # solvent models.
     solvent_conversion_schedule = construct_conversion_lambda_schedule(cmd_args.num_solvent_conv_windows)
@@ -274,18 +274,18 @@ if __name__ == "__main__":
         cmd_args.num_solvent_prod_steps
     )
 
-    binding_model_solvent_decouple = model_rabfe.AbsoluteStandardHydrationModel(
-        client,
-        forcefield,
-        solvent_system,
-        solvent_absolute_schedule,
-        solvent_topology,
-        temperature,
-        pressure,
-        dt,
-        cmd_args.num_solvent_equil_steps,
-        cmd_args.num_solvent_prod_steps
-    )
+    # binding_model_solvent_decouple = model_rabfe.AbsoluteStandardHydrationModel(
+    #     client,
+    #     forcefield,
+    #     solvent_system,
+    #     solvent_absolute_schedule,
+    #     solvent_topology,
+    #     temperature,
+    #     pressure,
+    #     dt,
+    #     cmd_args.num_solvent_equil_steps,
+    #     cmd_args.num_solvent_prod_steps
+    # )
 
     ordered_params = forcefield.get_ordered_params()
     ordered_handles = forcefield.get_ordered_handles()
