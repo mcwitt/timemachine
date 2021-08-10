@@ -1,16 +1,20 @@
-# This script runs the rabfe code in "inference" mode.
+# This script runs the rabfe code in "training" mode.
 # There are multiple stages to this protocol:
 
 # For the complex setup, we proceed as follows:
-# 1) Conversion of the ligand parameters into a ff-independent state
+# *** 1) Conversion of the ligand parameters into a ff-independent state
 # 2) Adding restraints to the ligand to the non-interacting "blocker" molecule
 # 3) Compute the free energy of the swapping the ligand with the blocker
 # 4) Release the restraints attached to the blocker
 # Note that 2) and 4) are done directly via an endpoint correction.
 
 # For the solvent setup, we proceed as follows:
-# 1) Conversion of the ligand parameters into a ff-independent state.
+# *** 1) Conversion of the ligand parameters into a ff-independent state.
 # 2) Run an absolute hydration free energy of the ff-independent state.
+
+# The stages denoted with a "***" are variable during each step of training --
+# the other stages are computed once in "inference" mode and loaded from disk.
+
 import os
 import pickle
 import argparse
