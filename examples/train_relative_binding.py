@@ -357,9 +357,9 @@ if __name__ == "__main__":
         )
 
         # compute the free energy of swapping an interacting mol with a non-interacting reference mol
-        complex_decouple_x0 = minimizer.minimize_host_4d([mol, mol_ref], complex_system, complex_host_coords,
-                                                         forcefield, complex_box0, [aligned_mol_coords, ref_coords])
-        complex_decouple_x0 = np.concatenate([complex_decouple_x0, aligned_mol_coords, ref_coords])
+        #complex_decouple_x0 = minimizer.minimize_host_4d([mol, mol_ref], complex_system, complex_host_coords,
+        #                                                 forcefield, complex_box0, [aligned_mol_coords, ref_coords])
+        #complex_decouple_x0 = np.concatenate([complex_decouple_x0, aligned_mol_coords, ref_coords])
         # dG_complex_decouple, dG_complex_decouple_error = binding_model_complex_decouple.predict(
         #     params,
         #     mol,
