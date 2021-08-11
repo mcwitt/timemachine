@@ -403,10 +403,10 @@ if __name__ == "__main__":
         #     dG_complex_conversion_error ** 2 + dG_complex_decouple_error ** 2 + dG_solvent_conversion_error ** 2 +
         #     dG_solvent_decouple_error ** 2)
 
-        dG_err = np.sqrt(
-            dG_complex_conversion_error ** 2 + dG_solvent_conversion_error ** 2)
+        # dG_err = np.sqrt(
+        #     dG_complex_conversion_error ** 2 + dG_solvent_conversion_error ** 2)
 
-        return rabfe_result.dG_bind, dG_err
+        return rabfe_result.dG_bind#, dG_err
 
 
     for epoch in range(10):
