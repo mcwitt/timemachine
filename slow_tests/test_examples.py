@@ -1,7 +1,16 @@
 import os
 from pathlib import Path
 import timemachine
+from rdkit import Chem
+import io
+from contextlib import redirect_stdout
+from fe.free_energy_rabfe import RABFEResult
+import numpy as np
+np.random.seed(0)
 
+# TODO: running the example generates a lot of files in the working directory
+#   and preparing to run the example generates a file in the slow_tests/ directory
+#   --> use tempfiles / directories!
 
 def render_command_line_arguments(cmd_arg_dict):
     """ "--{key}={value}" for each key-value pair in dictionary"""
@@ -50,6 +59,33 @@ def test_validate_relative_binding():
     assert exit_status == 0
 
 
+def make_cache_log(ligand_sdf, name_property="_Name"):
+
+
+    root = Path(timemachine.__file__).parent.parent
+    path_to_tests = root.joinpath('slow_tests')
+    cache_log = str(path_to_tests.joinpath('random_cache_log_for_testing.txt').resolve())
+
+    suppl = Chem.SDMolSupplier(ligand_sdf, removeHs=False)
+    mols = [x for x in suppl]
+
+    rabfe_results = []
+    for mol in mols:
+        mol_name = mol.GetProp(name_property)
+        rabfe_results.append(RABFEResult(mol_name, *np.random.randn(4)))
+
+    f = io.StringIO()
+    with redirect_stdout(f):
+        for result in rabfe_results:
+            result.log()
+    log = f.getvalue()
+
+    print(f'saving to {cache_log}...')
+    with open(cache_log, 'w') as f:
+        f.write(log)
+
+    return cache_log
+
 
 def test_train_relative_binding():
     script_name = "examples/train_relative_binding.py"
@@ -67,6 +103,8 @@ def test_train_relative_binding():
 
     blocker_name = "338"  # arbitrary choice
 
+    cache_log = make_cache_log(ligand_sdf)
+
     params = dict(
         property_field='"IC50[uM](SPA)"',
         property_units='"uM"',
@@ -81,6 +119,7 @@ def test_train_relative_binding():
         blocker_name=blocker_name,
         protein_pdb=protein_pdb,
         ligand_sdf=ligand_sdf,
+        cache_log=cache_log,
         num_replicates=1,
     )
 
