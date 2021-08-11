@@ -48,10 +48,8 @@ from optimize.step import truncated_step
 from jax import value_and_grad
 from pickle import dump
 
-def load_cache(mol, mol_ref):
-    # log_line = ... load appropriate (mol, mol_ref) line from log
-    #return RABFEResult.from_log(log_line)
-    raise NotImplementedError
+
+
 
 
 @dataclass
@@ -105,12 +103,12 @@ if __name__ == "__main__":
         required=True
     )
 
-    parser.add_argument(
-        "--num_complex_windows",
-        type=int,
-        help="number of vacuum lambda windows",
-        required=True
-    )
+    # parser.add_argument(
+    #     "--num_complex_windows",
+    #     type=int,
+    #     help="number of vacuum lambda windows",
+    #     required=True
+    # )
 
     parser.add_argument(
         "--num_solvent_conv_windows",
@@ -119,12 +117,12 @@ if __name__ == "__main__":
         required=True
     )
 
-    parser.add_argument(
-        "--num_solvent_windows",
-        type=int,
-        help="number of solvent lambda windows",
-        required=True
-    )
+    # parser.add_argument(
+    #     "--num_solvent_windows",
+    #     type=int,
+    #     help="number of solvent lambda windows",
+    #     required=True
+    # )
 
     parser.add_argument(
         "--num_complex_equil_steps",
@@ -191,6 +189,24 @@ if __name__ == "__main__":
 
     cmd_args = parser.parse_args()
 
+
+    def get_name(mol):
+        return mol.GetProp("_Name")
+
+    def form_cache(cache_log):
+
+        with open(cache_log, 'r') as f:
+            log_lines = f.readlines()
+
+        rabfe_results = list(map(RABFEResult.from_log, log_lines))
+        cache = dict(*[(r.mol_name, r) for r in rabfe_results])
+        return cache
+
+    CACHED_RESULTS = form_cache(cmd_args.cache_log)
+
+    def load_from_cache(mol):
+        return CACHED_RESULTS[get_name(mol)]
+
     print("cmd_args", cmd_args)
 
     if not cmd_args.hosts:
@@ -229,14 +245,14 @@ if __name__ == "__main__":
     blocker_mol = None
 
     for mol in mols:
-        if mol.GetProp("_Name") == cmd_args.blocker_name:
+        if get_name(mol) == cmd_args.blocker_name:
             # we should only have one copy.
             assert blocker_mol is None
             blocker_mol = mol
 
     assert blocker_mol is not None
 
-    print("Reference Molecule:", blocker_mol.GetProp("_Name"), Chem.MolToSmiles(blocker_mol))
+    print("Reference Molecule:", get_name(blocker_mol), Chem.MolToSmiles(blocker_mol))
 
     temperature = 300.0
     pressure = 1.0
@@ -357,7 +373,7 @@ if __name__ == "__main__":
         complex_host_coords = complex_ref_x0[:num_complex_atoms]
         complex_box0 = complex_ref_box0
 
-        mol_name = mol.GetProp("_Name")
+        mol_name = get_name(mol)
 
         # compute the free energy of conversion in complex
         complex_conversion_x0 = minimizer.minimize_host_4d([mol], complex_system, complex_host_coords, forcefield,
@@ -404,7 +420,7 @@ if __name__ == "__main__":
         #     prefix='solvent_decouple_' + mol_name + "_" + str(epoch),
         # )
 
-        cached_result = load_cache(mol, mol_ref)
+        cached_result = load_from_cache(mol)
 
         rabfe_result = RABFEResult(
             mol_name=mol_name,
@@ -478,8 +494,9 @@ if __name__ == "__main__":
         # dataset.shuffle()
         for mol in dataset.data:
             label_dG = label_dG_fn(mol)
+            mol_name = get_name(mol)
 
-            print("processing mol", mol.GetProp("_Name"), "with binding dG", label_dG, "SMILES",
+            print("processing mol", mol_name, "with binding dG", label_dG, "SMILES",
                   Chem.MolToSmiles(
                 mol))
 
@@ -490,5 +507,5 @@ if __name__ == "__main__":
 
             raw_pred_dG = pred_traj[-1][-1].dG_bind
             pred_dG = unflatten(x_next)[1].predict(raw_pred_dG)
-            print("epoch", epoch, "mol", mol.GetProp("_Name"), "raw pred", pred_dG, "linear-transformed pred", pred_dG,
+            print("epoch", epoch, "mol", mol_name, "raw pred", pred_dG, "linear-transformed pred", pred_dG,
                   "label", label_dG)
