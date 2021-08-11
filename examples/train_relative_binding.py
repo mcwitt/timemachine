@@ -41,11 +41,26 @@ from timemachine.potentials import rmsd
 from md import builders, minimizer
 from rdkit.Chem import rdFMCS
 from fe.atom_mapping import CompareDistNonterminal
+from optimize.utils import flatten_and_unflatten
+from dataclasses import dataclass
+from fe.loss import l1_loss
+from optimize.step import truncated_step
+from jax import value_and_grad
+from pickle import dump
 
 def load_cache(mol, mol_ref):
     # log_line = ... load appropriate (mol, mol_ref) line from log
     #return RABFEResult.from_log(log_line)
     raise NotImplementedError
+
+
+@dataclass
+class Linear:
+    slope: float = 1.0
+    intercept: float = 0.0
+
+    def predict(self, x):
+        return self.slope * x + self.intercept
 
 
 if __name__ == "__main__":
@@ -311,6 +326,7 @@ if __name__ == "__main__":
     mcs_params.AtomTyper = CompareDistNonterminal()
     mcs_params.BondTyper = rdFMCS.BondCompare.CompareAny
 
+    pred_traj = []
 
     def pred_fn(params, mol, mol_ref):
 
@@ -399,6 +415,8 @@ if __name__ == "__main__":
         )
         rabfe_result.log()
 
+        pred_traj.append((mol_name, rabfe_result))
+
         # dG_err = np.sqrt(
         #     dG_complex_conversion_error ** 2 + dG_complex_decouple_error ** 2 + dG_solvent_conversion_error ** 2 +
         #     dG_solvent_decouple_error ** 2)
@@ -408,21 +426,69 @@ if __name__ == "__main__":
 
         return rabfe_result.dG_bind#, dG_err
 
+    # optimize force field parameters and linear transform at once
+    initial_line = Linear()
+    all_params = (ordered_params, initial_line)
+    flatten, unflatten = flatten_and_unflatten(all_params)
+
+
+    def label_dG_fn(mol):
+        concentration = float(mol.GetProp(cmd_args.property_field))
+
+        if cmd_args.property_units == 'uM':
+            label_dG = convert_uM_to_kJ_per_mole(concentration)
+        elif cmd_args.property_units == 'nM':
+            label_dG = convert_uM_to_kJ_per_mole(concentration / 1000)
+        else:
+            assert 0, "Unknown property units"
+        return label_dG
+
+
+    def residual_fn(flat_params, mol):
+        ordered_params, linear_transform = unflatten(flat_params)
+
+        raw_pred_dG = pred_fn(ordered_params, mol, blocker_mol)
+        pred_dG = linear_transform.predict(raw_pred_dG)
+
+        label_dG = label_dG_fn(mol)
+
+        return pred_dG - label_dG
+
+
+    def loss_fn(flat_params, mol):
+        return l1_loss(residual_fn(flat_params, mol))
+
+
+    def dump_results(results_path='result.pickle'):
+        """default: same directory as equil.pickle"""
+        results = dict(
+            pred_traj=pred_traj,
+            param_traj=flat_param_traj,
+            flatten=flatten,
+            unflatten=unflatten,
+        )
+        with open(results_path, 'wb') as f:
+            dump(results, f)
+
+
+    flat_param_traj = [flatten(all_params)]
 
     for epoch in range(10):
         epoch_params = serialize_handlers(ordered_handles)
         # dataset.shuffle()
         for mol in dataset.data:
-            concentration = float(mol.GetProp(cmd_args.property_field))
+            label_dG = label_dG_fn(mol)
 
-            if cmd_args.property_units == 'uM':
-                label_dG = convert_uM_to_kJ_per_mole(concentration)
-            elif cmd_args.property_units == 'nM':
-                label_dG = convert_uM_to_kJ_per_mole(concentration / 1000)
-            else:
-                assert 0, "Unknown property units"
+            print("processing mol", mol.GetProp("_Name"), "with binding dG", label_dG, "SMILES",
+                  Chem.MolToSmiles(
+                mol))
 
-            print("processing mol", mol.GetProp("_Name"), "with binding dG", label_dG, "SMILES", Chem.MolToSmiles(mol))
+            x = flat_param_traj[-1]
+            l, g = value_and_grad(loss_fn)(x, mol)
+            x_next = truncated_step(x, l, g)
+            flat_param_traj.append(x_next)
 
-            pred_dG = pred_fn(ordered_params, mol, blocker_mol)
-            print("epoch", epoch, "mol", mol.GetProp("_Name"), "pred", pred_dG, "label", label_dG)
+            raw_pred_dG = pred_traj[-1][-1].dG_bind
+            pred_dG = unflatten(x_next)[1].predict(raw_pred_dG)
+            print("epoch", epoch, "mol", mol.GetProp("_Name"), "raw pred", pred_dG, "linear-transformed pred", pred_dG,
+                  "label", label_dG)
