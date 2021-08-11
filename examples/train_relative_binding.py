@@ -199,9 +199,9 @@ if __name__ == "__main__":
 
     dataset = Dataset(mols)
 
-    # construct lambda schedules for complex and solvent
-    complex_absolute_schedule = construct_absolute_lambda_schedule_complex(cmd_args.num_complex_windows)
-    solvent_absolute_schedule = construct_absolute_lambda_schedule_solvent(cmd_args.num_solvent_windows)
+    ## construct lambda schedules for complex and solvent
+    #complex_absolute_schedule = construct_absolute_lambda_schedule_complex(cmd_args.num_complex_windows)
+    #solvent_absolute_schedule = construct_absolute_lambda_schedule_solvent(cmd_args.num_solvent_windows)
 
     # build the protein system.
     complex_system, complex_coords, _, _, complex_box, complex_topology = builders.build_protein_system(
