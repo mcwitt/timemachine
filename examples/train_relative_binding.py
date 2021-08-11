@@ -337,7 +337,7 @@ if __name__ == "__main__":
 
         aligned_mol_coords = rmsd.apply_rotation_and_translation(mol_coords, R, t)
 
-        ref_coords = complex_ref_x0[num_complex_atoms:]
+        #ref_coords = complex_ref_x0[num_complex_atoms:]
         complex_host_coords = complex_ref_x0[:num_complex_atoms]
         complex_box0 = complex_ref_box0
 
