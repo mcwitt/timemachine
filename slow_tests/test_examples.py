@@ -41,6 +41,7 @@ def test_validate_relative_binding():
         blocker_name=blocker_name,
         protein_pdb=protein_pdb,
         ligand_sdf=ligand_sdf,
+        num_replicates=1,
     )
 
     cmd_line_args = render_command_line_arguments(params)

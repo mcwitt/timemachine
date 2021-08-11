@@ -155,6 +155,13 @@ if __name__ == "__main__":
         required=True
     )
 
+    parser.add_argument(
+        "--num_replicates",
+        type=int,
+        help="Number of times to re-run each calculation",
+        default=10,
+    )
+
     cmd_args = parser.parse_args()
 
     print("cmd_args", cmd_args)
@@ -380,7 +387,7 @@ if __name__ == "__main__":
         return rabfe_result.dG_bind, dG_err
 
 
-    for epoch in range(10):
+    for epoch in range(cmd_args.num_replicates):
         epoch_params = serialize_handlers(ordered_handles)
         # dataset.shuffle()
         for mol in dataset.data:
