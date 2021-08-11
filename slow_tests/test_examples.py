@@ -120,7 +120,7 @@ def test_train_relative_binding():
         protein_pdb=protein_pdb,
         ligand_sdf=ligand_sdf,
         cache_log=cache_log,
-        num_replicates=1,
+        num_epochs=1,
     )
 
     cmd_line_args = render_command_line_arguments(params)

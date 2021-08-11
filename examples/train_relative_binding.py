@@ -187,6 +187,13 @@ if __name__ == "__main__":
         required=True
     )
 
+    parser.add_argument(
+        "--num_epochs",
+        type=int,
+        help="Number of times to pass over the ligand dataset",
+        default=10,
+    )
+
     cmd_args = parser.parse_args()
 
 
