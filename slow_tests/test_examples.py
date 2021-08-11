@@ -11,7 +11,7 @@ def render_command_line_arguments(cmd_arg_dict):
 
 def test_validate_relative_binding():
     script_name = "examples/validate_relative_binding.py"
-    n_windows = 20
+    n_windows = 50
     n_steps = 100
     n_gpus = 2
 
@@ -19,6 +19,8 @@ def test_validate_relative_binding():
     path_to_hif2a = root.joinpath('datasets/fep-benchmark/hif2a')
 
     protein_pdb = str(path_to_hif2a.joinpath('5tbm_prepared.pdb').resolve())
+
+    # TODO: use just 1 or 2 of these, rather than the whole file
     ligand_sdf = str(path_to_hif2a.joinpath('ligands.sdf').resolve())
 
     blocker_name = "338"  # arbitrary choice
@@ -41,7 +43,7 @@ def test_validate_relative_binding():
         ligand_sdf=ligand_sdf,
     )
 
-
     cmd_line_args = render_command_line_arguments(params)
     cmd = f"python {script_name} {cmd_line_args}"
-    os.system(cmd)
+    exit_status = os.system(cmd)
+    assert exit_status == 0
