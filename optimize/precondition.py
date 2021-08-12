@@ -21,7 +21,7 @@ def learning_rates_like_params(
     for handle, params in zip(ordered_handles, ordered_params):
         lr_row = learning_rates[handle.__class__]
         lr_array = np.array([lr_row] * len(params))
-        assert lr_array.shape == params.shape
+        assert lr_array.shape == params.shape, f"{lr_array.shape}, {params.shape}"
         ordered_learning_rates.append(lr_array)
 
     return ordered_learning_rates
