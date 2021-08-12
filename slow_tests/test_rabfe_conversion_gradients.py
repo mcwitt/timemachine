@@ -53,7 +53,7 @@ class SolventConversion():
     def __init__(self, mol, mol_ref,
                  temperature=300, pressure=1.0, dt=2.5*1e-3,
                  num_equil_steps=100, num_prod_steps=1001,
-                 num_windows=10, client=CUDAPoolClient(1),
+                 num_windows=4, client=CUDAPoolClient(2),
                  initial_forcefield=default_forcefield):
 
         self.mol = mol
@@ -105,7 +105,7 @@ class SolventConversion():
 
         return dG_solvent_conversion
 
-def test_rabfe_conversion_trainable(n_steps=100):
+def test_rabfe_conversion_trainable(n_steps=10):
     """test that the loss goes down"""
 
     ligand_sdf = str(path_to_hif2a.joinpath('ligands.sdf').resolve())
