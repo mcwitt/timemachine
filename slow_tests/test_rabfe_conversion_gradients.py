@@ -76,42 +76,6 @@ class SolventConversion():
             self.num_equil_steps,
             self.num_prod_steps
         )
-        self.initialize_restraints()
-
-    def initialize_restraints(self):
-        mcs_params = rdFMCS.MCSParameters()
-        mcs_params.AtomTyper = CompareDistNonterminal()
-        mcs_params.BondTyper = rdFMCS.BondCompare.CompareAny
-        self.mcs_params = mcs_params
-
-        result = rdFMCS.FindMCS(
-            [self.mol, self.mol_ref],
-            self.mcs_params
-        )
-
-        core_smarts = result.smartsString
-
-        print("core_smarts", core_smarts)
-
-        # generate the core_idxs
-        core_idxs = setup_relative_restraints_using_smarts(self.mol, self.mol_ref, core_smarts)
-        mol_coords = get_romol_conf(self.mol)  # original coords
-
-        x_mol = get_romol_conf(self.mol)
-        x_mol_ref = get_romol_conf(self.mol_ref)
-
-        # Use core_idxs to generate
-        R, t = rmsd.get_optimal_rotation_and_translation(
-            x1=x_mol_ref[core_idxs[:, 1]],  # reference core atoms
-            x2=x_mol[core_idxs[:, 0]],  # mol core atoms
-        )
-
-        aligned_mol_coords = rmsd.apply_rotation_and_translation(mol_coords, R, t)
-
-        raise NotImplementedError
-
-
-
 
     def predict(self, flat_params):
         ordered_params = self.unflatten(flat_params)
