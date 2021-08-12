@@ -81,7 +81,7 @@ class SolventConversion():
             self.num_prod_steps
         )
 
-        self.flatten, self.unflatten = flatten_and_unflatten(self.initial_forcefield)
+        self.flatten, self.unflatten = flatten_and_unflatten(self.initial_forcefield.get_ordered_params())
 
     def predict(self, flat_params):
         ordered_params = self.unflatten(flat_params)
