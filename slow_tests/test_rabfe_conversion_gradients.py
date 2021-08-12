@@ -26,11 +26,17 @@ with open('ff/params/smirnoff_1_1_0_ccc.py') as f:
     ff_handlers = deserialize_handlers(f.read())
 
 default_forcefield = Forcefield(ff_handlers)
+
+ordered_handles = default_forcefield.get_ordered_handles()
+ordered_params = default_forcefield.get_ordered_params()
+ordered_learning_rates = learning_rates_like_params(ordered_handles, ordered_params)
+
 import timemachine
 from pathlib import Path
 
 root = Path(timemachine.__file__).parent.parent
 path_to_hif2a = root.joinpath('datasets/fep-benchmark/hif2a')
+ligand_sdf = str(path_to_hif2a.joinpath('ligands.sdf').resolve())
 
 def get_ligands(ligand_sdf):
     print(f'loading ligands from {ligand_sdf}')
@@ -88,18 +94,12 @@ class SolventConversion():
 
         return dG_solvent_conversion
 
-def test_rabfe_conversion_trainable(n_steps=10):
+def test_rabfe_solvent_conversion_trainable(n_steps=10):
     """test that the loss goes down"""
-
-    ligand_sdf = str(path_to_hif2a.joinpath('ligands.sdf').resolve())
     mols = get_ligands(ligand_sdf)
     mol, mol_ref = mols[:2]
 
     solvent_conversion = SolventConversion(mol, mol_ref)
-
-    ordered_handles = default_forcefield.get_ordered_handles()
-    ordered_params = default_forcefield.get_ordered_params()
-    ordered_learning_rates = learning_rates_like_params(ordered_handles, ordered_params)
 
     initial_flat_params = solvent_conversion.flatten(ordered_params)
     learning_rates = solvent_conversion.flatten(ordered_learning_rates)
