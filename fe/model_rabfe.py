@@ -56,6 +56,7 @@ class AbsoluteModel(ABC):
         x0,
         box0,
         prefix,
+        seed=None,
         ):
         """ Compute the absolute free of energy of decoupling mol_a.
 
@@ -79,6 +80,9 @@ class AbsoluteModel(ABC):
         prefix: str
             String to prepend to print out statements
 
+        seed: optional int
+            If None, use seed=0
+
         Returns
         -------
         float
@@ -101,7 +105,7 @@ class AbsoluteModel(ABC):
             self.host_system
         )
 
-        seed = 0
+        seed = 0 if (seed is None) else seed
 
         beta = 1/(constants.BOLTZ*self.temperature)
 
