@@ -108,6 +108,7 @@ def test_rabfe_conversion_trainable(n_steps=100):
     """test that the loss goes down"""
 
     ligand_sdf = str(path_to_hif2a.joinpath('ligands.sdf').resolve())
+    print(f'loading ligands from {ligand_sdf}')
     mols = get_ligands(ligand_sdf)
     mol, mol_ref = mols[:2]
 
