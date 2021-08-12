@@ -119,16 +119,12 @@ def test_rabfe_conversion_trainable(n_steps=10):
         residual = solvent_conversion.predict(params) - label
         return l1_loss(residual)
 
-    from optimize.step import _clipped_update
     def step(x, v, g):
         raw_search_direction = - g
         search_direction = raw_search_direction * learning_rates
 
         x_increment = truncated_step(x, v, g, search_direction=search_direction)
         x_next = x + x_increment
-
-        okay_mask = 1 * (x_increment != 0) - 1 * (learning_rates != 0) >= 0
-        assert okay_mask.all()
 
         return x_next
 
