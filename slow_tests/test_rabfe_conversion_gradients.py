@@ -115,13 +115,13 @@ def test_rabfe_conversion_trainable(n_steps=10):
 
     solvent_conversion = SolventConversion(mol, mol_ref)
 
-    initial_ordered_params = default_forcefield.get_ordered_params()
-    initial_params = solvent_conversion.flatten(initial_ordered_params)
+    ordered_handles = default_forcefield.get_ordered_handles()
+    ordered_params = default_forcefield.get_ordered_params()
 
-    ordered_learning_rates = learning_rates_like_params(initial_ordered_params)
+    ordered_learning_rates = learning_rates_like_params(ordered_handles, ordered_params)
     learning_rates = solvent_conversion.flatten(ordered_learning_rates)
 
-    initial_prediction = solvent_conversion.predict(initial_params)
+    initial_prediction = solvent_conversion.predict(ordered_params)
 
     label = initial_prediction - 100
 
@@ -137,7 +137,7 @@ def test_rabfe_conversion_trainable(n_steps=10):
 
         return x_next
 
-    param_traj = [initial_params]
+    param_traj = [ordered_params]
     loss_traj = [l1_loss(initial_prediction - label)]
     print(f'initial loss: {loss_traj[-1]:.3f}')
 
