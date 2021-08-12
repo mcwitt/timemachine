@@ -48,28 +48,21 @@ class SolventConversion():
 
         self.mol = mol
         self.mol_ref = mol_ref
-        self.temperature = temperature
-        self.pressure = pressure
-        self.dt = dt
-        self.num_equil_steps = num_equil_steps
-        self.num_prod_steps = num_prod_steps
         self.schedule = construct_conversion_lambda_schedule(num_windows)
-        self.client = client
         self.initial_forcefield = initial_forcefield
         self.solvent_system, self.solvent_coords, self.solvent_box, self.solvent_topology = builders.build_water_system(
             4.0)
-
         self.conversion_model = model_rabfe.AbsoluteConversionModel(
-            self.client,
+            client,
             self.initial_forcefield,
             self.solvent_system,
             self.schedule,
             self.solvent_topology,
-            self.temperature,
-            self.pressure,
-            self.dt,
-            self.num_equil_steps,
-            self.num_prod_steps
+            temperature,
+            pressure,
+            dt,
+            num_equil_steps,
+            num_prod_steps
         )
 
         self.flatten, self.unflatten = flatten_and_unflatten(self.initial_forcefield.get_ordered_params())
