@@ -98,6 +98,7 @@ class SolventConversion():
 def test_rabfe_conversion_trainable(n_steps=10):
     """test that the loss goes down"""
 
+
     ligand_sdf = str(path_to_hif2a.joinpath('ligands.sdf').resolve())
     mols = get_ligands(ligand_sdf)
     mol, mol_ref = mols[:2]
@@ -143,10 +144,9 @@ def test_rabfe_conversion_trainable(n_steps=10):
 
         flat_param_traj.append(x_next)
         loss_traj.append(v)
-    
-    print(loss_traj)
 
-    window_size = 5
-    assert window_size * 2 < n_steps
+    window_size = min(5, n_steps // 2)
+    before = np.median(loss_traj[:window_size])
+    after = np.median(loss_traj[-window_size:])
 
-    assert loss_traj[-window_size:] < loss_traj[:window_size]
+    assert after < before, f"before: {before:.3f}, after: {after:.3f}"
