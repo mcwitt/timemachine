@@ -27,6 +27,10 @@ from md import builders, minimizer
 from rdkit.Chem import rdFMCS
 from fe.atom_mapping import CompareDistNonterminal
 from fe.utils import get_romol_conf
+from fe.loss import l1_loss
+from optimize.step import truncated_step
+from optimize.utils import flatten_and_unflatten
+from jax import value_and_grad
 
 with open('ff/params/smirnoff_1_1_0_ccc.py') as f:
     ff_handlers = deserialize_handlers(f.read())
@@ -77,39 +81,61 @@ class SolventConversion():
             self.num_prod_steps
         )
 
+        self.flatten, self.unflatten = flatten_and_unflatten(self.initial_forcefield)
+
     def predict(self, flat_params):
         ordered_params = self.unflatten(flat_params)
-
-        raise NotImplementedError
-
+        mol_coords = get_ligands(self.mol)
 
         # solvent
-        min_solvent_coords = minimizer.minimize_host_4d([mol], solvent_system, solvent_coords, forcefield, solvent_box)
+        # TODO: double-check if this should use initial forcefield, or if I need to reconstruct a params-dependent
+        #  forcefield and pass it here...
+        min_solvent_coords = minimizer.minimize_host_4d([self.mol], self.solvent_system, self.solvent_coords,
+                                                        self.initial_forcefield, self.solvent_box)
         solvent_x0 = np.concatenate([min_solvent_coords, mol_coords])
-        solvent_box0 = solvent_box
-        dG_solvent_conversion, dG_solvent_conversion_error = binding_model_solvent_conversion.predict(
+        solvent_box0 = self.solvent_box
+        dG_solvent_conversion, dG_solvent_conversion_error = self.conversion_model.predict(
             ordered_params,
-            mol,
+            self.mol,
             solvent_x0,
             solvent_box0,
-            prefix='solvent_conversion_' + mol_name + "_" + str(epoch)
+            prefix='solvent_conversion_test'
         )
 
         return dG_solvent_conversion
 
-def test_rabfe_conversion_trainable():
-    """does not test for correctness, just that unconverged simulations"""
+def test_rabfe_conversion_trainable(n_steps=100):
+    """test that the loss goes down"""
 
     ligand_sdf = str(path_to_hif2a.joinpath('ligands.sdf').resolve())
     mols = get_ligands(ligand_sdf)
     mol, mol_ref = mols[:2]
 
+    solvent_conversion = SolventConversion(mol, mol_ref)
 
-    solvent_conversion = SolventConversion(mol, mol_ref, solvent_system, solvent_topology)
+    initial_params = solvent_conversion.flatten(default_forcefield.get_ordered_params())
+    initial_prediction = solvent_conversion.predict(initial_params)
 
-    flat_params = solvent_conversion.flatten(default_forcefield.get_ordered_params())
+    label = initial_prediction - 100
 
-    initial_prediction = solvent_conversion.predict()
+    def loss(params):
+        residual = solvent_conversion.predict(params) - label
+        return l1_loss(residual)
 
+    param_traj = [initial_params]
+    loss_traj = [l1_loss(initial_prediction - label)]
 
-    raise NotImplementedError
+    for _ in range(n_steps):
+        x = param_traj[-1]
+        v, g = value_and_grad(loss)(x)
+        x_next = truncated_step(x, v, g)
+
+        param_traj.append(x_next)
+        loss_traj.append(v)
+    
+    print(loss_traj)
+
+    window_size = 5
+    assert window_size * 2 < n_steps
+
+    assert loss_traj[-window_size:] < loss_traj[:window_size]
