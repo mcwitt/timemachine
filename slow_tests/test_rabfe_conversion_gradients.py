@@ -86,7 +86,7 @@ class SolventConversion():
 
     def predict(self, flat_params):
         ordered_params = self.unflatten(flat_params)
-        mol_coords = get_ligands(self.mol)
+        mol_coords = get_romol_conf(self.mol)
 
         # solvent
         # TODO: double-check if this should use initial forcefield, or if I need to reconstruct a params-dependent
