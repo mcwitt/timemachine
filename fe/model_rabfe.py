@@ -56,7 +56,7 @@ class AbsoluteModel(ABC):
         x0,
         box0,
         prefix,
-        core_idxs=None):
+        ):
         """ Compute the absolute free of energy of decoupling mol_a.
 
         This function is differentiable w.r.t. ff_params.
@@ -78,9 +78,6 @@ class AbsoluteModel(ABC):
 
         prefix: str
             String to prepend to print out statements
-
-        core_idxs: None or list of int
-            List of core_idxs we may wish to turn off.
 
         Returns
         -------
