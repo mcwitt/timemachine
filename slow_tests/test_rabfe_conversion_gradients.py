@@ -29,6 +29,7 @@ from fe.atom_mapping import CompareDistNonterminal
 from fe.utils import get_romol_conf
 from fe.loss import l1_loss
 from optimize.step import truncated_step
+from optimize.precondition import learning_rates_like_params
 from optimize.utils import flatten_and_unflatten
 from jax import value_and_grad
 
@@ -114,7 +115,12 @@ def test_rabfe_conversion_trainable(n_steps=10):
 
     solvent_conversion = SolventConversion(mol, mol_ref)
 
-    initial_params = solvent_conversion.flatten(default_forcefield.get_ordered_params())
+    initial_ordered_params = default_forcefield.get_ordered_params()
+    initial_params = solvent_conversion.flatten(initial_ordered_params)
+
+    ordered_learning_rates = learning_rates_like_params(initial_ordered_params)
+    learning_rates = solvent_conversion.flatten(ordered_learning_rates)
+
     initial_prediction = solvent_conversion.predict(initial_params)
 
     label = initial_prediction - 100
@@ -123,6 +129,14 @@ def test_rabfe_conversion_trainable(n_steps=10):
         residual = solvent_conversion.predict(params) - label
         return l1_loss(residual)
 
+    def step(x, v, g):
+        raw_search_direction = - g
+        preconditioned_search_direction = raw_search_direction * learning_rates
+
+        x_next = truncated_step(x, v, g, search_direction=preconditioned_search_direction)
+
+        return x_next
+
     param_traj = [initial_params]
     loss_traj = [l1_loss(initial_prediction - label)]
     print(f'initial loss: {loss_traj[-1]:.3f}')
@@ -130,7 +144,7 @@ def test_rabfe_conversion_trainable(n_steps=10):
     for t in range(n_steps):
         x = param_traj[-1]
         v, g = value_and_grad(loss)(x)
-        x_next = truncated_step(x, v, g)
+        x_next = step(x, v, g)
 
         print(f'epoch {t}: loss = {v:.3f}, gradient norm = {np.linalg.norm(g):.3f}')
 
