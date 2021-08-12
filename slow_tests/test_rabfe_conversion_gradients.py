@@ -125,6 +125,9 @@ def test_rabfe_conversion_trainable(n_steps=10):
 
         x_next = truncated_step(x, v, g, search_direction=preconditioned_search_direction)
 
+        difference = x_next - x
+        assert ((difference != 0) - (learning_rates != 0) >= 0).all()
+
         return x_next
 
     flat_param_traj = [initial_flat_params]
