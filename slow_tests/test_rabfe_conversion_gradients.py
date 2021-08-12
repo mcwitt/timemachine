@@ -78,11 +78,11 @@ class SolventConversion():
         ordered_params = self.unflatten(flat_params)
         mol_coords = get_romol_conf(self.mol)
 
-        # solvent
-        # TODO: double-check if this should use initial forcefield, or if I need to reconstruct a params-dependent
-        #  forcefield and pass it here...
+        # TODO: double-check if this should use initial forcefield, or if I need
+        #  to reconstruct a params-dependent forcefield and pass it here...
+        forcefield_for_minimization = self.initial_forcefield
         min_solvent_coords = minimizer.minimize_host_4d([self.mol], self.solvent_system, self.solvent_coords,
-                                                        self.initial_forcefield, self.solvent_box)
+                                                        forcefield_for_minimization, self.solvent_box)
         solvent_x0 = np.concatenate([min_solvent_coords, mol_coords])
         solvent_box0 = self.solvent_box
         dG_solvent_conversion, dG_solvent_conversion_error = self.conversion_model.predict(
