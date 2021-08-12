@@ -120,12 +120,14 @@ def test_rabfe_conversion_trainable(n_steps=10):
         return l1_loss(residual)
 
     from optimize.step import _clipped_update
-    clip_threshold = 0.001
     def step(x, v, g):
-        x_next = _clipped_update(g, learning_rates, clip_threshold)
+        raw_search_direction = - g
+        search_direction = raw_search_direction * learning_rates
 
-        difference = x_next - x
-        okay_mask = 1 * (difference != 0) - 1 * (learning_rates != 0) >= 0
+        x_increment = truncated_step(x, v, g, search_direction=search_direction)
+        x_next = x + x_increment
+
+        okay_mask = 1 * (x_increment != 0) - 1 * (learning_rates != 0) >= 0
         assert okay_mask.all()
 
         return x_next
