@@ -2,30 +2,19 @@
 # a desired value
 
 
-import os
-import pickle
-import argparse
 import numpy as np
 
-from fe.free_energy_rabfe import construct_absolute_lambda_schedule_complex, construct_absolute_lambda_schedule_solvent, construct_conversion_lambda_schedule, get_romol_conf, setup_relative_restraints_using_smarts
-from fe.utils import convert_uM_to_kJ_per_mole
+from fe.free_energy_rabfe import  construct_conversion_lambda_schedule
 from fe import model_rabfe
-from fe.free_energy_rabfe import RABFEResult
 
 from ff import Forcefield
 from ff.handlers.deserialize import deserialize_handlers
 from ff.handlers.serialize import serialize_handlers
-from parallel.client import CUDAPoolClient, GRPCClient
-from parallel.utils import get_gpu_count
+from parallel.client import CUDAPoolClient
 
-import multiprocessing
-from training.dataset import Dataset
 from rdkit import Chem
 
-from timemachine.potentials import rmsd
 from md import builders, minimizer
-from rdkit.Chem import rdFMCS
-from fe.atom_mapping import CompareDistNonterminal
 from fe.utils import get_romol_conf
 from fe.loss import l1_loss
 from optimize.step import truncated_step
@@ -53,7 +42,7 @@ def get_ligands(ligand_sdf):
 class SolventConversion():
     def __init__(self, mol, mol_ref,
                  temperature=300, pressure=1.0, dt=2.5*1e-3,
-                 num_equil_steps=100, num_prod_steps=1001,
+                 num_equil_steps=100, num_prod_steps=10001,
                  num_windows=4, client=CUDAPoolClient(2),
                  initial_forcefield=default_forcefield):
 
