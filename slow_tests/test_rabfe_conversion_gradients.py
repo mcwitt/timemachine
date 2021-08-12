@@ -52,7 +52,7 @@ def get_ligands(ligand_sdf):
 class SolventConversion():
     def __init__(self, mol, mol_ref,
                  temperature=300, pressure=1.0, dt=2.5*1e-3,
-                 num_equil_steps=100, num_prod_steps=1000,
+                 num_equil_steps=100, num_prod_steps=1001,
                  num_windows=10, client=CUDAPoolClient(1),
                  initial_forcefield=default_forcefield):
 
@@ -125,11 +125,14 @@ def test_rabfe_conversion_trainable(n_steps=100):
 
     param_traj = [initial_params]
     loss_traj = [l1_loss(initial_prediction - label)]
+    print(f'initial loss: {loss_traj[-1]:.3f}')
 
-    for _ in range(n_steps):
+    for t in range(n_steps):
         x = param_traj[-1]
         v, g = value_and_grad(loss)(x)
         x_next = truncated_step(x, v, g)
+
+        print(f'epoch {t}: loss = {v:.3f}, gradient norm = {np.lingalg.norm(g):.3f}')
 
         param_traj.append(x_next)
         loss_traj.append(v)
