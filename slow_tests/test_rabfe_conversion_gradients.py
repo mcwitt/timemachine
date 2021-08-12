@@ -136,6 +136,8 @@ def test_rabfe_conversion_trainable(n_steps=10):
         v, g = value_and_grad(loss)(x)
         x_next = step(x, v, g)
 
+        print(x_next - x)
+
         print(f'epoch {t}: loss = {v:.3f}, gradient norm = {np.linalg.norm(g):.3f}')
 
         flat_param_traj.append(x_next)
