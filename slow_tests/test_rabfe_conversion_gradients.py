@@ -117,11 +117,12 @@ def test_rabfe_conversion_trainable(n_steps=10):
 
     ordered_handles = default_forcefield.get_ordered_handles()
     ordered_params = default_forcefield.get_ordered_params()
-
     ordered_learning_rates = learning_rates_like_params(ordered_handles, ordered_params)
+
+    initial_flat_params = solvent_conversion.flatten(ordered_params)
     learning_rates = solvent_conversion.flatten(ordered_learning_rates)
 
-    initial_prediction = solvent_conversion.predict(ordered_params)
+    initial_prediction = solvent_conversion.predict(initial_flat_params)
 
     label = initial_prediction - 100
 
@@ -137,18 +138,18 @@ def test_rabfe_conversion_trainable(n_steps=10):
 
         return x_next
 
-    param_traj = [ordered_params]
+    flat_param_traj = [initial_flat_params]
     loss_traj = [l1_loss(initial_prediction - label)]
     print(f'initial loss: {loss_traj[-1]:.3f}')
 
     for t in range(n_steps):
-        x = param_traj[-1]
+        x = flat_param_traj[-1]
         v, g = value_and_grad(loss)(x)
         x_next = step(x, v, g)
 
         print(f'epoch {t}: loss = {v:.3f}, gradient norm = {np.linalg.norm(g):.3f}')
 
-        param_traj.append(x_next)
+        flat_param_traj.append(x_next)
         loss_traj.append(v)
     
     print(loss_traj)
