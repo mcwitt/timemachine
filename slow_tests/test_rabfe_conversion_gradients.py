@@ -4,7 +4,7 @@
 
 import numpy as np
 
-from fe.free_energy_rabfe import  construct_conversion_lambda_schedule
+from fe.free_energy_rabfe import construct_conversion_lambda_schedule
 from fe import model_rabfe
 
 from ff import Forcefield
@@ -25,6 +25,8 @@ from fe.free_energy_rabfe import setup_relative_restraints_using_smarts
 from rdkit.Chem import rdFMCS
 from fe.atom_mapping import CompareDistNonterminal
 from timemachine.potentials import rmsd
+import os
+import pickle
 
 with open('ff/params/smirnoff_1_1_0_ccc.py') as f:
     ff_handlers = deserialize_handlers(f.read())
@@ -43,6 +45,7 @@ path_to_hif2a = root.joinpath('datasets/fep-benchmark/hif2a')
 ligand_sdf = str(path_to_hif2a.joinpath('ligands.sdf').resolve())
 protein_pdb = str(path_to_hif2a.joinpath('5tbm_prepared.pdb').resolve())
 
+
 def get_ligands(ligand_sdf):
     print(f'loading ligands from {ligand_sdf}')
     suppl = Chem.SDMolSupplier(ligand_sdf, removeHs=False)
@@ -52,11 +55,10 @@ def get_ligands(ligand_sdf):
 
 class SolventConversion():
     def __init__(self, mol, mol_ref,
-                 temperature=300, pressure=1.0, dt=2.5*1e-3,
+                 temperature=300, pressure=1.0, dt=2.5 * 1e-3,
                  num_equil_steps=100, num_prod_steps=1001,
                  num_windows=2, client=CUDAPoolClient(2),
                  initial_forcefield=default_forcefield):
-
         self.mol = mol
         self.mol_ref = mol_ref
         self.schedule = construct_conversion_lambda_schedule(num_windows)
@@ -101,7 +103,7 @@ class SolventConversion():
 
 class ComplexConversion():
     def __init__(self, mol, mol_ref, protein_pdb,
-                 temperature=300, pressure=1.0, dt=2.5*1e-3,
+                 temperature=300, pressure=1.0, dt=2.5 * 1e-3,
                  num_equil_steps=100, num_prod_steps=1001,
                  num_windows=2, client=CUDAPoolClient(2),
                  initial_forcefield=default_forcefield):
@@ -110,6 +112,8 @@ class ComplexConversion():
         self.mol_ref = mol_ref
         self.schedule = construct_conversion_lambda_schedule(num_windows)
         self.initial_forcefield = initial_forcefield
+        self.num_equil_steps = num_equil_steps
+        self.num_prod_steps = num_prod_steps
 
         self.complex_system, self.complex_coords, _, _, self.complex_box, self.complex_topology = \
             builders.build_protein_system(protein_pdb)
@@ -125,10 +129,31 @@ class ComplexConversion():
             num_equil_steps,
             num_prod_steps
         )
+        self.equilibrate()
         self.initialize_restraints()
 
         self.flatten, self.unflatten = flatten_and_unflatten(self.initial_forcefield.get_ordered_params())
 
+    def equilibrate(self):
+        print("Equilibrating reference molecule in the complex.")
+        # TODO: look elsewhere than "equil.pickle"
+        if not os.path.exists("equil.pickle"):
+            self.complex_ref_x0, self.complex_ref_box0 = minimizer.equilibrate_complex(
+                self.mol_ref,
+                self.complex_system,
+                self.complex_coords,
+                self.conversion_model.temperature,
+                self.conversion_model.pressure,
+                self.initial_forcefield,  # TODO: maybe needs to change
+                self.complex_box,
+                self.num_equil_steps
+            )
+            with open("equil.pickle", "wb") as ofs:
+                pickle.dump((self.complex_ref_x0, self.complex_ref_box0), ofs)
+        else:
+            print("Loading existing pickle from cache")
+            with open("equil.pickle", "rb") as ifs:
+                self.complex_ref_x0, self.complex_ref_box0 = pickle.load(ifs)
 
     def initialize_restraints(self):
         mcs_params = rdFMCS.MCSParameters()
@@ -149,34 +174,27 @@ class ComplexConversion():
         mol_coords = get_romol_conf(self.mol)  # original coords
 
         num_complex_atoms = self.complex_coords.shape[0]
-        raise NotImplementedError("not done copying complex_ref_x0, complex_ref_box0")
 
         # Use core_idxs to generate
         R, t = rmsd.get_optimal_rotation_and_translation(
-            x1=complex_ref_x0[num_complex_atoms:][core_idxs[:, 1]],  # reference core atoms
+            x1=self.complex_ref_x0[num_complex_atoms:][core_idxs[:, 1]],  # reference core atoms
             x2=mol_coords[core_idxs[:, 0]],  # mol core atoms
         )
 
-        aligned_mol_coords = rmsd.apply_rotation_and_translation(mol_coords, R, t)
+        self.aligned_mol_coords = rmsd.apply_rotation_and_translation(mol_coords, R, t)
 
-        ref_coords = complex_ref_x0[num_complex_atoms:]
-        complex_host_coords = complex_ref_x0[:num_complex_atoms]
-        complex_box0 = complex_ref_box0
-
-        mol_name = self.mol.GetProp("_Name")
+        self.ref_coords = self.complex_ref_x0[num_complex_atoms:]
+        self.complex_host_coords = self.complex_ref_x0[:num_complex_atoms]
 
     def predict(self, flat_params):
-        raise NotImplementedError("didn't copy the right part of examples/validate_relative_binding.py")
-
         ordered_params = self.unflatten(flat_params)
-        mol_coords = get_romol_conf(self.mol)
 
         # TODO: reconstruct a params-dependent forcefield and pass it here...
         forcefield_for_minimization = self.initial_forcefield
         complex_conversion_x0 = minimizer.minimize_host_4d([self.mol], self.complex_system, self.complex_host_coords,
                                                            forcefield_for_minimization,
-                                                           complex_box0, [aligned_mol_coords])
-        x0 = np.concatenate([complex_conversion_x0, aligned_mol_coords])
+                                                           self.complex_ref_box0, [self.aligned_mol_coords])
+        x0 = np.concatenate([complex_conversion_x0, self.aligned_mol_coords])
         box0 = self.complex_box
         dG_complex_conversion, dG_complex_conversion_error = self.conversion_model.predict(
             ordered_params,
@@ -187,6 +205,7 @@ class ComplexConversion():
         )
 
         return dG_complex_conversion
+
 
 def test_rabfe_solvent_conversion_trainable(n_steps=10):
     """test that the loss goes down"""
