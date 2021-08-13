@@ -4,8 +4,7 @@
 
 import numpy as np
 
-from ff import Forcefield
-from ff.handlers.deserialize import deserialize_handlers
+
 from fe.loss import l1_loss
 from optimize.step import truncated_step
 from optimize.precondition import learning_rates_like_params
@@ -14,9 +13,12 @@ from jax import value_and_grad
 from datasets.hif2a import get_ligands, protein_pdb
 from fe.model_rabfe import SolventConversion, ComplexConversion
 
+# TODO: move this frequently repeated code fragment for fetching default
+#  forcefield into ff module, but without circular imports?
+from ff import Forcefield
+from ff.handlers.deserialize import deserialize_handlers
 with open('ff/params/smirnoff_1_1_0_ccc.py') as f:
     ff_handlers = deserialize_handlers(f.read())
-
 default_forcefield = Forcefield(ff_handlers)
 
 ordered_handles = default_forcefield.get_ordered_handles()
@@ -31,7 +33,10 @@ mol, mol_ref = mols[:2]
 
 
 def assert_conversion_trainable(conversion, n_epochs=10):
-    """test that the loss goes down"""
+    """test that the loss goes down
+
+    note: want to pull the training loop out into optimize probably...
+    """
 
     initial_flat_params = flatten(ordered_params)
     initial_prediction = conversion.predict(initial_flat_params)
