@@ -115,8 +115,8 @@ def test_rabfe_combined_conversion_trainable():
     shared_kwargs = dict(
         mol=mol,
         mol_ref=mol_ref,
-        num_windows=5,
-        num_prod_steps=100001,
+        #num_windows=5,
+        #num_prod_steps=100001,
         initial_forcefield=default_forcefield,
         client=client,
     )
