@@ -107,7 +107,7 @@ def test_rabfe_complex_conversion_trainable():
 
 def test_rabfe_combined_conversion_trainable():
     """test that the loss for dG_solvent - dG_complex goes down"""
-    solvent_conversion = ComplexConversion(mol, mol_ref, protein_pdb, default_forcefield)
+    solvent_conversion = SolventConversion(mol, mol_ref, default_forcefield)
     complex_conversion = ComplexConversion(mol, mol_ref, protein_pdb, default_forcefield)
 
     def predict(params):
