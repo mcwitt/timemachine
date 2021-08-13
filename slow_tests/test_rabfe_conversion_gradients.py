@@ -67,7 +67,7 @@ def train(predict, x0, label, loss_fxn=l1_loss, n_epochs=10):
     return flat_param_traj, loss_traj
 
 
-def assert_trainable(predict, x0, initial_label_offset=-100, n_epochs=10):
+def assert_trainable(predict, x0, initial_label_offset=-25, n_epochs=10):
     """test that the loss goes down
 
     note: want to pull the training loop out into optimize probably...
