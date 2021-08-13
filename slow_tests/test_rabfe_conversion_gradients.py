@@ -92,10 +92,7 @@ def test_rabfe_solvent_conversion_trainable():
     solvent_conversion = SolventConversion(mol, mol_ref, default_forcefield)
 
     def predict(params):
-        prediction = solvent_conversion.predict(unfllatten(params))
-        if type(prediction) == float:
-            print(f'prediction = {prediction:.3f}')
-        return prediction
+        return solvent_conversion.predict(unfllatten(params))
 
     assert_trainable(predict, initial_flat_params)
 
@@ -105,10 +102,7 @@ def test_rabfe_complex_conversion_trainable():
     complex_conversion = ComplexConversion(mol, mol_ref, protein_pdb, default_forcefield)
 
     def predict(params):
-        prediction = complex_conversion.predict(unfllatten(params))
-        if type(prediction) == float:
-            print(f'prediction = {prediction:.3f}')
-        return prediction
+        return complex_conversion.predict(unfllatten(params))
 
     assert_trainable(predict, initial_flat_params)
 
@@ -132,12 +126,6 @@ def test_rabfe_combined_conversion_trainable():
         dG_solvent = solvent_conversion.predict(unfllatten(params))
         dG_complex = complex_conversion.predict(unfllatten(params))
 
-        prediction = dG_solvent - dG_complex
-        if type(prediction) == float:
-            print(f'dG_solvent = {dG_solvent:.3f}')
-            print(f'dG_complex = {dG_complex:.3f}')
-            print(f'prediction = dG_solvent - dG_complex = {prediction:.3f}')
-
-        return prediction
+        return dG_solvent - dG_complex
 
     assert_trainable(predict, initial_flat_params)
