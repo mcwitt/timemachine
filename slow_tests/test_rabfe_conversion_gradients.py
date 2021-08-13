@@ -21,6 +21,10 @@ from optimize.step import truncated_step
 from optimize.precondition import learning_rates_like_params
 from optimize.utils import flatten_and_unflatten
 from jax import value_and_grad
+from fe.free_energy_rabfe import setup_relative_restraints_using_smarts
+from rdkit.Chem import rdFMCS
+from fe.atom_mapping import CompareDistNonterminal
+from timemachine.potentials import rmsd
 
 with open('ff/params/smirnoff_1_1_0_ccc.py') as f:
     ff_handlers = deserialize_handlers(f.read())
@@ -71,7 +75,6 @@ class SolventConversion():
             num_equil_steps,
             num_prod_steps
         )
-
         self.flatten, self.unflatten = flatten_and_unflatten(self.initial_forcefield.get_ordered_params())
 
     def predict(self, flat_params):
@@ -122,8 +125,45 @@ class ComplexConversion():
             num_equil_steps,
             num_prod_steps
         )
+        self.initialize_restraints()
 
         self.flatten, self.unflatten = flatten_and_unflatten(self.initial_forcefield.get_ordered_params())
+
+
+    def initialize_restraints(self):
+        mcs_params = rdFMCS.MCSParameters()
+        mcs_params.AtomTyper = CompareDistNonterminal()
+        mcs_params.BondTyper = rdFMCS.BondCompare.CompareAny
+
+        result = rdFMCS.FindMCS(
+            [self.mol, self.mol_ref],
+            mcs_params
+        )
+
+        core_smarts = result.smartsString
+
+        print("core_smarts", core_smarts)
+
+        # generate the core_idxs
+        core_idxs = setup_relative_restraints_using_smarts(self.mol, self.mol_ref, core_smarts)
+        mol_coords = get_romol_conf(self.mol)  # original coords
+
+        num_complex_atoms = self.complex_coords.shape[0]
+        raise NotImplementedError("not done copying complex_ref_x0, complex_ref_box0")
+
+        # Use core_idxs to generate
+        R, t = rmsd.get_optimal_rotation_and_translation(
+            x1=complex_ref_x0[num_complex_atoms:][core_idxs[:, 1]],  # reference core atoms
+            x2=mol_coords[core_idxs[:, 0]],  # mol core atoms
+        )
+
+        aligned_mol_coords = rmsd.apply_rotation_and_translation(mol_coords, R, t)
+
+        ref_coords = complex_ref_x0[num_complex_atoms:]
+        complex_host_coords = complex_ref_x0[:num_complex_atoms]
+        complex_box0 = complex_ref_box0
+
+        mol_name = self.mol.GetProp("_Name")
 
     def predict(self, flat_params):
         raise NotImplementedError("didn't copy the right part of examples/validate_relative_binding.py")
@@ -131,12 +171,12 @@ class ComplexConversion():
         ordered_params = self.unflatten(flat_params)
         mol_coords = get_romol_conf(self.mol)
 
-        # TODO: double-check if this should use initial forcefield, or if I need
-        #  to reconstruct a params-dependent forcefield and pass it here...
+        # TODO: reconstruct a params-dependent forcefield and pass it here...
         forcefield_for_minimization = self.initial_forcefield
-        min_solvent_coords = minimizer.minimize_host_4d([self.mol], self.complex_system, self.complex_coords,
-                                                        forcefield_for_minimization, self.complex_box)
-        x0 = np.concatenate([min_solvent_coords, mol_coords])
+        complex_conversion_x0 = minimizer.minimize_host_4d([self.mol], self.complex_system, self.complex_host_coords,
+                                                           forcefield_for_minimization,
+                                                           complex_box0, [aligned_mol_coords])
+        x0 = np.concatenate([complex_conversion_x0, aligned_mol_coords])
         box0 = self.complex_box
         dG_complex_conversion, dG_complex_conversion_error = self.conversion_model.predict(
             ordered_params,
