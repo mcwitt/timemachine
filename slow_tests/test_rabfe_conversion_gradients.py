@@ -36,11 +36,14 @@ def train(predict, x0, label, loss_fxn=l1_loss, n_epochs=10):
         return loss_fxn(residual)
 
     def update(x, v, g):
-        # TODO: wrap up these three lines...
+        # TODO: wrap up these next few lines into optimize.step...
         raw_search_direction = - g
         search_direction = raw_search_direction * learning_rates
 
-        x_increment = truncated_step(x, v, g, search_direction=search_direction)
+        x_increment = truncated_step(
+            x, v, g, search_direction=search_direction,
+            step_lower_bound=0.5 * v,
+        )
         x_next = x + x_increment
 
         return x_next
