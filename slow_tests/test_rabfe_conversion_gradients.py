@@ -39,15 +39,19 @@ def assert_conversion_trainable(conversion, n_epochs=10):
     """
 
     initial_flat_params = flatten(ordered_params)
-    initial_prediction = conversion.predict(initial_flat_params)
+
+    def predict(params):
+        return conversion.predict(unfllatten(params))
+
+    initial_prediction = predict(initial_flat_params)
 
     label = initial_prediction - 100
 
     def loss(params):
-        residual = conversion.predict(unfllatten(params)) - label
+        residual = predict(params) - label
         return l1_loss(residual)
 
-    def step(x, v, g):
+    def update(x, v, g):
         raw_search_direction = - g
         search_direction = raw_search_direction * learning_rates
 
@@ -63,7 +67,7 @@ def assert_conversion_trainable(conversion, n_epochs=10):
     for t in range(n_epochs):
         x = flat_param_traj[-1]
         v, g = value_and_grad(loss)(x)
-        x_next = step(x, v, g)
+        x_next = update(x, v, g)
 
         print(x_next - x)
 
