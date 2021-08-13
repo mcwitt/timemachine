@@ -96,7 +96,7 @@ def test_rabfe_solvent_conversion_trainable():
         print(f'prediction = {prediction:.3f}')
         return prediction
 
-    assert_trainable(predict, initial_flat_params, 10)
+    assert_trainable(predict, initial_flat_params)
 
 
 def test_rabfe_complex_conversion_trainable():
@@ -108,7 +108,7 @@ def test_rabfe_complex_conversion_trainable():
         print(f'prediction = {prediction:.3f}')
         return prediction
 
-    assert_trainable(predict, initial_flat_params, 10)
+    assert_trainable(predict, initial_flat_params)
 
 
 def test_rabfe_combined_conversion_trainable():
@@ -137,4 +137,4 @@ def test_rabfe_combined_conversion_trainable():
 
         return prediction
 
-    assert_trainable(predict, initial_flat_params, 10)
+    assert_trainable(predict, initial_flat_params)
