@@ -473,10 +473,9 @@ class RelativeBindingModel(RelativeModel):
 
 
 class SolventConversion():
-    def __init__(self, mol, mol_ref, initial_forcefield,
+    def __init__(self, mol, mol_ref, initial_forcefield, client,
                  temperature=300, pressure=1.0, dt=2.5 * 1e-3,
-                 num_equil_steps=100, num_prod_steps=1001,
-                 num_windows=2, client=CUDAPoolClient(2),
+                 num_windows=64, num_equil_steps=int(1e5), num_prod_steps=int(8e5),
                  prefix='solvent_conversion'):
         self.mol = mol
         self.mol_ref = mol_ref
@@ -520,16 +519,17 @@ class SolventConversion():
 
 
 class ComplexConversion():
-    def __init__(self, mol, mol_ref, protein_pdb, initial_forcefield,
+    def __init__(self, mol, mol_ref, protein_pdb, initial_forcefield, client,
                  temperature=300, pressure=1.0, dt=2.5 * 1e-3,
-                 num_equil_steps=100, num_prod_steps=1001,
-                 num_windows=2, client=CUDAPoolClient(2),
+                 num_preequil_steps=int(8e5),
+                 num_windows=64, num_equil_steps=int(1e5), num_prod_steps=int(8e5),
                  prefix='complex_conversion', equil_pickle='equil.pickle'):
 
         self.mol = mol
         self.mol_ref = mol_ref
         self.schedule = construct_conversion_lambda_schedule(num_windows)
         self.initial_forcefield = initial_forcefield
+        self.num_preequil_steps = num_preequil_steps
         self.num_equil_steps = num_equil_steps
         self.num_prod_steps = num_prod_steps
         self.prefix = prefix
@@ -549,10 +549,10 @@ class ComplexConversion():
             num_equil_steps,
             num_prod_steps
         )
-        self.equilibrate()
+        self.preequilibrate()
         self.initialize_restraints()
 
-    def equilibrate(self):
+    def preequilibrate(self):
         print("Equilibrating reference molecule in the complex.")
         if not os.path.exists(self.equil_pickle):
             self.complex_ref_x0, self.complex_ref_box0 = minimizer.equilibrate_complex(
@@ -563,7 +563,7 @@ class ComplexConversion():
                 self.conversion_model.pressure,
                 self.initial_forcefield,  # TODO: maybe needs to change
                 self.complex_box,
-                self.num_equil_steps
+                self.num_preequil_steps,
             )
             print(f"Saving cache to {self.equil_pickle}")
             with open(self.equil_pickle, "wb") as ofs:

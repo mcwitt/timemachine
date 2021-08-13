@@ -10,6 +10,7 @@ from jax import value_and_grad
 from datasets.hif2a import get_ligands, protein_pdb
 from fe.model_rabfe import SolventConversion, ComplexConversion
 from common import default_forcefield
+from parallel.client import CUDAPoolClient
 
 # how to interact with forcefield parameters
 ordered_handles = default_forcefield.get_ordered_handles()
@@ -88,8 +89,8 @@ def assert_trainable(predict, x0, initial_label_offset=-100, n_epochs=10):
 
 def test_rabfe_solvent_conversion_trainable():
     """test that the loss for dG_solvent in isolation goes down"""
-
-    solvent_conversion = SolventConversion(mol, mol_ref, default_forcefield)
+    client = CUDAPoolClient(10)
+    solvent_conversion = SolventConversion(mol, mol_ref, default_forcefield, client)
 
     def predict(params):
         return solvent_conversion.predict(unfllatten(params))
@@ -99,7 +100,8 @@ def test_rabfe_solvent_conversion_trainable():
 
 def test_rabfe_complex_conversion_trainable():
     """test that the loss for dG_complex in isolation goes down"""
-    complex_conversion = ComplexConversion(mol, mol_ref, protein_pdb, default_forcefield)
+    client = CUDAPoolClient(10)
+    complex_conversion = ComplexConversion(mol, mol_ref, protein_pdb, default_forcefield, client)
 
     def predict(params):
         return complex_conversion.predict(unfllatten(params))
@@ -109,7 +111,6 @@ def test_rabfe_complex_conversion_trainable():
 
 def test_rabfe_combined_conversion_trainable():
     """test that the loss for dG_solvent - dG_complex goes down"""
-    from parallel.client import CUDAPoolClient
     client = CUDAPoolClient(10)
     shared_kwargs = dict(
         mol=mol,
