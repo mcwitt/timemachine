@@ -132,7 +132,7 @@ def test_rabfe_combined_conversion_trainable():
 
         prediction = dG_solvent - dG_complex
         print(f'dG_solvent = {dG_solvent:.3f}')
-        print(f'dG_complex = {dG_solvent:.3f}')
+        print(f'dG_complex = {dG_complex:.3f}')
         print(f'prediction = dG_solvent - dG_complex = {prediction:.3f}')
 
         return prediction
