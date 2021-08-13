@@ -126,6 +126,8 @@ class ComplexConversion():
         self.flatten, self.unflatten = flatten_and_unflatten(self.initial_forcefield.get_ordered_params())
 
     def predict(self, flat_params):
+        raise NotImplementedError("didn't copy the right part of examples/validate_relative_binding.py")
+
         ordered_params = self.unflatten(flat_params)
         mol_coords = get_romol_conf(self.mol)
 
