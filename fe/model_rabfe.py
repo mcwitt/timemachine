@@ -496,6 +496,7 @@ class SolventConversion():
             num_equil_steps,
             num_prod_steps
         )
+        self.prefix = prefix
 
     def predict(self, ordered_params):
         mol_coords = get_romol_conf(self.mol)
