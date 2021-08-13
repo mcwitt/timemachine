@@ -27,21 +27,16 @@ mol, mol_ref = mols[:2]
 initial_flat_params = flatten(ordered_params)
 
 
-def assert_trainable(predict, x0, n_epochs=10):
-    """test that the loss goes down
-
-    note: want to pull the training loop out into optimize probably...
-    """
-
-    initial_prediction = predict(x0)
-
-    label = initial_prediction - 100
+def train(predict, x0, label, loss_fxn=l1_loss, n_epochs=10):
+    # TODO: pick a naming convention to distinguish between:
+    #   loss as a fxn of residuals vs. loss as a fxn of params
 
     def loss(params):
         residual = predict(params) - label
-        return l1_loss(residual)
+        return loss_fxn(residual)
 
     def update(x, v, g):
+        # TODO: wrap up these three lines...
         raw_search_direction = - g
         search_direction = raw_search_direction * learning_rates
 
@@ -50,9 +45,9 @@ def assert_trainable(predict, x0, n_epochs=10):
 
         return x_next
 
-    flat_param_traj = [initial_flat_params]
-    loss_traj = [l1_loss(initial_prediction - label)]
-    print(f'initial loss: {loss_traj[-1]:.3f}')
+    flat_param_traj = [x0]
+    loss_traj = [loss(x0)]
+    print(f'initial loss: {loss_traj[0]:.3f}')
 
     for t in range(n_epochs):
         x = flat_param_traj[-1]
@@ -65,6 +60,19 @@ def assert_trainable(predict, x0, n_epochs=10):
 
         flat_param_traj.append(x_next)
         loss_traj.append(v)
+
+    return flat_param_traj, loss_traj
+
+
+def assert_trainable(predict, x0, initial_label_offset=-100, n_epochs=10):
+    """test that the loss goes down
+
+    note: want to pull the training loop out into optimize probably...
+    """
+
+    initial_prediction = predict(x0)
+    label = initial_prediction + initial_label_offset
+    flat_param_traj, loss_traj = train(predict, x0, label, loss_fxn=l1_loss, n_epochs=n_epochs)
 
     window_size = min(5, n_epochs // 2)
     before = loss_traj[0]
