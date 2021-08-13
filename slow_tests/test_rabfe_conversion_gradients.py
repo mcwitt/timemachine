@@ -15,16 +15,15 @@ from common import default_forcefield
 ordered_handles = default_forcefield.get_ordered_handles()
 ordered_params = default_forcefield.get_ordered_params()
 flatten, unfllatten = flatten_and_unflatten(ordered_params)
+initial_flat_params = flatten(ordered_params)
 
 # get parameter-type-specific learning rates
 ordered_learning_rates = learning_rates_like_params(ordered_handles, ordered_params)
-learning_rates = flatten(ordered_learning_rates)
+flat_learning_rates = flatten(ordered_learning_rates)
 
 # get a pair of molecules to run tests on
 mols = get_ligands()
 mol, mol_ref = mols[:2]
-
-initial_flat_params = flatten(ordered_params)
 
 
 def train(predict, x0, label, loss_fxn=l1_loss, n_epochs=10):
@@ -38,7 +37,7 @@ def train(predict, x0, label, loss_fxn=l1_loss, n_epochs=10):
     def update(x, v, g):
         # TODO: wrap up these next few lines into optimize.step...
         raw_search_direction = - g
-        search_direction = raw_search_direction * learning_rates
+        search_direction = raw_search_direction * flat_learning_rates
 
         x_increment = truncated_step(
             x, v, g, search_direction=search_direction,

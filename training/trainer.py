@@ -445,7 +445,7 @@ class Trainer():
                 if isinstance(h, nonbonded.SimpleChargeHandler):
                     # disable training to SimpleCharges
                     assert 0
-                    h.params -= charge_gradients*self.learning_rates['charge']
+                    h.params -= charge_gradients*self.flat_learning_rates['charge']
                 elif isinstance(h, nonbonded.AM1CCCHandler):
                     charge_gradients = vjp_fn(sum_charge_derivs)
                     if np.any(np.isnan(charge_gradients)) or np.any(np.isinf(charge_gradients)) or np.any(np.amax(np.abs(charge_gradients)) > 10000.0):
