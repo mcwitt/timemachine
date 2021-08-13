@@ -113,8 +113,18 @@ def test_rabfe_complex_conversion_trainable():
 
 def test_rabfe_combined_conversion_trainable():
     """test that the loss for dG_solvent - dG_complex goes down"""
-    solvent_conversion = SolventConversion(mol, mol_ref, default_forcefield)
-    complex_conversion = ComplexConversion(mol, mol_ref, protein_pdb, default_forcefield)
+    from parallel.client import CUDAPoolClient
+    client = CUDAPoolClient(10)
+    shared_kwargs = dict(
+        mol=mol,
+        mol_ref=mol_ref,
+        num_windows=5,
+        num_prod_steps=100001,
+        initial_forcefield=default_forcefield,
+        client=client,
+    )
+    solvent_conversion = SolventConversion(**shared_kwargs)
+    complex_conversion = ComplexConversion(protein_pdb=protein_pdb, **shared_kwargs)
 
     def predict(params):
         dG_solvent = solvent_conversion.predict(unfllatten(params))
