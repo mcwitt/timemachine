@@ -23,7 +23,6 @@ from parallel.client import CUDAPoolClient
 
 from md import builders, minimizer
 from fe.utils import get_romol_conf
-from optimize.utils import flatten_and_unflatten
 from fe.free_energy_rabfe import setup_relative_restraints_using_smarts
 from rdkit.Chem import rdFMCS
 from fe.atom_mapping import CompareDistNonterminal
@@ -496,10 +495,8 @@ class SolventConversion():
             num_equil_steps,
             num_prod_steps
         )
-        self.flatten, self.unflatten = flatten_and_unflatten(self.initial_forcefield.get_ordered_params())
 
-    def predict(self, flat_params):
-        ordered_params = self.unflatten(flat_params)
+    def predict(self, ordered_params):
         mol_coords = get_romol_conf(self.mol)
 
         # TODO: double-check if this should use initial forcefield, or if I need
@@ -549,8 +546,6 @@ class ComplexConversion():
         )
         self.equilibrate()
         self.initialize_restraints()
-
-        self.flatten, self.unflatten = flatten_and_unflatten(self.initial_forcefield.get_ordered_params())
 
     def equilibrate(self):
         print("Equilibrating reference molecule in the complex.")
@@ -604,8 +599,7 @@ class ComplexConversion():
         self.ref_coords = self.complex_ref_x0[num_complex_atoms:]
         self.complex_host_coords = self.complex_ref_x0[:num_complex_atoms]
 
-    def predict(self, flat_params):
-        ordered_params = self.unflatten(flat_params)
+    def predict(self, ordered_params):
 
         # TODO: reconstruct a params-dependent forcefield and pass it here...
         forcefield_for_minimization = self.initial_forcefield

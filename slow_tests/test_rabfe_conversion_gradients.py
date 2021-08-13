@@ -23,7 +23,8 @@ ordered_handles = default_forcefield.get_ordered_handles()
 ordered_params = default_forcefield.get_ordered_params()
 ordered_learning_rates = learning_rates_like_params(ordered_handles, ordered_params)
 
-
+flatten, unfllatten = flatten_and_unflatten(ordered_params)
+learning_rates = flatten(ordered_learning_rates)
 
 
 def test_rabfe_solvent_conversion_trainable(n_steps=10):
@@ -33,9 +34,7 @@ def test_rabfe_solvent_conversion_trainable(n_steps=10):
 
     solvent_conversion = SolventConversion(mol, mol_ref, default_forcefield)
 
-    initial_flat_params = solvent_conversion.flatten(ordered_params)
-    learning_rates = solvent_conversion.flatten(ordered_learning_rates)
-
+    initial_flat_params = flatten(ordered_params)
     initial_prediction = solvent_conversion.predict(initial_flat_params)
 
     label = initial_prediction - 100
@@ -83,9 +82,7 @@ def test_rabfe_complex_conversion_trainable(n_steps=10):
 
     complex_conversion = ComplexConversion(mol, mol_ref, protein_pdb, default_forcefield)
 
-    initial_flat_params = complex_conversion.flatten(ordered_params)
-    learning_rates = complex_conversion.flatten(ordered_learning_rates)
-
+    initial_flat_params = flatten(ordered_params)
     initial_prediction = complex_conversion.predict(initial_flat_params)
 
     label = initial_prediction - 100
