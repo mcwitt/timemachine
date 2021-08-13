@@ -74,6 +74,9 @@ def assert_trainable(predict, x0, initial_label_offset=-100, n_epochs=10):
 
     initial_prediction = predict(x0)
     label = initial_prediction + initial_label_offset
+    print(f'initial prediction = {initial_prediction:.3f}')
+    print(f'label = initial_prediction + {initial_label_offset:.3f} = {label:.3f}')
+
     flat_param_traj, loss_traj = train(predict, x0, label, loss_fxn=l1_loss, n_epochs=n_epochs)
 
     window_size = min(5, n_epochs // 2)
@@ -89,7 +92,9 @@ def test_rabfe_solvent_conversion_trainable():
     solvent_conversion = SolventConversion(mol, mol_ref, default_forcefield)
 
     def predict(params):
-        return solvent_conversion.predict(unfllatten(params))
+        prediction = solvent_conversion.predict(unfllatten(params))
+        print(f'prediction = {prediction:.3f}')
+        return prediction
 
     assert_trainable(predict, initial_flat_params, 10)
 
@@ -99,7 +104,9 @@ def test_rabfe_complex_conversion_trainable():
     complex_conversion = ComplexConversion(mol, mol_ref, protein_pdb, default_forcefield)
 
     def predict(params):
-        return complex_conversion.predict(unfllatten(params))
+        prediction= complex_conversion.predict(unfllatten(params))
+        print(f'prediction = {prediction:.3f}')
+        return prediction
 
     assert_trainable(predict, initial_flat_params, 10)
 
@@ -113,6 +120,11 @@ def test_rabfe_combined_conversion_trainable():
         dG_solvent = solvent_conversion.predict(unfllatten(params))
         dG_complex = complex_conversion.predict(unfllatten(params))
 
-        return dG_solvent - dG_complex
+        prediction = dG_solvent - dG_complex
+        print(f'dG_solvent = {dG_solvent:.3f}')
+        print(f'dG_complex = {dG_solvent:.3f}')
+        print(f'prediction = dG_solvent - dG_complex = {prediction:.3f}')
+
+        return prediction
 
     assert_trainable(predict, initial_flat_params, 10)
