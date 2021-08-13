@@ -1,10 +1,7 @@
 # Test that we can adjust parameters to make the conversion dG correspond to
 # a desired value
 
-
 import numpy as np
-
-
 from fe.loss import l1_loss
 from optimize.step import truncated_step
 from optimize.precondition import learning_rates_like_params
@@ -12,38 +9,31 @@ from optimize.utils import flatten_and_unflatten
 from jax import value_and_grad
 from datasets.hif2a import get_ligands, protein_pdb
 from fe.model_rabfe import SolventConversion, ComplexConversion
+from common import default_forcefield
 
-# TODO: move this frequently repeated code fragment for fetching default
-#  forcefield into ff module, but without circular imports?
-from ff import Forcefield
-from ff.handlers.deserialize import deserialize_handlers
-with open('ff/params/smirnoff_1_1_0_ccc.py') as f:
-    ff_handlers = deserialize_handlers(f.read())
-default_forcefield = Forcefield(ff_handlers)
-
+# how to interact with forcefield parameters
 ordered_handles = default_forcefield.get_ordered_handles()
 ordered_params = default_forcefield.get_ordered_params()
-ordered_learning_rates = learning_rates_like_params(ordered_handles, ordered_params)
-
 flatten, unfllatten = flatten_and_unflatten(ordered_params)
+
+# get parameter-type-specific learning rates
+ordered_learning_rates = learning_rates_like_params(ordered_handles, ordered_params)
 learning_rates = flatten(ordered_learning_rates)
 
+# get a pair of molecules to run tests on
 mols = get_ligands()
 mol, mol_ref = mols[:2]
 
+initial_flat_params = flatten(ordered_params)
 
-def assert_conversion_trainable(conversion, n_epochs=10):
+
+def assert_trainable(predict, x0, n_epochs=10):
     """test that the loss goes down
 
     note: want to pull the training loop out into optimize probably...
     """
 
-    initial_flat_params = flatten(ordered_params)
-
-    def predict(params):
-        return conversion.predict(unfllatten(params))
-
-    initial_prediction = predict(initial_flat_params)
+    initial_prediction = predict(x0)
 
     label = initial_prediction - 100
 
@@ -84,12 +74,35 @@ def assert_conversion_trainable(conversion, n_epochs=10):
 
 
 def test_rabfe_solvent_conversion_trainable():
-    """test that the loss goes down"""
+    """test that the loss for dG_solvent in isolation goes down"""
+
     solvent_conversion = SolventConversion(mol, mol_ref, default_forcefield)
-    assert_conversion_trainable(solvent_conversion, 10)
+
+    def predict(params):
+        return solvent_conversion.predict(unfllatten(params))
+
+    assert_trainable(predict, initial_flat_params, 10)
 
 
 def test_rabfe_complex_conversion_trainable():
-    """test that the loss goes down"""
+    """test that the loss for dG_complex in isolation goes down"""
     complex_conversion = ComplexConversion(mol, mol_ref, protein_pdb, default_forcefield)
-    assert_conversion_trainable(complex_conversion, 10)
+
+    def predict(params):
+        return complex_conversion.predict(unfllatten(params))
+
+    assert_trainable(predict, initial_flat_params, 10)
+
+
+def test_rabfe_combined_conversion_trainable():
+    """test that the loss for dG_solvent - dG_complex goes down"""
+    solvent_conversion = ComplexConversion(mol, mol_ref, protein_pdb, default_forcefield)
+    complex_conversion = ComplexConversion(mol, mol_ref, protein_pdb, default_forcefield)
+
+    def predict(params):
+        dG_solvent = solvent_conversion.predict(unfllatten(params))
+        dG_complex = complex_conversion.predict(unfllatten(params))
+
+        return dG_solvent - dG_complex
+
+    assert_trainable(predict, initial_flat_params, 10)
