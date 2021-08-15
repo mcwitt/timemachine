@@ -2,6 +2,7 @@
 # a desired value
 
 import numpy as np
+from jax import numpy as jnp
 from fe.loss import l1_loss
 from optimize.step import truncated_step
 from optimize.precondition import learning_rates_like_params
@@ -87,6 +88,19 @@ def assert_trainable(predict, x0, initial_label_offset=-25, n_epochs=10):
     assert after < before, f"before: {before:.3f}, after: {after:.3f}"
 
 
+def construct_vector_loss(predict_a_vec, labels, loss_on_residuals=l1_loss):
+    def loss_fxn(params):
+        predictions = predict_a_vec(params)
+        residuals = predictions - labels
+        return np.sum(loss_on_residuals(residuals))
+
+    return loss_fxn
+
+def check_vector_loss_differentiable(predict_a_vec, x, labels):
+    loss_fxn = construct_vector_loss(predict_a_vec, labels)
+    v, g = value_and_grad(loss_fxn)(x)
+
+
 def assert_trainable_with_dG_solvent_pinned(predict_both, x0, initial_label_offset=np.array([0, -25]), n_epochs=10):
     """predict_both: flat_params -> [dG_solvent, dG_solvent - dG_complex]
     """
@@ -166,4 +180,5 @@ def test_rabfe_combined_conversion_trainable():
 
         return dG_solvent, dG_solvent - dG_complex
 
-    assert_trainable_with_dG_solvent_pinned(predict_both, initial_flat_params)
+    check_vector_loss_differentiable(predict_both, initial_flat_params, np.zeros(2))
+    #assert_trainable_with_dG_solvent_pinned(predict_both, initial_flat_params)
