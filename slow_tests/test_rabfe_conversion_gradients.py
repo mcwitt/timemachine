@@ -69,8 +69,8 @@ def train(predict, x0, label, loss_fxn=l1_loss, n_epochs=10):
 
 def assert_trainable(predict, x0, initial_label_offset=-25, n_epochs=10):
     """test that the loss goes down
-
-    note: want to pull the training loop out into optimize probably...
+    predict: flat_params -> dG_of_interest
+        dG_of_interest might be dG_solvent, dG_complex, or dG_solvent - dG_complex
     """
 
     initial_prediction = predict(x0)
@@ -79,6 +79,27 @@ def assert_trainable(predict, x0, initial_label_offset=-25, n_epochs=10):
     print(f'label = initial_prediction + {initial_label_offset:.3f} = {label:.3f}')
 
     flat_param_traj, loss_traj = train(predict, x0, label, loss_fxn=l1_loss, n_epochs=n_epochs)
+
+    window_size = min(5, n_epochs // 2)
+    before = loss_traj[0]
+    after = np.median(loss_traj[-window_size:])
+
+    assert after < before, f"before: {before:.3f}, after: {after:.3f}"
+
+
+def assert_trainable_with_dG_solvent_pinned(predict_both, x0, initial_label_offset=np.array([0, -25]), n_epochs=10):
+    """predict_both: flat_params -> [dG_solvent, dG_solvent - dG_complex]
+    """
+
+    initial_predictions = predict_both(x0)
+
+    label = initial_predictions + initial_label_offset
+    print(f'initial predictions = {initial_predictions}')
+    print(f'label = initial_predictions + {initial_label_offset} = {label}')
+
+    loss_fxn = lambda residuals : np.sum(l1_loss(residuals))
+
+    flat_param_traj, loss_traj = train(predict_both, x0, label, loss_fxn=loss_fxn, n_epochs=n_epochs)
 
     window_size = min(5, n_epochs // 2)
     before = loss_traj[0]
@@ -137,4 +158,12 @@ def test_rabfe_combined_conversion_trainable():
 
         return dG_solvent - dG_complex
 
-    assert_trainable(predict, initial_flat_params)
+    #assert_trainable(predict, initial_flat_params)
+
+    def predict_both(params):
+        dG_solvent = solvent_conversion.predict(unfllatten(params))
+        dG_complex = complex_conversion.predict(unfllatten(params))
+
+        return dG_solvent, dG_solvent - dG_complex
+
+    assert_trainable_with_dG_solvent_pinned(predict_both, initial_flat_params)
