@@ -163,7 +163,7 @@ def test_rabfe_combined_conversion_trainable():
     solvent_conversion = SolventConversion(**shared_kwargs)
     complex_conversion = ComplexConversion(
         protein_pdb=protein_pdb,
-        num_preequil_steps=int(1e5),  # if int(8e5) then force magnitude exceeds threshold
+        num_preequil_steps=int(1e4),  # if int(1e5) or int(8e5) then force magnitude exceeds threshold
         **shared_kwargs
     )
 
