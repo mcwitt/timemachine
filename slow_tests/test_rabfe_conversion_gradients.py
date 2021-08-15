@@ -92,7 +92,7 @@ def construct_vector_loss(predict_a_vec, labels, loss_on_residuals=l1_loss):
     def loss_fxn(params):
         predictions = predict_a_vec(params)
         residuals = predictions - labels
-        return np.sum(loss_on_residuals(residuals))
+        return jnp.sum(loss_on_residuals(residuals))
 
     return loss_fxn
 
@@ -111,7 +111,7 @@ def assert_trainable_with_dG_solvent_pinned(predict_both, x0, initial_label_offs
     print(f'initial predictions = {initial_predictions}')
     print(f'label = initial_predictions + {initial_label_offset} = {label}')
 
-    loss_fxn = lambda residuals : np.sum(l1_loss(residuals))
+    loss_fxn = lambda residuals : jnp.sum(l1_loss(residuals))
 
     flat_param_traj, loss_traj = train(predict_both, x0, label, loss_fxn=loss_fxn, n_epochs=n_epochs)
 
@@ -178,7 +178,7 @@ def test_rabfe_combined_conversion_trainable():
         dG_solvent = solvent_conversion.predict(unflatten(params))
         dG_complex = complex_conversion.predict(unflatten(params))
 
-        return dG_solvent, dG_solvent - dG_complex
+        return jnp.array([dG_solvent, dG_solvent - dG_complex])
 
-    check_vector_loss_differentiable(predict_both, initial_flat_params, np.zeros(2))
-    #assert_trainable_with_dG_solvent_pinned(predict_both, initial_flat_params)
+    #check_vector_loss_differentiable(predict_both, initial_flat_params, np.zeros(2))
+    assert_trainable_with_dG_solvent_pinned(predict_both, initial_flat_params)
