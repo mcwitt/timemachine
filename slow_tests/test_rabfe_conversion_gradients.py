@@ -22,6 +22,7 @@ initial_flat_params = flatten(ordered_params)
 # get parameter-type-specific learning rates
 ordered_learning_rates = learning_rates_like_params(ordered_handles, ordered_params)
 flat_learning_rates = flatten(ordered_learning_rates)
+# TODO: update these to zero out LJ sigma, LJ epsilon, or charges
 
 # get a pair of molecules to run tests on
 mols = get_ligands()
