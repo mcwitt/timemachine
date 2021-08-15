@@ -15,7 +15,7 @@ from parallel.client import CUDAPoolClient
 # how to interact with forcefield parameters
 ordered_handles = default_forcefield.get_ordered_handles()
 ordered_params = default_forcefield.get_ordered_params()
-flatten, unfllatten = flatten_and_unflatten(ordered_params)
+flatten, unflatten = flatten_and_unflatten(ordered_params)
 initial_flat_params = flatten(ordered_params)
 
 # get parameter-type-specific learning rates
@@ -114,7 +114,7 @@ def test_rabfe_solvent_conversion_trainable():
     solvent_conversion = SolventConversion(mol, mol_ref, default_forcefield, client)
 
     def predict(params):
-        return solvent_conversion.predict(unfllatten(params))
+        return solvent_conversion.predict(unflatten(params))
 
     assert_trainable(predict, initial_flat_params)
 
@@ -128,7 +128,7 @@ def test_rabfe_complex_conversion_trainable():
     )
 
     def predict(params):
-        return complex_conversion.predict(unfllatten(params))
+        return complex_conversion.predict(unflatten(params))
 
     assert_trainable(predict, initial_flat_params)
 
@@ -153,16 +153,16 @@ def test_rabfe_combined_conversion_trainable():
     )
 
     def predict(params):
-        dG_solvent = solvent_conversion.predict(unfllatten(params))
-        dG_complex = complex_conversion.predict(unfllatten(params))
+        dG_solvent = solvent_conversion.predict(unflatten(params))
+        dG_complex = complex_conversion.predict(unflatten(params))
 
         return dG_solvent - dG_complex
 
     #assert_trainable(predict, initial_flat_params)
 
     def predict_both(params):
-        dG_solvent = solvent_conversion.predict(unfllatten(params))
-        dG_complex = complex_conversion.predict(unfllatten(params))
+        dG_solvent = solvent_conversion.predict(unflatten(params))
+        dG_complex = complex_conversion.predict(unflatten(params))
 
         return dG_solvent, dG_solvent - dG_complex
 
