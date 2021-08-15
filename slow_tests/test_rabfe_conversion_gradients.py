@@ -101,7 +101,10 @@ def test_rabfe_solvent_conversion_trainable():
 def test_rabfe_complex_conversion_trainable():
     """test that the loss for dG_complex in isolation goes down"""
     client = CUDAPoolClient(10)
-    complex_conversion = ComplexConversion(mol, mol_ref, protein_pdb, default_forcefield, client)
+    complex_conversion = ComplexConversion(
+        mol, mol_ref, protein_pdb, default_forcefield, client,
+        num_windows=10, num_equil_steps=int(1e4), num_prod_steps=int(1e5)
+    )
 
     def predict(params):
         return complex_conversion.predict(unfllatten(params))
@@ -115,13 +118,18 @@ def test_rabfe_combined_conversion_trainable():
     shared_kwargs = dict(
         mol=mol,
         mol_ref=mol_ref,
-        #num_windows=5,
-        #num_prod_steps=100001,
+        num_windows=10,
+        num_equil_steps=10000,
+        num_prod_steps=100001,
         initial_forcefield=default_forcefield,
         client=client,
     )
     solvent_conversion = SolventConversion(**shared_kwargs)
-    complex_conversion = ComplexConversion(protein_pdb=protein_pdb, **shared_kwargs)
+    complex_conversion = ComplexConversion(
+        protein_pdb=protein_pdb,
+        num_preequil_steps=int(1e3),  # if int(8e5) then force magnitude exceeds threshold
+        **shared_kwargs
+    )
 
     def predict(params):
         dG_solvent = solvent_conversion.predict(unfllatten(params))
