@@ -537,6 +537,7 @@ class ComplexConversion():
 
         self.complex_system, self.complex_coords, _, _, self.complex_box, self.complex_topology = \
             builders.build_protein_system(protein_pdb)
+        self.num_complex_atoms = self.complex_coords.shape[0]
         self.conversion_model = AbsoluteConversionModel(
             client,
             self.initial_forcefield,
@@ -549,13 +550,13 @@ class ComplexConversion():
             num_equil_steps,
             num_prod_steps
         )
-        self.preequilibrate()
-        self.initialize_restraints()
+        self.complex_ref_x0, self.complex_ref_box0 = self.preequilibrate()
+        self.aligned_mol_coords = self.initialize_restraints()
 
     def preequilibrate(self):
         print("Equilibrating reference molecule in the complex.")
         if not os.path.exists(self.equil_pickle):
-            self.complex_ref_x0, self.complex_ref_box0 = minimizer.equilibrate_complex(
+            x0, box0 = minimizer.equilibrate_complex(
                 self.mol_ref,
                 self.complex_system,
                 self.complex_coords,
@@ -567,11 +568,22 @@ class ComplexConversion():
             )
             print(f"Saving cache to {self.equil_pickle}")
             with open(self.equil_pickle, "wb") as ofs:
-                pickle.dump((self.complex_ref_x0, self.complex_ref_box0), ofs)
+                pickle.dump((x0, box0), ofs)
         else:
             print(f"Loading existing pickle from cache at {self.equil_pickle}")
             with open(self.equil_pickle, "rb") as ifs:
-                self.complex_ref_x0, self.complex_ref_box0 = pickle.load(ifs)
+                x0, box0 = pickle.load(ifs)
+            self.thing = 1
+
+        return x0, box0
+
+    @property
+    def ref_coords(self):
+        return self.complex_ref_x0[self.num_complex_atoms:]
+
+    @property
+    def complex_host_coords(self):
+        return self.complex_ref_x0[:self.num_complex_atoms]
 
     def initialize_restraints(self):
         mcs_params = rdFMCS.MCSParameters()
@@ -591,17 +603,13 @@ class ComplexConversion():
         core_idxs = setup_relative_restraints_using_smarts(self.mol, self.mol_ref, core_smarts)
         mol_coords = get_romol_conf(self.mol)  # original coords
 
-        num_complex_atoms = self.complex_coords.shape[0]
-
         # Use core_idxs to generate
         R, t = rmsd.get_optimal_rotation_and_translation(
-            x1=self.complex_ref_x0[num_complex_atoms:][core_idxs[:, 1]],  # reference core atoms
+            x1=self.ref_coords[core_idxs[:, 1]],  # reference core atoms
             x2=mol_coords[core_idxs[:, 0]],  # mol core atoms
         )
 
-        self.aligned_mol_coords = rmsd.apply_rotation_and_translation(mol_coords, R, t)
-        self.ref_coords = self.complex_ref_x0[num_complex_atoms:]
-        self.complex_host_coords = self.complex_ref_x0[:num_complex_atoms]
+        return rmsd.apply_rotation_and_translation(mol_coords, R, t)
 
     def predict(self, ordered_params):
 
@@ -611,12 +619,11 @@ class ComplexConversion():
                                                            forcefield_for_minimization,
                                                            self.complex_ref_box0, [self.aligned_mol_coords])
         x0 = np.concatenate([complex_conversion_x0, self.aligned_mol_coords])
-        box0 = self.complex_box
         dG_complex_conversion, dG_complex_conversion_error = self.conversion_model.predict(
             ordered_params,
             self.mol,
             x0,
-            box0,
+            self.complex_ref_box0,
             prefix=self.prefix
         )
 
