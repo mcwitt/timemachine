@@ -149,7 +149,8 @@ def test_rabfe_complex_conversion_trainable():
 
 
 def test_rabfe_combined_conversion_trainable():
-    """test that the loss for dG_solvent - dG_complex goes down"""
+    #"""test that the loss for dG_solvent - dG_complex goes down"""
+    """test that the loss for [dG_solvent, dG_solvent - dG_complex] goes down"""
     client = CUDAPoolClient(10)
     shared_kwargs = dict(
         mol=mol,
