@@ -19,7 +19,6 @@ from md.barostat.utils import get_group_indices, get_bond_list
 
 import pickle
 from fe.free_energy_rabfe import construct_conversion_lambda_schedule
-from parallel.client import CUDAPoolClient
 
 from md import builders, minimizer
 from fe.utils import get_romol_conf
@@ -573,7 +572,6 @@ class ComplexConversion():
             print(f"Loading existing pickle from cache at {self.equil_pickle}")
             with open(self.equil_pickle, "rb") as ifs:
                 x0, box0 = pickle.load(ifs)
-            self.thing = 1
 
         return x0, box0
 
