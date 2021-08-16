@@ -44,7 +44,7 @@ def train(predict, x0, label, loss_fxn=l1_loss, n_epochs=10):
 
         x_increment = truncated_step(
             x, v, g, search_direction=search_direction,
-            step_lower_bound=0.5 * v,
+            step_lower_bound=0.8 * v,
         )
         x_next = x + x_increment
 
@@ -156,7 +156,7 @@ def test_rabfe_combined_conversion_trainable():
         mol_ref=mol_ref,
         num_windows=20,
         num_equil_steps=10000,
-        num_prod_steps=100001,
+        num_prod_steps=500001,
         initial_forcefield=default_forcefield,
         client=client,
     )
