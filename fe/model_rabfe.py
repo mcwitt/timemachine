@@ -142,7 +142,8 @@ class AbsoluteModel(ABC):
         v0 = np.zeros_like(x0)
 
         endpoint_correct = False
-        model = estimator_abfe.FreeEnergyModel(
+        # TODO: move this into constructor
+        self.model = model = estimator_abfe.FreeEnergyModel(
             unbound_potentials,
             endpoint_correct,
             self.client,
