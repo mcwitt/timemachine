@@ -181,9 +181,6 @@ class AbsoluteModel(ABC):
             traj.save_xtc(fname + ".xtc")
             traj.save_hdf5(fname + ".h5")
 
-            coords = traj.xyz
-            boxes = traj.unitcell_vectors
-
             precisions = dict(
                 float16=np.float16,
                 float32=np.float32,
@@ -193,8 +190,8 @@ class AbsoluteModel(ABC):
             for (precision, dtype) in precisions.items():
                 np.savez(
                     fname + f"_{precision}.npz",
-                    coords=np.array(coords, dtype=dtype),
-                    boxes=np.array(boxes, dtype=dtype),
+                    coords=np.array(res.xs, dtype=dtype),
+                    boxes=np.array(res.boxes, dtype=dtype),
                 )
     
         return dG, dG_err
