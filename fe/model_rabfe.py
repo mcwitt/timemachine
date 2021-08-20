@@ -176,7 +176,7 @@ class AbsoluteModel(ABC):
             traj = mdtraj.Trajectory(res.xs, mdtraj.Topology.from_openmm(combined_topology))
             traj.unitcell_vectors = res.boxes
             traj.save_xtc("initial_"+prefix+"_lambda_idx_" + str(lambda_idx) + ".xtc")
-            traj.save_hdf("initial_" + prefix + "_lambda_idx_" + str(lambda_idx) + ".h5")
+            traj.save_hdf5("initial_" + prefix + "_lambda_idx_" + str(lambda_idx) + ".h5")
     
         return dG, dG_err
 
