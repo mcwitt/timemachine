@@ -176,10 +176,10 @@ class AbsoluteModel(ABC):
             traj = mdtraj.Trajectory(res.xs, mdtraj.Topology.from_openmm(combined_topology))
             traj.unitcell_vectors = res.boxes
 
-            name = "initial_"+prefix+"_lambda_idx_" + str(lambda_idx)
+            fname = "initial_"+prefix+"_lambda_idx_" + str(lambda_idx)
 
-            traj.save_xtc(name + ".xtc")
-            traj.save_hdf5(name + ".h5")
+            traj.save_xtc(fname + ".xtc")
+            traj.save_hdf5(fname + ".h5")
 
             coords = traj.xyz
             boxes = traj.unitcell_vectors
@@ -190,11 +190,11 @@ class AbsoluteModel(ABC):
                 float64=np.float64,
             )
 
-            for name, precision in precisions.items():
+            for (precision, dtype) in precisions.items():
                 np.savez(
-                    name + f"_{name}.npz",
-                    coords=coords,
-                    boxes=boxes,
+                    fname + f"_{precision}.npz",
+                    coords=np.array(coords, dtype=dtype),
+                    boxes=np.array(boxes, dtype=dtype),
                 )
     
         return dG, dG_err
