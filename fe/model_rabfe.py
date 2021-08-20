@@ -192,7 +192,7 @@ class AbsoluteModel(ABC):
 
             for name, precision in precisions.items():
                 np.savez(
-                    name + f"_{precision}.npz",
+                    name + f"_{name}.npz",
                     coords=coords,
                     boxes=boxes,
                 )
