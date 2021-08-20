@@ -175,8 +175,27 @@ class AbsoluteModel(ABC):
             # pickle.dump((res.xs, res.boxes, combined_topology), outfile)
             traj = mdtraj.Trajectory(res.xs, mdtraj.Topology.from_openmm(combined_topology))
             traj.unitcell_vectors = res.boxes
-            traj.save_xtc("initial_"+prefix+"_lambda_idx_" + str(lambda_idx) + ".xtc")
-            traj.save_hdf5("initial_" + prefix + "_lambda_idx_" + str(lambda_idx) + ".h5")
+
+            name = "initial_"+prefix+"_lambda_idx_" + str(lambda_idx)
+
+            traj.save_xtc(name + ".xtc")
+            traj.save_hdf5(name + ".h5")
+
+            coords = traj.xyz
+            boxes = traj.unitcell_vectors
+
+            precisions = dict(
+                float16=np.float16,
+                float32=np.float32,
+                float64=np.float64,
+            )
+
+            for name, precision in precisions.items():
+                np.savez(
+                    name + f"_{precision}.npz",
+                    coords=coords,
+                    boxes=boxes,
+                )
     
         return dG, dG_err
 
