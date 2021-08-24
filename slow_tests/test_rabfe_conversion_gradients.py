@@ -5,13 +5,14 @@ import numpy as np
 from jax import numpy as jnp
 from fe.loss import l1_loss
 from optimize.step import truncated_step
-from optimize.precondition import learning_rates_like_params
+from optimize.precondition import learning_rates_like_params, default_learning_rates
 from optimize.utils import flatten_and_unflatten
 from jax import value_and_grad
 from datasets.hif2a import get_ligands, protein_pdb
 from fe.model_rabfe import SolventConversion, ComplexConversion
 from common import default_forcefield
 from parallel.client import CUDAPoolClient
+from ff.handlers.nonbonded import LennardJonesHandler, AM1CCCHandler
 
 # how to interact with forcefield parameters
 ordered_handles = default_forcefield.get_ordered_handles()
@@ -19,10 +20,13 @@ ordered_params = default_forcefield.get_ordered_params()
 flatten, unflatten = flatten_and_unflatten(ordered_params)
 initial_flat_params = flatten(ordered_params)
 
-# get parameter-type-specific learning rates
-ordered_learning_rates = learning_rates_like_params(ordered_handles, ordered_params)
+# define parameter-type-specific learning rates: adjust charges only, not LJ
+from copy import deepcopy
+learning_rate_dict = deepcopy(default_learning_rates)
+learning_rate_dict[AM1CCCHandler] = 1.0
+learning_rate_dict[LennardJonesHandler] = np.zeros(2)
+ordered_learning_rates = learning_rates_like_params(ordered_handles, ordered_params, learning_rate_dict)
 flat_learning_rates = flatten(ordered_learning_rates)
-# TODO: update these to zero out LJ sigma, LJ epsilon, or charges
 
 # get a pair of molecules to run tests on
 mols = get_ligands()
