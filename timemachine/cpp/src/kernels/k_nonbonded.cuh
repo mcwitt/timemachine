@@ -75,11 +75,11 @@ void __global__ k_check_rebuild_box(
 template <typename RealType>
 void __global__ k_check_rebuild_coords_and_box(
     const int N,
-    const double *new_coords,
-    const double *old_coords,
-    const double *new_box,
-    const double *old_box,
-    double padding,
+    const double * __restrict__ new_coords,
+    const double * __restrict__ old_coords,
+    const double * __restrict__ new_box,
+    const double * __restrict__ old_box,
+    const double padding,
     int *rebuild) {
 
     const int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -89,7 +89,6 @@ void __global__ k_check_rebuild_coords_and_box(
         // we can probably derive a looser bound later on.
         if(old_box[idx] != new_box[idx]) {
             rebuild[0] = 1;
-            return;
         }
     }
 
@@ -115,7 +114,32 @@ void __global__ k_check_rebuild_coords_and_box(
         rebuild[0] = 1;
     }
 
+}
 
+template<typename RealType>
+void __global__ k_copy_nblist_coords_and_box(
+    const int N,
+    const int * __restrict__ rebuild,
+    const double * __restrict__ new_coords,
+    const double * __restrict__ new_box,
+    double * __restrict__ nblist_coords,
+    double * __restrict__ nblist_box
+) {
+    if (rebuild[0] <= 0) {
+        return;
+    }
+    const int idx = blockIdx.x*blockDim.x + threadIdx.x;
+
+    if(idx >= N) {
+        return;
+    }
+    if(idx < 9) {
+        nblist_box[idx] = new_box[idx];
+    }
+    #pragma unroll 3
+    for(int i = 0; i < 3; i++) {
+        nblist_coords[idx*3+i] = new_coords[idx*3+i];
+    }
 }
 
 template <typename RealType>
@@ -423,7 +447,6 @@ template <
 >
 // void __device__ __forceinline__ v_nonbonded_unified(
 void __device__ v_nonbonded_unified(
-    const int tile_idx,
     const int N,
     const double * __restrict__ coords,
     const double * __restrict__ params, // [N]
@@ -442,6 +465,8 @@ void __device__ v_nonbonded_unified(
     unsigned long long * __restrict__ du_dp,
     unsigned long long * __restrict__ du_dl_buffer,
     unsigned long long * __restrict__ u_buffer) {
+
+    int tile_idx = blockIdx.x;
 
     RealType box_x = box[0*3+0];
     RealType box_y = box[1*3+1];
@@ -709,7 +734,6 @@ template <
     bool COMPUTE_DU_DP
 >
 void __global__ k_nonbonded_unified(
-    const unsigned int * ixn_count,
     const int N,
     const double * __restrict__ coords,
     const double * __restrict__ params, // [N]
@@ -725,85 +749,76 @@ void __global__ k_nonbonded_unified(
     unsigned long long * __restrict__ du_dx,
     unsigned long long * __restrict__ du_dp,
     unsigned long long * __restrict__ du_dl_buffer,
-    unsigned long long * __restrict__ u_buffer
-) {
-    const int stride = gridDim.x;
+    unsigned long long * __restrict__ u_buffer) {
+
     int tile_idx = blockIdx.x;
-    const unsigned int interactions = ixn_count[0];
-    while (tile_idx < interactions) {
-        int row_block_idx = ixn_tiles[tile_idx];
-        int atom_i_idx = row_block_idx*32 + threadIdx.x;
+    int row_block_idx = ixn_tiles[tile_idx];
+    int atom_i_idx = row_block_idx*32 + threadIdx.x;
 
-        RealType dq_dl_i = atom_i_idx < N ? dp_dl[atom_i_idx*3+0] : 0;
-        RealType dsig_dl_i = atom_i_idx < N ? dp_dl[atom_i_idx*3+1] : 0;
-        RealType deps_dl_i = atom_i_idx < N ? dp_dl[atom_i_idx*3+2] : 0;
-        RealType cw_i = atom_i_idx < N ? coords_w[atom_i_idx] : 0;
+    RealType dq_dl_i = atom_i_idx < N ? dp_dl[atom_i_idx*3+0] : 0;
+    RealType dsig_dl_i = atom_i_idx < N ? dp_dl[atom_i_idx*3+1] : 0;
+    RealType deps_dl_i = atom_i_idx < N ? dp_dl[atom_i_idx*3+2] : 0;
+    RealType cw_i = atom_i_idx < N ? coords_w[atom_i_idx] : 0;
 
-        int atom_j_idx = ixn_atoms[tile_idx*32 + threadIdx.x];
+    int atom_j_idx = ixn_atoms[tile_idx*32 + threadIdx.x];
 
-        RealType dq_dl_j = atom_j_idx < N ? dp_dl[atom_j_idx*3+0] : 0;
-        RealType dsig_dl_j = atom_j_idx < N ? dp_dl[atom_j_idx*3+1] : 0;
-        RealType deps_dl_j = atom_j_idx < N ? dp_dl[atom_j_idx*3+2] : 0;
-        RealType cw_j = atom_j_idx < N ? coords_w[atom_j_idx] : 0;
+    RealType dq_dl_j = atom_j_idx < N ? dp_dl[atom_j_idx*3+0] : 0;
+    RealType dsig_dl_j = atom_j_idx < N ? dp_dl[atom_j_idx*3+1] : 0;
+    RealType deps_dl_j = atom_j_idx < N ? dp_dl[atom_j_idx*3+2] : 0;
+    RealType cw_j = atom_j_idx < N ? coords_w[atom_j_idx] : 0;
 
-        int is_vanilla = (
-            cw_i == 0 &&
-            dq_dl_i == 0 &&
-            dsig_dl_i == 0 &&
-            deps_dl_i == 0 &&
-            cw_j == 0 &&
-            dq_dl_j == 0 &&
-            dsig_dl_j == 0 &&
-            deps_dl_j == 0
+    int is_vanilla = (
+        cw_i == 0 &&
+        dq_dl_i == 0 &&
+        dsig_dl_i == 0 &&
+        deps_dl_i == 0 &&
+        cw_j == 0 &&
+        dq_dl_j == 0 &&
+        dsig_dl_j == 0 &&
+        deps_dl_j == 0
+    );
+
+    bool tile_is_vanilla = __all_sync(0xffffffff, is_vanilla);
+
+    if(tile_is_vanilla) {
+        v_nonbonded_unified<RealType, 0, COMPUTE_U, COMPUTE_DU_DX, COMPUTE_DU_DL, COMPUTE_DU_DP>(
+            N,
+            coords,
+            params,
+            box,
+            dp_dl,
+            coords_w,
+            dw_dl,
+            lambda,
+            beta,
+            cutoff,
+            ixn_tiles,
+            ixn_atoms,
+            du_dx,
+            du_dp,
+            du_dl_buffer,
+            u_buffer
         );
-
-        bool tile_is_vanilla = __all_sync(0xffffffff, is_vanilla);
-
-        if(tile_is_vanilla) {
-            v_nonbonded_unified<RealType, 0, COMPUTE_U, COMPUTE_DU_DX, COMPUTE_DU_DL, COMPUTE_DU_DP>(
-                tile_idx,
-                N,
-                coords,
-                params,
-                box,
-                dp_dl,
-                coords_w,
-                dw_dl,
-                lambda,
-                beta,
-                cutoff,
-                // ixn_count,
-                ixn_tiles,
-                ixn_atoms,
-                du_dx,
-                du_dp,
-                du_dl_buffer,
-                u_buffer
-            );
-        } else {
-            v_nonbonded_unified<RealType, 1, COMPUTE_U, COMPUTE_DU_DX, COMPUTE_DU_DL, COMPUTE_DU_DP>(
-                tile_idx,
-                N,
-                coords,
-                params,
-                box,
-                dp_dl,
-                coords_w,
-                dw_dl,
-                lambda,
-                beta,
-                cutoff,
-                // ixn_count,
-                ixn_tiles,
-                ixn_atoms,
-                du_dx,
-                du_dp,
-                du_dl_buffer,
-                u_buffer
-            );
-        };
-        tile_idx += stride;
-    }
+    } else {
+        v_nonbonded_unified<RealType, 1, COMPUTE_U, COMPUTE_DU_DX, COMPUTE_DU_DL, COMPUTE_DU_DP>(
+            N,
+            coords,
+            params,
+            box,
+            dp_dl,
+            coords_w,
+            dw_dl,
+            lambda,
+            beta,
+            cutoff,
+            ixn_tiles,
+            ixn_atoms,
+            du_dx,
+            du_dp,
+            du_dl_buffer,
+            u_buffer
+        );
+    };
 
 
 }
