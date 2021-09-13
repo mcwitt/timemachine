@@ -170,30 +170,36 @@ class AbsoluteModel(ABC):
         )
 
         for lambda_idx, res in enumerate(results):
+            # save float64
+            fname = "initial_"+prefix+"_lambda_idx_" + str(lambda_idx)
+            np.savez(
+                f"{fname}_float64.npz",
+                coords=np.array(res.xs, dtype=np.float64),
+                boxes=np.array(res.boxes, dtype=np.float64),
+            )
+
+            # precisions = dict(
+            #     float16=np.float16,
+            #     float32=np.float32,
+            #     float64=np.float64,
+            # )
+            #
+            # for (precision, dtype) in precisions.items():
+            #     np.savez(
+            #         fname + f"_{precision}.npz",
+            #         coords=np.array(res.xs, dtype=dtype),
+            #         boxes=np.array(res.boxes, dtype=dtype),
+            #     )
+
+            # traj = mdtraj.Trajectory(res.xs, mdtraj.Topology.from_openmm(combined_topology))
+            # traj.unitcell_vectors = res.boxes
+            # traj.save_xtc(fname + ".xtc")
+            # traj.save_hdf5(fname + ".h5")
+
             # used for debugging for now, try to reproduce mdtraj error
             # outfile = open("pickle_"+prefix+"_lambda_idx_" + str(lambda_idx) + ".pkl", "wb")
             # pickle.dump((res.xs, res.boxes, combined_topology), outfile)
-            traj = mdtraj.Trajectory(res.xs, mdtraj.Topology.from_openmm(combined_topology))
-            traj.unitcell_vectors = res.boxes
 
-            fname = "initial_"+prefix+"_lambda_idx_" + str(lambda_idx)
-
-            traj.save_xtc(fname + ".xtc")
-            traj.save_hdf5(fname + ".h5")
-
-            precisions = dict(
-                float16=np.float16,
-                float32=np.float32,
-                float64=np.float64,
-            )
-
-            for (precision, dtype) in precisions.items():
-                np.savez(
-                    fname + f"_{precision}.npz",
-                    coords=np.array(res.xs, dtype=dtype),
-                    boxes=np.array(res.boxes, dtype=dtype),
-                )
-    
         return dG, dG_err
 
         # disabled since image molecules is broken.
