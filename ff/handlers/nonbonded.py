@@ -1,21 +1,21 @@
+import base64
+import pickle
 import functools
 
-import numpy as np
 import jax
 import jax.numpy as jnp
 import networkx as nx
-import pickle
+import numpy as np
 
+from jax import ops
 from rdkit import Chem
+
 from ff.handlers.utils import match_smirks, sort_tuple
 from ff.handlers.serialize import SerializableMixIn
 from ff.handlers.bcc_aromaticity import AromaticityModel
 
 from timemachine import constants
 
-from jax import ops
-
-import base64
 
 
 def convert_to_nx(mol):
@@ -46,7 +46,7 @@ def convert_to_oe(mol):
 
     for buf_mol in ims.GetOEMols():
         oemol = oechem.OEMol(buf_mol)
-
+    ims.close()
     return oemol
 
 
@@ -342,68 +342,69 @@ class AM1CCCHandler(SerializableMixIn):
             molecule to be parameterized.
 
         """
-        # imported here for optional dependency
-        from openeye import oechem
-
-        oemol = convert_to_oe(mol)
-        AromaticityModel.assign(oemol)
 
         # check for cache
-        cache_key = "AM1Cache"
-        if not mol.HasProp(cache_key):
+        charges_cache_key = "AM1Cache"
+        charges_match_cache_key = "AM1MatchCache"
+        if not mol.HasProp(charges_cache_key):
+            oemol = convert_to_oe(mol)
+            AromaticityModel.assign(oemol)
             # The charges returned by OEQuacPac is not deterministic across OS platforms. It is known
             # to be an issue that the atom ordering modifies the return values as well. A follow up
             # with OpenEye is in order
             # https://github.com/openforcefield/openff-toolkit/issues/983
             am1_charges = list(oe_assign_charges(mol, "AM1"))
-
-            mol.SetProp(cache_key, base64.b64encode(pickle.dumps(am1_charges)))
-
+            mol.SetProp(charges_cache_key, base64.b64encode(pickle.dumps(am1_charges)))
         else:
-            am1_charges = pickle.loads(base64.b64decode(mol.GetProp(cache_key)))
+            am1_charges = pickle.loads(base64.b64decode(mol.GetProp(charges_cache_key)))
 
-        bond_idxs = []
-        bond_idx_params = []
+        if not mol.HasProp(charges_match_cache_key):
+            # imported here for optional dependency
+            from openeye import oechem
+            bond_idxs = []
+            bond_idx_params = []
 
-        for index in range(len(smirks)):
-            smirk = smirks[index]
-            param = params[index]
+            for index in range(len(smirks)):
+                smirk = smirks[index]
 
-            substructure_search = oechem.OESubSearch(smirk)
-            substructure_search.SetMaxMatches(0)
+                substructure_search = oechem.OESubSearch(smirk)
+                substructure_search.SetMaxMatches(0)
 
-            matched_bonds = []
-            matches = []
-            for match in substructure_search.Match(oemol):
+                matched_bonds = []
+                matches = []
+                for match in substructure_search.Match(oemol):
 
-                matched_indices = {
-                    atom_match.pattern.GetMapIdx() - 1: atom_match.target.GetIdx()
-                    for atom_match in match.GetAtoms()
-                    if atom_match.pattern.GetMapIdx() != 0
-                }
+                    matched_indices = {
+                        atom_match.pattern.GetMapIdx() - 1: atom_match.target.GetIdx()
+                        for atom_match in match.GetAtoms()
+                        if atom_match.pattern.GetMapIdx() != 0
+                    }
 
-                matches.append(matched_indices)
+                    matches.append(matched_indices)
 
-            for matched_indices in matches:
+                for matched_indices in matches:
 
-                forward_matched_bond = [matched_indices[0], matched_indices[1]]
-                reverse_matched_bond = [matched_indices[1], matched_indices[0]]
+                    forward_matched_bond = [matched_indices[0], matched_indices[1]]
+                    reverse_matched_bond = [matched_indices[1], matched_indices[0]]
 
-                if (
-                    forward_matched_bond in matched_bonds
-                    or reverse_matched_bond in matched_bonds
-                    or forward_matched_bond in bond_idxs
-                    or reverse_matched_bond in bond_idxs
-                ):
-                    continue
+                    if (
+                        forward_matched_bond in matched_bonds
+                        or reverse_matched_bond in matched_bonds
+                        or forward_matched_bond in bond_idxs
+                        or reverse_matched_bond in bond_idxs
+                    ):
+                        continue
 
-                matched_bonds.append(forward_matched_bond)
-                bond_idxs.append(forward_matched_bond)
-                bond_idx_params.append(index)
+                    matched_bonds.append(forward_matched_bond)
+                    bond_idxs.append(forward_matched_bond)
+                    bond_idx_params.append(index)
 
-        am1_charges = np.array(am1_charges)
-        bond_idxs = np.array(bond_idxs)
-        bond_idx_params = np.array(bond_idx_params)
+            am1_charges = np.array(am1_charges)
+            bond_idxs = np.array(bond_idxs)
+            bond_idx_params = np.array(bond_idx_params)
+            mol.SetProp(charges_match_cache_key, base64.b64encode(pickle.dumps((bond_idxs, bond_idx_params))))
+        else:
+            bond_idxs, bond_idx_params = pickle.loads(base64.b64decode(mol.GetProp(charges_match_cache_key)))
 
         deltas = params[bond_idx_params]
         incremented = ops.index_add(am1_charges, bond_idxs[:, 0], deltas)
