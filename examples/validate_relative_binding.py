@@ -447,7 +447,7 @@ if __name__ == "__main__":
     for epoch in range(cmd_args.epochs):
         if cmd_args.shuffle:
             dataset.shuffle()
-        for mol in dataset.data:
+        for mol in dataset.data[:6]:
             try:
                 runs.append(simulate_pair(epoch, blocker_mol, mol))
             except Exception as e:
