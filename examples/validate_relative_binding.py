@@ -25,6 +25,7 @@ from fe.free_energy_rabfe import (
     get_romol_conf,
     setup_relative_restraints_by_distance,
     RABFEResult,
+    construct_pre_optimized_absolute_lambda_schedule_solvent,
 )
 from fe.utils import convert_uM_to_kJ_per_mole
 from fe import model_rabfe
@@ -197,10 +198,6 @@ if __name__ == "__main__":
 
     dataset = Dataset(mols)
 
-    # construct lambda schedules for complex and solvent
-    complex_absolute_schedule = construct_absolute_lambda_schedule_complex(cmd_args.num_complex_windows)
-    solvent_absolute_schedule = construct_absolute_lambda_schedule_solvent(cmd_args.num_solvent_windows)
-
     # build the protein system.
     complex_system, complex_coords, _, _, complex_box, complex_topology = builders.build_protein_system(
         cmd_args.protein_pdb
@@ -292,83 +289,8 @@ if __name__ == "__main__":
     #     cmd_args.num_solvent_equil_steps,
     #     cmd_args.num_solvent_prod_steps,
 
-    ref_vals = [0.0,
-        0.030602248958530254,
-         0.04343921065458984,
-         0.053286962874056605,
-         0.061530500238056327,
-         0.06874727143589167,
-         0.07523159584747947,
-         0.08115977734926053,
-         0.08673559270006116,
-         0.09197355858262861,
-         0.0969144153961157,
-         0.10159645025291364,
-         0.10605939310314867,
-         0.1103340040687108,
-         0.11444283570500403,
-         0.11840380773941236,
-         0.12222621867887551,
-         0.12590621489743328,
-         0.12947504831763063,
-         0.13299387815576555,
-         0.13636145441131187,
-         0.13957203783801678,
-         0.1427408444583851,
-         0.14592107849903435,
-         0.1489925598194029,
-         0.15200062172473455,
-         0.15505279334028343,
-         0.15792573401056345,
-         0.1607395469926778,
-         0.16356099493445256,
-         0.16620056446808032,
-         0.16897275173092222,
-         0.17159610748988727,
-         0.17417292092268263,
-         0.17674146103119037,
-         0.17914299078288928,
-         0.18164789797849124,
-         0.18391826664913077,
-         0.18637732136770624,
-         0.1885821065845263,
-         0.191022715593469,
-         0.19319584264582332,
-         0.1955766612624234,
-         0.19767308202503384,
-         0.1999739720926449,
-         0.20198698137575316,
-         0.20420273396213723,
-         0.20622434396706107,
-         0.20842794933641354,
-         0.21052336987945022,
-         0.21274670771096021,
-         0.2149248581260875,
-         0.2172515796738345,
-         0.2195808848777371,
-         0.22211414715154548,
-         0.22457724420555747,
-         0.22743460652624772,
-         0.23036511964282108,
-         0.23359480722524123,
-         0.23744927805741772,
-         0.2419763171071928,
-         0.2476993102185118,
-         0.2559914311487634,
-         0.27228673430098493,
-         0.31186658687684155,
-         0.36654268499663656,
-         0.4878873054204437,
-         0.7378873054201813,
-         0.9878873054190915,
-         1.0]
-    ref_vals = np.asarray(ref_vals)
-    def custom_solvent_decouple_sched(num_wins: int):
-        return np.interp(np.linspace(0, 1, num_wins), np.linspace(0, 1, len(ref_vals)), ref_vals)
-
-
-
-    solvent_absolute_schedule = custom_solvent_decouple_sched(64)
+    solvent_absolute_schedule = construct_pre_optimized_absolute_lambda_schedule_solvent(cmd_args.num_solvent_windows)
+    np.savez("lambda_sched.npz", solvent_decouple=solvent_absolute_schedule)
     #     frame_filter=frame_filter,
     # )
 
@@ -388,15 +310,6 @@ if __name__ == "__main__":
 
     ordered_params = forcefield.get_ordered_params()
     ordered_handles = forcefield.get_ordered_handles()
-    # print("Foobar", solvent_absolute_schedule.shape)
-    print(solvent_absolute_schedule)
-    # import matplotlib.pyplot as plt
-    # plt.plot(construct_absolute_lambda_schedule_solvent(len(ref_vals)), ".-", label="Ref")
-    # plt.plot(ref_vals, label="A")
-    # plt.plot(solvent_absolute_schedule, label="B")
-    # plt.legend()
-    # plt.show()
-    # raise ValueError("Foo")
 
     def simulate_pair(epoch: int, blocker: Chem.Mol, mol: Chem.Mol):
         mol_name = mol.GetProp("_Name")
