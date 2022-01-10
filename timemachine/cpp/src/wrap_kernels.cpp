@@ -250,6 +250,16 @@ void declare_context(py::module &m) {
         .def(
             "set_x_t",
             [](timemachine::Context &ctxt, const py::array_t<double, py::array::c_style> new_x_t) {
+
+                // TODO: extract this block into an "assert_shape" function or similar
+                unsigned int N = ctxt.num_atoms();
+                unsigned int D = 3;
+                if(new_x_t.ndim() != 2) {throw std::runtime_error("unexpected shape"); }
+                int N_ = new_x_t.shape()[0];
+                int D_ = new_x_t.shape()[1];
+                if(N != N_) { throw std::runtime_error("unexpected # atoms"); }
+                if(D != D_) { throw std::runtime_error("unexpected # dimensions"); }
+
                 ctxt.set_x_t(new_x_t.data());
             })
         .def(
