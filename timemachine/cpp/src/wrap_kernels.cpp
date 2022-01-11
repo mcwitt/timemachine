@@ -357,6 +357,15 @@ void declare_langevin_integrator(py::module &m) {
                         const py::array_t<double, py::array::c_style> &cbs,
                         const py::array_t<double, py::array::c_style> &ccs,
                         int seed) {
+
+                if(cbs.ndims() != 1 or ccs.ndims() != 1) {
+                    throw std::runtime_error("expected flat array");
+                }
+                int n_atoms = cbs.size();
+                if(cbs.shape()[0] != n_atoms or ccs.shape()[0] != n_atoms) {
+                    throw std::runtime_error("expected len(cbs) == len(ccs) == n_atoms");
+                }
+
                 return new timemachine::LangevinIntegrator(cbs.size(), dt, ca, cbs.data(), ccs.data(), seed);
             }),
             py::arg("dt"),
