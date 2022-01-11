@@ -5,7 +5,7 @@ from timemachine.lib import potentials
 import numpy as np
 
 
-harmonic_bond = potentials.HarmonicBond(np.array([[0, 1], [0, 2], [999, 1000]], dtype=np.int32)).bind([[1, 0], [1, 0]])
+harmonic_bond = potentials.HarmonicBond(np.array([[0, 1], [0, 2], [999, 1000]], dtype=np.int32))#.bind([[1, 0], [1, 0]]) # can bind parameters of the wrong shape
 
 unbound_impl = harmonic_bond.unbound_impl(np.float32)
 
