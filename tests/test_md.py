@@ -14,6 +14,7 @@ from timemachine.lib import custom_ops, potentials
 from timemachine.integrator import langevin_coefficients, LangevinIntegrator
 
 from common import prepare_nb_system
+import pytest
 
 
 class TestContext(unittest.TestCase):
@@ -67,6 +68,24 @@ class TestContext(unittest.TestCase):
         ctxt.set_x_t(new_x)
 
         np.testing.assert_equal(ctxt.get_x_t(), new_x)
+
+        # expect runtime errors when shape is wrong
+        bad_shapes = [
+            # wrong ndims but right shape[0] or shape[:2]
+            (N,),
+            (N, 3, 3),
+            (N - 1, 3),
+            # wrong N or D
+            (N + 1, 3),
+            (N - 1, 2),
+            (N + 1, 4),
+            # transpose
+            (3, N),
+        ]
+        for shape in bad_shapes:
+            new_x = np.random.rand(*shape)
+            with pytest.raises(RuntimeError):
+                ctxt.set_x_t(new_x)
 
     def test_fwd_mode(self):
         """
