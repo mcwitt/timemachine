@@ -74,11 +74,11 @@ class TestContext(unittest.TestCase):
             # wrong ndims but right shape[0] or shape[:2]
             (N,),
             (N, 3, 3),
-            (N - 1, 3),
             # wrong N or D
+            (N - 1, 3),
             (N + 1, 3),
-            (N - 1, 2),
-            (N + 1, 4),
+            (N, 2),
+            (N, 4),
             # transpose
             (3, N),
         ]
