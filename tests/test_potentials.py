@@ -50,3 +50,47 @@ def test_summed_potential_get_potentials(harmonic_bond):
     params_sizes = [len(harmonic_bond.params) for _ in range(2)]
     summed_impl = custom_ops.SummedPotential(impls, params_sizes)
     assert set(id(p) for p in summed_impl.get_potentials()) == set(id(p) for p in impls)
+
+
+def test_unbound_impl_arg_shapes():
+    """Expect runtime errors when unbound_impl.execute called with bad input array shapes"""
+
+    # TODO: consider using harmonic_bond pytest fixture?
+    harmonic_bond = potentials.HarmonicBond(np.array([[0, 1], [0, 2], [999, 1000]], dtype=np.int32))
+    unbound_impl = harmonic_bond.unbound_impl(np.float32)
+
+    bad_coords_shapes = [
+        (10, 3),  # too few particles
+        (10,),  # too few dimensions
+        (10, 1),
+        (10, 2),
+        (10, 3, 3),  # too many dimensions
+    ]
+
+    bad_params_shapes = [
+        (2, 2),  # too few bonds
+        (3,),  # too few dimensions
+        (3, 1),
+        (3, 2, 2),  # too many dimensions
+    ]
+
+    bad_box_shapes = [
+        (3,),
+        (4, 4),
+        (2, 2),
+        (3, 3, 3),
+    ]
+
+    for coords_shape in bad_coords_shapes:
+        for params_shape in bad_params_shapes:
+            for box_shape in bad_box_shapes:
+                with pytest.raises(RuntimeError):
+                    _ = unbound_impl.execute(
+                        coords=np.ones(coords_shape),
+                        params=np.ones(params_shape),
+                        box=np.ones(box_shape),
+                        lam=1.0,
+                    )
+
+    # TODO: also try with bound potentials
+    # TODO: also try with other potentials besides HarmonicBondPotential
