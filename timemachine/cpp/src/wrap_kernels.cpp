@@ -254,7 +254,7 @@ void declare_context(py::module &m) {
                 // TODO: extract this block into an "assert_shape" function or similar
                 unsigned int N = ctxt.num_atoms();
                 unsigned int D = 3;
-                if(new_x_t.ndim() != 2) {throw std::runtime_error("unexpected shape"); }
+                if(new_x_t.ndim() != 2) { throw std::runtime_error("unexpected shape"); }
                 int N_ = new_x_t.shape()[0];
                 int D_ = new_x_t.shape()[1];
                 if(N != N_) { throw std::runtime_error("unexpected # atoms"); }
