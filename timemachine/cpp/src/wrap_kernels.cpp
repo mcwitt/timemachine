@@ -456,8 +456,7 @@ void declare_potential(py::module &m) {
 
                 if(params.ndim() > 2) {
                     // if(params.ndim() != 2) { // TODO: double-check: are there examples where params.ndim() == 1?
-                        throw std::runtime_error("params shape unexpected");
-                    }
+                    throw std::runtime_error("params shape unexpected");
                 }
 
                 if(box.ndim() != 2 or box.shape()[0] != D or box.shape()[1] != D) {
