@@ -703,21 +703,19 @@ template <typename RealType> void declare_harmonic_bond(py::module &m, const cha
                     throw std::runtime_error("unexpected bond_idxs shape");
                 }
 
-                if(lamb_mult.ndim() == 1 or lamb_mult.shape()[0] != num_bonds) {
-                    throw std::runtime_error("lamb_mult shape unexpected");
-                }
-
-                if(lamb_offset.ndim() == 1 or lamb_offset.shape()[0] != num_bonds) {
-                    throw std::runtime_error("lamb_mult shape unexpected");
-                }
-
                 std::vector<int> vec_bond_idxs(bond_idxs.data(), bond_idxs.data() + bond_idxs.size());
                 std::vector<int> vec_lamb_mult;
                 std::vector<int> vec_lamb_offset;
                 if (lamb_mult.has_value()) {
+                    if(lamb_mult.ndim() == 1 or lamb_mult.shape()[0] != num_bonds) {
+                        throw std::runtime_error("lamb_mult shape unexpected");
+                    }
                     vec_lamb_mult.assign(lamb_mult.value().data(), lamb_mult.value().data() + lamb_mult.value().size());
                 }
                 if (lamb_offset.has_value()) {
+                    if(lamb_offset.ndim() == 1 or lamb_offset.shape()[0] != num_bonds) {
+                        throw std::runtime_error("lamb_mult shape unexpected");
+                    }
                     vec_lamb_offset.assign(
                         lamb_offset.value().data(), lamb_offset.value().data() + lamb_offset.value().size());
                 }
