@@ -358,7 +358,7 @@ void declare_langevin_integrator(py::module &m) {
                         const py::array_t<double, py::array::c_style> &ccs,
                         int seed) {
 
-                if(cbs.ndims() != 1 or ccs.ndims() != 1) {
+                if(cbs.ndim() != 1 or ccs.ndim() != 1) {
                     throw std::runtime_error("expected flat array");
                 }
                 int n_atoms = cbs.size();
