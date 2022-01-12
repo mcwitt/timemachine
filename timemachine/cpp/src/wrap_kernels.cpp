@@ -588,6 +588,14 @@ void declare_bound_potential(py::module &m) {
                 const long unsigned int N = coords.shape()[0];
                 const long unsigned int D = coords.shape()[1];
 
+                if(coords.ndim() != 2 or D != 3)  {
+                    throw std::runtime_error("unexpected coords shape");
+                }
+
+                if(box.ndim() != 2 or box.shape()[0] != D or box.shape()[1] != D) {
+                    throw std::runtime_error("expected 3x3 box");
+                }
+
                 std::vector<unsigned long long> du_dx(N * D);
                 std::vector<unsigned long long> du_dl(N, 0);
                 std::vector<unsigned long long> u(N, 0);
