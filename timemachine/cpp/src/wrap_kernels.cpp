@@ -819,6 +819,8 @@ template <typename RealType> void declare_rmsd_restraint(py::module &m, const ch
     py::class_<Class, std::shared_ptr<Class>, timemachine::Potential>(
         m, pyclass_name.c_str(), py::buffer_protocol(), py::dynamic_attr())
         .def(py::init([](const py::array_t<int, py::array::c_style> &atom_map, const int N, const double k) {
+            // TODO: what can be asserted about atom_map shape?
+
             std::vector<int> vec_atom_map(atom_map.size());
             std::memcpy(vec_atom_map.data(), atom_map.data(), vec_atom_map.size() * sizeof(int));
 
