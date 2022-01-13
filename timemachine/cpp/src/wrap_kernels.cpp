@@ -895,14 +895,27 @@ template <typename RealType> void declare_periodic_torsion(py::module &m, const 
             py::init([](const py::array_t<int, py::array::c_style> &torsion_idxs,
                         std::optional<py::array_t<int, py::array::c_style>> lamb_mult,
                         std::optional<py::array_t<int, py::array::c_style>> lamb_offset) {
+
+                int num_torsions = torsion_idxs.shape()[0];
+
+                if (torsion_idxs.ndim() != 2 or torsion_idxs.shape()[1] != 4)  {
+                    throw std::runtime_error("unexpected torsion_idxs shape");
+                }
+
                 std::vector<int> vec_torsion_idxs(torsion_idxs.size());
                 std::memcpy(vec_torsion_idxs.data(), torsion_idxs.data(), vec_torsion_idxs.size() * sizeof(int));
                 std::vector<int> vec_lamb_mult;
                 std::vector<int> vec_lamb_offset;
                 if (lamb_mult.has_value()) {
+                    if(lamb_mult.ndim() == 1 or lamb_mult.shape()[0] != num_torsions) {
+                        throw std::runtime_error("lamb_mult shape unexpected");
+                    }
                     vec_lamb_mult.assign(lamb_mult.value().data(), lamb_mult.value().data() + lamb_mult.value().size());
                 }
                 if (lamb_offset.has_value()) {
+                    if(lamb_offset.ndim() == 1 or lamb_offset.shape()[0] != num_torsions) {
+                        throw std::runtime_error("lamb_offset shape unexpected");
+                    }
                     vec_lamb_offset.assign(
                         lamb_offset.value().data(), lamb_offset.value().data() + lamb_offset.value().size());
                 }
