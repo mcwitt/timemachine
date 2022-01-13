@@ -665,15 +665,9 @@ template <typename RealType> void declare_harmonic_bond(py::module &m, const cha
                 std::vector<int> vec_lamb_mult;
                 std::vector<int> vec_lamb_offset;
                 if (lamb_mult.has_value()) {
-                    if(lamb_mult.ndim() == 1 or lamb_mult.shape()[0] != num_bonds) {
-                        throw std::runtime_error("lamb_mult shape unexpected");
-                    }
                     vec_lamb_mult.assign(lamb_mult.value().data(), lamb_mult.value().data() + lamb_mult.value().size());
                 }
                 if (lamb_offset.has_value()) {
-                    if(lamb_offset.ndim() == 1 or lamb_offset.shape()[0] != num_bonds) {
-                        throw std::runtime_error("lamb_offset shape unexpected");
-                    }
                     vec_lamb_offset.assign(
                         lamb_offset.value().data(), lamb_offset.value().data() + lamb_offset.value().size());
                 }
@@ -706,15 +700,9 @@ template <typename RealType> void declare_harmonic_angle(py::module &m, const ch
                 std::vector<int> vec_lamb_mult;
                 std::vector<int> vec_lamb_offset;
                 if (lamb_mult.has_value()) {
-                    if(lamb_mult.ndim() == 1 or lamb_mult.shape()[0] != num_angles) {
-                        throw std::runtime_error("lamb_mult shape unexpected");
-                    }
                     vec_lamb_mult.assign(lamb_mult.value().data(), lamb_mult.value().data() + lamb_mult.value().size());
                 }
                 if (lamb_offset.has_value()) {
-                    if(lamb_offset.ndim() == 1 or lamb_offset.shape()[0] != num_angles) {
-                        throw std::runtime_error("lamb_offset shape unexpected");
-                    }
                     vec_lamb_offset.assign(
                         lamb_offset.value().data(), lamb_offset.value().data() + lamb_offset.value().size());
                 }
@@ -865,15 +853,9 @@ template <typename RealType> void declare_periodic_torsion(py::module &m, const 
                 std::vector<int> vec_lamb_mult;
                 std::vector<int> vec_lamb_offset;
                 if (lamb_mult.has_value()) {
-                    if(lamb_mult.ndim() == 1 or lamb_mult.shape()[0] != num_torsions) {
-                        throw std::runtime_error("lamb_mult shape unexpected");
-                    }
                     vec_lamb_mult.assign(lamb_mult.value().data(), lamb_mult.value().data() + lamb_mult.value().size());
                 }
                 if (lamb_offset.has_value()) {
-                    if(lamb_offset.ndim() == 1 or lamb_offset.shape()[0] != num_torsions) {
-                        throw std::runtime_error("lamb_offset shape unexpected");
-                    }
                     vec_lamb_offset.assign(
                         lamb_offset.value().data(), lamb_offset.value().data() + lamb_offset.value().size());
                 }
