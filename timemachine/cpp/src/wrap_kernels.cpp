@@ -736,14 +736,27 @@ template <typename RealType> void declare_harmonic_angle(py::module &m, const ch
             py::init([](const py::array_t<int, py::array::c_style> &angle_idxs,
                         std::optional<py::array_t<int, py::array::c_style>> lamb_mult,
                         std::optional<py::array_t<int, py::array::c_style>> lamb_offset) {
+
+                int num_angles = angle_idxs.shape()[0];
+
+                if (angle_idxs.ndim() != 2 or angle_idxs.shape()[1] != 3)  {
+                    throw std::runtime_error("unexpected angle_idxs shape");
+                }
+
                 std::vector<int> vec_angle_idxs(angle_idxs.size());
                 std::memcpy(vec_angle_idxs.data(), angle_idxs.data(), vec_angle_idxs.size() * sizeof(int));
                 std::vector<int> vec_lamb_mult;
                 std::vector<int> vec_lamb_offset;
                 if (lamb_mult.has_value()) {
+                    if(lamb_mult.ndim() == 1 or lamb_mult.shape()[0] != num_angles) {
+                        throw std::runtime_error("lamb_mult shape unexpected");
+                    }
                     vec_lamb_mult.assign(lamb_mult.value().data(), lamb_mult.value().data() + lamb_mult.value().size());
                 }
                 if (lamb_offset.has_value()) {
+                    if(lamb_offset.ndim() == 1 or lamb_offset.shape()[0] != num_angles) {
+                        throw std::runtime_error("lamb_mult shape unexpected");
+                    }
                     vec_lamb_offset.assign(
                         lamb_offset.value().data(), lamb_offset.value().data() + lamb_offset.value().size());
                 }
