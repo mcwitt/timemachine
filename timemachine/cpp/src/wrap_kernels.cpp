@@ -714,7 +714,7 @@ template <typename RealType> void declare_harmonic_bond(py::module &m, const cha
                 }
                 if (lamb_offset.has_value()) {
                     if(lamb_offset.ndim() == 1 or lamb_offset.shape()[0] != num_bonds) {
-                        throw std::runtime_error("lamb_mult shape unexpected");
+                        throw std::runtime_error("lamb_offset shape unexpected");
                     }
                     vec_lamb_offset.assign(
                         lamb_offset.value().data(), lamb_offset.value().data() + lamb_offset.value().size());
@@ -755,7 +755,7 @@ template <typename RealType> void declare_harmonic_angle(py::module &m, const ch
                 }
                 if (lamb_offset.has_value()) {
                     if(lamb_offset.ndim() == 1 or lamb_offset.shape()[0] != num_angles) {
-                        throw std::runtime_error("lamb_mult shape unexpected");
+                        throw std::runtime_error("lamb_offset shape unexpected");
                     }
                     vec_lamb_offset.assign(
                         lamb_offset.value().data(), lamb_offset.value().data() + lamb_offset.value().size());
