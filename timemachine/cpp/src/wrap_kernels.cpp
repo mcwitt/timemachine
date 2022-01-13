@@ -838,6 +838,9 @@ template <typename RealType> void declare_centroid_restraint(py::module &m, cons
                          const py::array_t<int, py::array::c_style> &group_b_idxs,
                          double kb,
                          double b0) {
+            if (group_a_idxs.ndim() > 1 or group_b_idxs.ndim() > 1) {
+                throw std::runtime_error("group idxs shape unexpected");
+            }
             std::vector<int> vec_group_a_idxs(group_a_idxs.size());
             std::memcpy(vec_group_a_idxs.data(), group_a_idxs.data(), vec_group_a_idxs.size() * sizeof(int));
             std::vector<int> vec_group_b_idxs(group_b_idxs.size());
