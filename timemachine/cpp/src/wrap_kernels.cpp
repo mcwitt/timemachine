@@ -999,14 +999,31 @@ template <typename RealType, bool Interpolated> void declare_nonbonded(py::modul
         .def(
             py::init([](const py::array_t<int, py::array::c_style> &exclusion_i, // [E, 2] comprised of elements from N
                         const py::array_t<double, py::array::c_style> &scales_i, // [E, 2]
-                        const py::array_t<int, py::array::c_style> &lambda_plane_idxs_i,  //
-                        const py::array_t<int, py::array::c_style> &lambda_offset_idxs_i, //
+                        const py::array_t<int, py::array::c_style> &lambda_plane_idxs_i,  // [N]
+                        const py::array_t<int, py::array::c_style> &lambda_offset_idxs_i, // [N]
                         const double beta,
                         const double cutoff,
                         const std::string &transform_lambda_charge = "lambda",
                         const std::string &transform_lambda_sigma = "lambda",
                         const std::string &transform_lambda_epsilon = "lambda",
                         const std::string &transform_lambda_w = "lambda") {
+
+                int num_exclusions = exclusion_i.shape()[0];
+                int num_atoms = scales_i.shape()[0];
+
+                if (exclusion_i.ndim() != 2 or exclusion_i.shape()[1] != 2)  {
+                    throw std::runtime_error("unexpected exclusions shape");
+                }
+                if (scales_i.ndim() != 2 or scales_i.shape()[0] != num_exclusions or scales_i.shape()[1] != 2)  {
+                    throw std::runtime_error("unexpected scales shape");
+                }
+                if(lambda_plane_idxs_i.ndim() == 1 or lambda_plane_idxs_i.shape()[0] != num_atoms) {
+                    throw std::runtime_error("lambda plane idxs  shape unexpected");
+                }
+                if(lambda_offset_idxs_i.ndim() == 1 or lambda_offset_idxs_i.shape()[0] != num_atoms) {
+                    throw std::runtime_error("lambda offset idxs  shape unexpected");
+                }
+
                 std::vector<int> exclusion_idxs(exclusion_i.size());
                 std::memcpy(exclusion_idxs.data(), exclusion_i.data(), exclusion_i.size() * sizeof(int));
 
