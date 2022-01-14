@@ -83,6 +83,9 @@ private:
     jitify::KernelInstantiation compute_add_du_dp_interpolated_;
 
 public:
+    int num_particles() const { return N_; }
+    int num_exclusions() const { return E_; }
+
     // these are marked public but really only intended for testing.
     void set_nblist_padding(double val);
     void disable_hilbert_sort();
