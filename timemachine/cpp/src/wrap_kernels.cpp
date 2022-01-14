@@ -644,6 +644,25 @@ void declare_bound_potential(py::module &m) {
 
 // }
 
+// TODO: okay for these to be free functions? or better off in class?
+// TODO: is there a clean way to avoid noisily forwarding RealType around here?
+template <typename RealType> std::vector<int> params_shape(timemachine::HarmonicBond<RealType> &bonds) {
+    return {bonds->num_bonds(), 2};
+}
+
+template <typename RealType> std::vector<int> params_shape(timemachine::HarmonicAngle<RealType> &angles) {
+    return {angles->num_angles(), 3};
+}
+
+template <typename RealType> std::vector<int> params_shape(timemachine::PeriodicTorsion<RealType> &torsions) {
+    return {torsions->num_torsions(), 4};
+}
+
+// TODO: finish handling Nonbonded
+//template <typename RealType> std::vector<int> params_shape(timemachine::Nonbonded<RealType> &nonbonded) {
+//    return {nonbonded->num_particles(), 3};
+//}
+
 template <typename RealType> void declare_harmonic_bond(py::module &m, const char *typestr) {
 
     using Class = timemachine::HarmonicBond<RealType>;
