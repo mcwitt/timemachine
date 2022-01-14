@@ -15,6 +15,8 @@ private:
     const int A_;
 
 public:
+    int num_angles() const { return A_; }
+
     HarmonicAngle(
         const std::vector<int> &angle_idxs, const std::vector<int> &lambda_mult, const std::vector<int> &lambda_offset);
 
