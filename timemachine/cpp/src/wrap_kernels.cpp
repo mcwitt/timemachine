@@ -357,6 +357,10 @@ void declare_potential(py::module &m) {
                     throw std::runtime_error("unexpected coords shape");
                 }
 
+                if (params.ndim() != 2) { // TODO: can anything more be asserted about params.shape()?
+                    throw std::runtime_error("unexpected params shape");
+                }
+
                 if(box.ndim() != 2 or box.shape()[0] != D or box.shape()[1] != D) {
                     throw std::runtime_error("expected 3x3 box");
                 }
