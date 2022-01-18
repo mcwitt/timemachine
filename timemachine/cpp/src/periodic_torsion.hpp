@@ -16,6 +16,7 @@ private:
 
 public:
     int num_torsions() const { return T_; }
+    const int P = T_ * 4;
 
     PeriodicTorsion(
         const std::vector<int> &torsion_idxs,

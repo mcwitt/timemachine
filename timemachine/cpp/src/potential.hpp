@@ -11,6 +11,7 @@ public:
     virtual ~Potential(){};
 
     static const int D = 3;
+    static const int P;
 
     void execute_host(
         const int N,

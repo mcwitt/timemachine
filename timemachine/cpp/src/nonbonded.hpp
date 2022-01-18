@@ -85,6 +85,7 @@ private:
 public:
     int num_particles() const { return N_; }
     int num_exclusions() const { return E_; }
+    const int P = N_ * 3;
 
     // these are marked public but really only intended for testing.
     void set_nblist_padding(double val);
