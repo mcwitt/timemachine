@@ -365,8 +365,6 @@ void declare_potential(py::module &m) {
                     throw std::runtime_error("expected 3x3 box");
                 }
 
-                // TODO: check params shape?
-
                 // initialize with fixed garbage values for debugging convenience (these should be overwritten by `execute_host`)
                 std::vector<unsigned long long> du_dx(N * D, 9999);
                 std::vector<unsigned long long> du_dp(P, 9999);
@@ -413,13 +411,11 @@ void declare_potential(py::module &m) {
                 const long unsigned int D = coords.shape()[1];
                 const long unsigned int P = params.size();
 
-                // TODO: convenient way to check N and P?
-                if(coords.ndim() != 2 or D != 3)  {
+                if(coords.ndim() != 2 or D != 3)  { // TODO: anything be asserted about N?
                     throw std::runtime_error("unexpected coords shape");
                 }
 
-                if(params.ndim() > 2) {
-                    // if(params.ndim() != 2) { // TODO: double-check: are there examples where params.ndim() == 1?
+                if(params.ndim() > 2) { // TODO: can anything more be asserted about params.shape()?
                     throw std::runtime_error("params shape unexpected");
                 }
 
