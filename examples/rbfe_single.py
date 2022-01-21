@@ -1,6 +1,5 @@
 # This script estimates the relative binding free energy of a single edge
 
-
 import argparse
 
 from fe.free_energy import construct_lambda_schedule
@@ -84,7 +83,7 @@ if __name__ == "__main__":
     ordered_params = forcefield.get_ordered_params()
     ordered_handles = forcefield.get_ordered_handles()
 
-    ddg_predict = binding_model.predict(ordered_params, mol_a, mol_b, core)
+    ddg_predict, simulation_results = binding_model.predict(ordered_params, mol_a, mol_b, core)
 
-    print(f'predicted ddg = {ddg_predict}')
-    print(f'label ddg = {label_ddG}')
+    print(f"predicted ddg = {ddg_predict}")
+    print(f"label ddg = {label_ddG}")
