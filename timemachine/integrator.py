@@ -131,6 +131,8 @@ def simulate(x0, U_fn, temperature, masses, steps_per_batch, num_batches, num_wo
 
     Returns
     -------
+    coordinates:
+        Shape [num_workers, num_batches, num_atoms, num_dimensions]
 
     """
     dt = 1.5e-3

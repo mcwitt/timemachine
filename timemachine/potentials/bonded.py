@@ -322,5 +322,7 @@ def periodic_torsion(conf, params, box, lamb, torsion_idxs, lamb_mult=None, lamb
 
     prefactor = lamb_offset + lamb_mult * lamb
 
+    # deal with singularities when torsions have been fully turned off
+    # nrg = np.where(ks != 0.0, ks * (1 + np.cos(period * angle - phase), 0.0)
     nrg = ks * (1 + np.cos(period * angle - phase))
     return np.sum(prefactor * nrg, axis=-1)

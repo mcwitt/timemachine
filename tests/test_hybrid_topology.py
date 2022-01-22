@@ -179,18 +179,11 @@ class HybridTopology:
         params_a, idxs_a = handle.partial_parameterize(params, self.mol_a)
         params_b, idxs_b = handle.partial_parameterize(params, self.mol_b)
 
-        new_params_a = []
-        for k, b in params_a:
-            new_params_a.append([(1 - lamb) * k, b])
+        # first element is always the force constant
+        params_a[:, 0] *= 1 - lamb
+        params_b[:, 0] *= lamb
 
-        new_params_b = []
-        for k, b in params_b:
-            new_params_b.append([lamb * k, b])
-
-        new_params_a = np.array(new_params_a)
-        new_params_b = np.array(new_params_b)
-
-        combined_idxs, combined_params = self.combine_bonds(idxs_a, new_params_a, idxs_b, new_params_b)
+        combined_idxs, combined_params = self.combine_bonds(idxs_a, params_a, idxs_b, params_b)
         return combined_idxs, combined_params
 
     # tbd, turn into constraints
@@ -220,6 +213,7 @@ def get_U_fn(ht, ff, lamb, k_core, k_dummy):
 
     new_bond_idxs, new_bond_params = ht.parameterize_bonded(ff.hb_handle.params, ff.hb_handle, lamb)
     new_angle_idxs, new_angle_params = ht.parameterize_bonded(ff.ha_handle.params, ff.ha_handle, lamb)
+    new_proper_torsion_idxs, new_proper_torsion_params = ht.parameterize_bonded(ff.pt_handle.params, ff.pt_handle, lamb)
     new_dummy_idxs, new_dummy_params = ht.parameterize_dummy_restraints(lamb, k_dummy)
     new_core_idxs, new_core_params = ht.parameterize_core_restraints(k_core)
 
@@ -237,6 +231,14 @@ def get_U_fn(ht, ff, lamb, k_core, k_dummy):
         bonded.harmonic_angle, angle_idxs=new_angle_idxs, box=box, params=new_angle_params, lamb=0.0
     )
 
+    proper_torsion_U = functools.partial(
+        bonded.periodic_torsion,
+        torsion_idxs=new_proper_torsion_idxs,
+        box=box,
+        params=new_proper_torsion_params,
+        lamb=0.0,
+    )
+
     # core restraints are left on, and can be turned into constraints
     core_bond_U = functools.partial(
         bonded.harmonic_bond, bond_idxs=new_core_idxs, box=box, params=new_core_params, lamb=0.0
@@ -248,7 +250,8 @@ def get_U_fn(ht, ff, lamb, k_core, k_dummy):
     )
 
     def U_fn(x):
-        return harmonic_bond_U(x) + harmonic_angle_U(x) + core_bond_U(x) + dummy_bond_U(x)
+        return harmonic_bond_U(x) + harmonic_angle_U(x) + core_bond_U(x) + dummy_bond_U(x) + proper_torsion_U(x)
+        # return harmonic_bond_U(x) + harmonic_angle_U(x) + core_bond_U(x) + dummy_bond_U(x)
 
     return U_fn
 
@@ -261,6 +264,8 @@ def run_simulation(mol_a, mol_b, core, k_core, k_dummy):
     ht = HybridTopology(mol_a, mol_b, ff, core)
 
     lambda_schedule = np.linspace(0.0, 1.0, 24)
+    # lambda_schedule = np.array([0.0, 0.05, 0.95, 1.0])
+    # lambda_schedule = np.array([0.0, 1.0])
 
     U_fns = []
     batch_U_fns = []
@@ -318,8 +323,6 @@ def run_simulation(mol_a, mol_b, core, k_core, k_dummy):
         dG_estimate += dG
 
         print(idx, "->", idx + 1, dG / beta, dG_err / beta)  # in kJ
-
-    # plt.show()
 
     dG_errs = np.array(dG_errs)
 
@@ -382,26 +385,19 @@ def test_hybrid_topology():
 
     suppl = Chem.SDMolSupplier("tests/data/ligands_40.sdf")
     mols = [mol for mol in suppl]
-    for idx in range(len(mols)):
-        for jdx in range(idx + 1, len(mols)):
+    mol_a = mols[0]
+    mol_b = mols[3]
 
-            mol_a = mols[idx]
-            mol_b = mols[jdx]
-            # mol_a = hybrid_mols.A
-            # mol_b = hybrid_mols.B
+    # try:
+    core = setup_relative_restraints_by_distance(mol_a, mol_b)
+    print(core.shape)
+    print(mol_a.GetNumAtoms())
+    print(mol_b.GetNumAtoms())
 
-            try:
-                core = setup_relative_restraints_by_distance(mol_a, mol_b)
-                print(core)
+    print("testing...", mol_a.GetProp("_Name"), mol_b.GetProp("_Name"))
 
-                # core = np.array([[0, 0], [1, 1], [2, 2], [3, 3]])
-
-                print("testing...", idx, jdx, "names", mol_a.GetProp("_Name"), mol_b.GetProp("_Name"))
-                run_simulation(mol_a, mol_b, core, k_core=100000, k_dummy=100000)
-                run_simulation(mol_a, mol_b, core, k_core=100000, k_dummy=100000)
-                run_simulation(mol_a, mol_b, core, k_core=100000, k_dummy=100000)
-                run_simulation(mol_a, mol_b, core, k_core=100000, k_dummy=100000)
-                run_simulation(mol_a, mol_b, core, k_core=100000, k_dummy=100000)
-
-            except Exception as e:
-                print("failed", idx, jdx, e)
+    # if k_core is too large we have numerical stability problems due to integrator error.
+    # keep it around 100,000
+    run_simulation(mol_a, mol_b, core, k_core=100000, k_dummy=100000)
+    run_simulation(mol_a, mol_b, core, k_core=100000, k_dummy=100000)
+    run_simulation(mol_a, mol_b, core, k_core=100000, k_dummy=100000)
