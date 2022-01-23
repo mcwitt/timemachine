@@ -129,6 +129,10 @@ def test_identify_anchors():
     assert set(anchors) == set([2, 5])
 
 
+class AnchorError(Exception):
+    pass
+
+
 def get_restraints(mol, core, k):
 
     bond_idxs = []
@@ -138,7 +142,8 @@ def get_restraints(mol, core, k):
         # dummy atom
         if idx not in core:
             anchor_idxs = identify_anchors(mol, core, idx)
-            assert len(anchor_idxs) == 1
+            if len(anchor_idxs) != 1:
+                raise AnchorError()
             anchor = anchor_idxs[0]
             bond_idxs.append([idx, anchor])
             bond_params.append([k, 0.0])
@@ -214,6 +219,9 @@ def get_U_fn(ht, ff, lamb, k_core, k_dummy):
     new_bond_idxs, new_bond_params = ht.parameterize_bonded(ff.hb_handle.params, ff.hb_handle, lamb)
     new_angle_idxs, new_angle_params = ht.parameterize_bonded(ff.ha_handle.params, ff.ha_handle, lamb)
     new_proper_torsion_idxs, new_proper_torsion_params = ht.parameterize_bonded(ff.pt_handle.params, ff.pt_handle, lamb)
+    new_improper_torsion_idxs, new_improper_torsion_params = ht.parameterize_bonded(
+        ff.it_handle.params, ff.it_handle, lamb
+    )
     new_dummy_idxs, new_dummy_params = ht.parameterize_dummy_restraints(lamb, k_dummy)
     new_core_idxs, new_core_params = ht.parameterize_core_restraints(k_core)
 
@@ -239,6 +247,14 @@ def get_U_fn(ht, ff, lamb, k_core, k_dummy):
         lamb=0.0,
     )
 
+    improper_torsion_U = functools.partial(
+        bonded.periodic_torsion,
+        torsion_idxs=new_improper_torsion_idxs,
+        box=box,
+        params=new_improper_torsion_params,
+        lamb=0.0,
+    )
+
     # core restraints are left on, and can be turned into constraints
     core_bond_U = functools.partial(
         bonded.harmonic_bond, bond_idxs=new_core_idxs, box=box, params=new_core_params, lamb=0.0
@@ -250,7 +266,14 @@ def get_U_fn(ht, ff, lamb, k_core, k_dummy):
     )
 
     def U_fn(x):
-        return harmonic_bond_U(x) + harmonic_angle_U(x) + core_bond_U(x) + dummy_bond_U(x) + proper_torsion_U(x)
+        return (
+            harmonic_bond_U(x)
+            + harmonic_angle_U(x)
+            + core_bond_U(x)
+            + dummy_bond_U(x)
+            + proper_torsion_U(x)
+            + improper_torsion_U(x)
+        )
         # return harmonic_bond_U(x) + harmonic_angle_U(x) + core_bond_U(x) + dummy_bond_U(x)
 
     return U_fn
@@ -347,57 +370,81 @@ def run_simulation(mol_a, mol_b, core, k_core, k_dummy):
 
 from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
+from rdkit.Chem import rdFMCS
 
 
-def setup_relative_restraints_by_distance(mol_a: Chem.Mol, mol_b: Chem.Mol, cutoff: float = 0.1, terminal: bool = True):
+class CompareDist(rdFMCS.MCSAtomCompare):
+    def __init__(self, cutoff, *args, **kwargs):
+        self.cutoff = cutoff * 10
+        super().__init__(*args, **kwargs)
+
+    def compare(self, p, mol1, atom1, mol2, atom2):
+        x_i = mol1.GetConformer(0).GetPositions()[atom1]
+        x_j = mol2.GetConformer(0).GetPositions()[atom2]
+        if np.linalg.norm(x_i - x_j) > self.cutoff:
+            return False
+        else:
+            return True
+
+
+def get_core(mol_a: Chem.Mol, mol_b: Chem.Mol, cutoff: float = 0.1):
 
     ligand_coords_a = get_romol_conf(mol_a)
     ligand_coords_b = get_romol_conf(mol_b)
-    core_idxs_a = []
-    core_idxs_b = []
 
-    for idx, a in enumerate(mol_a.GetAtoms()):
-        if not terminal and a.GetDegree() == 1:
-            continue
-        for b_idx, b in enumerate(mol_b.GetAtoms()):
-            if not terminal and b.GetDegree() == 1:
-                continue
-            if np.linalg.norm(ligand_coords_a[idx] - ligand_coords_b[b_idx]) < cutoff:
-                core_idxs_a.append(idx)
-                core_idxs_b.append(b_idx)
-    assert len(core_idxs_a) == len(core_idxs_b), "Core sizes were inconsistent"
+    mcs_params = rdFMCS.MCSParameters()
+    mcs_params.AtomTyper = CompareDist(cutoff)
+    mcs_params.BondCompareParameters.CompleteRingsOnly = 1
+    mcs_params.BondCompareParameters.RingMatchesRingOnly = 1
 
-    rij = cdist(ligand_coords_a[core_idxs_a], ligand_coords_b[core_idxs_b])
+    res = rdFMCS.FindMCS([mol_a, mol_b], mcs_params)
 
-    row_idxs, col_idxs = linear_sum_assignment(rij)
+    query = Chem.MolFromSmarts(res.smartsString)
 
-    core_idxs = []
+    mol_a_matches = mol_a.GetSubstructMatches(query, uniquify=False)
+    mol_b_matches = mol_b.GetSubstructMatches(query, uniquify=False)
 
-    for core_a, core_b in zip(row_idxs, col_idxs):
-        core_idxs.append((core_idxs_a[core_a], core_idxs_b[core_b]))
+    best_match_dist = np.inf
+    best_match_pairs = None
+    for a_match in mol_a_matches:
+        for b_match in mol_b_matches:
+            dij = np.linalg.norm(ligand_coords_a[list(a_match)] - ligand_coords_b[list(b_match)])
+            if dij < best_match_dist:
+                best_match_dist = dij
+                best_match_pairs = np.stack([a_match, b_match], axis=1)
 
-    core_idxs = np.array(core_idxs, dtype=np.int32)
+    core_idxs = best_match_pairs
+
+    assert len(core_idxs[:, 0]) == len(set(core_idxs[:, 0]))
+    assert len(core_idxs[:, 1]) == len(set(core_idxs[:, 1]))
 
     return core_idxs
 
 
 def test_hybrid_topology():
 
-    suppl = Chem.SDMolSupplier("tests/data/ligands_40.sdf")
+    suppl = Chem.SDMolSupplier("tests/data/ligands_40.sdf", removeHs=False)
     mols = [mol for mol in suppl]
-    mol_a = mols[0]
-    mol_b = mols[3]
 
-    # try:
-    core = setup_relative_restraints_by_distance(mol_a, mol_b)
-    print(core.shape)
-    print(mol_a.GetNumAtoms())
-    print(mol_b.GetNumAtoms())
+    for i in range(len(mols)):
+        for j in range(i + 1, len(mols)):
 
-    print("testing...", mol_a.GetProp("_Name"), mol_b.GetProp("_Name"))
+            mol_a = mols[i]
+            mol_b = mols[j]
 
-    # if k_core is too large we have numerical stability problems due to integrator error.
-    # keep it around 100,000
-    run_simulation(mol_a, mol_b, core, k_core=100000, k_dummy=100000)
-    run_simulation(mol_a, mol_b, core, k_core=100000, k_dummy=100000)
-    run_simulation(mol_a, mol_b, core, k_core=100000, k_dummy=100000)
+            try:
+                print(
+                    "trying",
+                    mol_a.GetProp("_Name"),
+                    mol_b.GetProp("_Name"),
+                )
+                core = get_core(mol_a, mol_b)
+                # print("core", core)
+
+                print("testing...", mol_a.GetProp("_Name"), mol_b.GetProp("_Name"), "core size", core.size)
+
+                # if k_core is too large we have numerical stability problems due to integrator error.
+                # keep it around 100000
+                run_simulation(mol_a, mol_b, core, k_core=100000, k_dummy=100000)
+            except AnchorError:
+                print("failed")
