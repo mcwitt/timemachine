@@ -1,4 +1,4 @@
-NUM_WORKERS = 8
+NUM_WORKERS = 12
 import os
 
 os.environ["XLA_FLAGS"] = "--xla_force_host_platform_device_count=" + str(NUM_WORKERS)
@@ -286,7 +286,8 @@ def run_simulation(mol_a, mol_b, core, k_core, k_dummy):
 
     ht = HybridTopology(mol_a, mol_b, ff, core)
 
-    lambda_schedule = np.linspace(0.0, 1.0, 24)
+    lambda_schedule = np.linspace(0.0, 1.0, 32)
+    lambda_schedule = np.array([0.45, 0.5, 0.55])
     # lambda_schedule = np.array([0.0, 0.05, 0.95, 1.0])
     # lambda_schedule = np.array([0.0, 1.0])
 
@@ -303,18 +304,26 @@ def run_simulation(mol_a, mol_b, core, k_core, k_dummy):
     N_ks = []
     all_coords = []
 
+    burn_in_batches = 20
+    num_batches = 500
+
     for idx, U_fn in tqdm(enumerate(U_fns)):
 
         x0 = np.concatenate([get_romol_conf(mol_a), get_romol_conf(mol_b)])
 
         masses = np.concatenate([get_romol_masses(mol_a), get_romol_masses(mol_b)])
-
-        num_batches = 1000
         coords = integrator.simulate(
-            x0, U_fn, temperature, masses, steps_per_batch=500, num_batches=num_batches, num_workers=NUM_WORKERS
+            x0,
+            U_fn,
+            temperature,
+            masses,
+            steps_per_batch=500,
+            num_batches=num_batches + burn_in_batches,
+            num_workers=NUM_WORKERS,
         )
-        # coords = coords.squeeze(0)
-        coords = coords.reshape(-1, x0.shape[0], 3)
+
+        # toss away burn in batches and flatten
+        coords = coords[:, burn_in_batches:, :, :].reshape(-1, x0.shape[0], 3)
         writer = Chem.SDWriter("out_" + str(idx) + ".sdf")
         all_coords.append(coords)
         N_ks.append(num_batches * NUM_WORKERS)
@@ -340,6 +349,8 @@ def run_simulation(mol_a, mol_b, core, k_core, k_dummy):
         # plt.hist(fwd, density=True, alpha=0.5, label="fwd")
         # plt.hist(-rev, density=True, alpha=0.5, label="-rev")
         # plt.legend()
+
+        print("fwd nan count", np.sum(np.isnan(fwd)), "rev nan count", np.sum(np.isnan(rev)))
 
         dG, dG_err = pymbar.BAR(fwd, rev)
         dG_errs.append(dG_err)
@@ -431,6 +442,9 @@ def test_hybrid_topology():
 
             mol_a = mols[i]
             mol_b = mols[j]
+
+            if mol_a.GetProp("_Name") != "338" or mol_b.GetProp("_Name") != "67":
+                continue
 
             try:
                 print(
