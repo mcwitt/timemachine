@@ -497,8 +497,8 @@ def test_hybrid_topology():
 
                 # if k_core is too large we have numerical stability problems due to integrator error.
                 # keep it around 250000
-                run_simulation(mol_a, mol_b, core, k_core=250000, dt=1.5e-3)
-                run_simulation(mol_a, mol_b, core, k_core=250000, dt=0.5e-3)
+                run_simulation(mol_a, mol_b, core, k_core=100000, dt=1.5e-3)
+                run_simulation(mol_a, mol_b, core, k_core=100000, dt=0.5e-3)
             except AnchorError:
                 print("failed")
 
