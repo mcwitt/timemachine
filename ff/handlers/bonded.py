@@ -81,6 +81,51 @@ class HarmonicBondHandler(ReversibleBondHandler):
 
 
 class HarmonicAngleHandler(ReversibleBondHandler):
+    def partial_parameterize(self, params, mol, bond_idxs, bond_params):
+        return self.static_parameterize(params, self.smirks, mol, bond_idxs, bond_params)
+
+    @staticmethod
+    def static_parameterize(params, smirks, mol, bond_idxs, bond_params):
+        """
+        Parameterize given molecule
+
+        Parameters
+        ----------
+        mol: Chem.ROMol
+            rdkit molecule, should have hydrogens pre-added
+
+        Returns
+        -------
+        tuple of (Q,2) (np.int32), ((Q,2), fn: R^Qx2 -> R^Px2))
+            System bond idxes, parameters, and the vjp_fn.
+
+        """
+        # urey bradley
+        angle_idxs, param_idxs = generate_vd_idxs(mol, smirks)
+        angle_params = params[param_idxs]
+
+        # store bond lengths
+        bond_kv = {}
+        for (src, dst), params in zip(bond_idxs, bond_params):
+            src, dst = sorted([src, dst])
+            bond_kv[(src, dst)] = params[1]
+        # print(bond_kv)
+        urey_params = []
+        urey_idxs = []
+        for (a, b, c), params in zip(angle_idxs, angle_params):
+            # print("ABC", a, b, c)
+            k = params[0]
+            angle = params[1]
+
+            u = bond_kv[tuple(sorted([a, b]))]
+            v = bond_kv[tuple(sorted([b, c]))]
+            w = np.sqrt(u ** 2 + v ** 2 - 2 * u * v * np.cos(angle))
+
+            urey_params.append([k, w])
+            urey_idxs.append([a, c])
+
+        return urey_params, urey_idxs
+
     pass
 
 
@@ -215,6 +260,6 @@ class ImproperTorsionHandler(SerializableMixIn):
                 improper_idxs.append((center, p[0], p[1], p[2]))
                 param_idxs.append(p_idx)
 
-        param_idxs = np.array(param_idxs)
+        param_idxs = np.array(param_idxs).astype(np.int32)
 
         return params[param_idxs], np.array(improper_idxs, dtype=np.int32)

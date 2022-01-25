@@ -7,6 +7,7 @@ from jax.config import config
 from timemachine import constants
 import pymbar
 from matplotlib import pyplot as plt
+from rdkit.Chem import rdFMCS
 
 config.update("jax_enable_x64", True)
 import functools
@@ -166,29 +167,65 @@ class HybridTopology:
         combined_params = np.concatenate([a_bond_params, b_bond_params])
         return combined_idxs, combined_params
 
-    def parameterize_dummy_restraints(self, lamb, k):
-        a_bond_idxs, a_bond_params = get_restraints(self.mol_a, self.core[:, 0], lamb * k)
-        b_bond_idxs, b_bond_params = get_restraints(self.mol_b, self.core[:, 1], (1 - lamb) * k)
+    def _adjust_bonds(self, core, all_params, all_idxs, scale):
 
-        # this is to deal with zero sized arrays jank
-        a_bond_idxs = np.array(a_bond_idxs).astype(np.int32).reshape((-1, 2))
-        a_bond_params = np.array(a_bond_params).astype(np.float64).reshape((-1, 2))
-        b_bond_idxs = np.array(b_bond_idxs).astype(np.int32).reshape((-1, 2))
-        b_bond_params = np.array(b_bond_params).astype(np.float64).reshape((-1, 2))
+        # algorithm:
+        # 1) core-core terms are alchemically interpolated
+        # 2) core-dummy angle/torsion terms are turned off, bond terms are shrunken
+        # 3) dummy-dummy terms are maintained
+        new_params = []
+        for params, idxs in zip(all_params, all_idxs):
+            if np.all([x in core for x in idxs]):
+                # core-core, turn off or on alchemically
+                params[0] *= scale
+            else:
+                # core-dummy
+                # TBD: special case, core is anchor (we can leave on)
+                if len(idxs) == 2:
+                    # bonded case, shrink bond length to zero
+                    params[1] *= scale
+                else:
+                    params[0] *= scale
 
-        bond_idxs, bond_params = self.combine_bonds(a_bond_idxs, a_bond_params, b_bond_idxs, b_bond_params)
+            new_params.append(params)
 
-        return bond_idxs, bond_params
+        return new_params
 
     def parameterize_bonded(self, params, handle, lamb):
         params_a, idxs_a = handle.partial_parameterize(params, self.mol_a)
         params_b, idxs_b = handle.partial_parameterize(params, self.mol_b)
 
-        # first element is always the force constant
-        params_a[:, 0] *= 1 - lamb
-        params_b[:, 0] *= lamb
+        params_a = self._adjust_bonds(self.core[:, 0], params_a, idxs_a, 1 - lamb)
+        params_b = self._adjust_bonds(self.core[:, 1], params_b, idxs_b, lamb)
 
         combined_idxs, combined_params = self.combine_bonds(idxs_a, params_a, idxs_b, params_b)
+
+        return combined_idxs, combined_params
+
+    def parameterize_urey_bradley(self, hb_params, ha_params, hb_handle, ha_handle, lamb):
+
+        bond_params_a, bond_idxs_a = hb_handle.partial_parameterize(hb_params, self.mol_a)
+        bond_params_b, bond_idxs_b = hb_handle.partial_parameterize(hb_params, self.mol_b)
+
+        angle_params_a, angle_idxs_a = ha_handle.partial_parameterize(ha_params, self.mol_a, bond_idxs_a, bond_params_a)
+        angle_params_b, angle_idxs_b = ha_handle.partial_parameterize(ha_params, self.mol_b, bond_idxs_b, bond_params_b)
+
+        # params_a = bond_params_a
+        # idxs_a = bond_idxs_a
+        # params_b = bond_params_b
+        # idxs_b = bond_idxs_b
+
+        params_a = np.concatenate([bond_params_a, angle_params_a])
+        idxs_a = np.concatenate([bond_idxs_a, angle_idxs_a])
+        params_b = np.concatenate([bond_params_b, angle_params_b])
+        idxs_b = np.concatenate([bond_idxs_b, angle_idxs_b])
+
+        params_a = self._adjust_bonds(self.core[:, 0], params_a, idxs_a, 1 - lamb)
+        params_b = self._adjust_bonds(self.core[:, 1], params_b, idxs_b, lamb)
+
+        combined_idxs, combined_params = self.combine_bonds(idxs_a, params_a, idxs_b, params_b)
+        combined_idxs, combined_params = self.combine_bonds(idxs_a, params_a, idxs_b, params_b)
+
         return combined_idxs, combined_params
 
     # tbd, turn into constraints
@@ -214,15 +251,24 @@ def make_conformer(mol_a, mol_b, conf_a, conf_b):
     return mol
 
 
-def get_U_fn(ht, ff, lamb, k_core, k_dummy):
+def get_U_fn(ht, ff, lamb, k_core):
+    # new_bond_idxs, new_bond_params = ht.parameterize_bonded(ff.hb_handle.params, ff.hb_handle, lamb)
+    # new_angle_idxs, new_angle_params = ht.parameterize_bonded(ff.ha_handle.params, ff.ha_handle, lamb)
 
-    new_bond_idxs, new_bond_params = ht.parameterize_bonded(ff.hb_handle.params, ff.hb_handle, lamb)
-    new_angle_idxs, new_angle_params = ht.parameterize_bonded(ff.ha_handle.params, ff.ha_handle, lamb)
-    new_proper_torsion_idxs, new_proper_torsion_params = ht.parameterize_bonded(ff.pt_handle.params, ff.pt_handle, lamb)
-    new_improper_torsion_idxs, new_improper_torsion_params = ht.parameterize_bonded(
-        ff.it_handle.params, ff.it_handle, lamb
+    new_bond_idxs, new_bond_params = ht.parameterize_urey_bradley(
+        ff.hb_handle.params, ff.ha_handle.params, ff.hb_handle, ff.ha_handle, lamb
     )
-    new_dummy_idxs, new_dummy_params = ht.parameterize_dummy_restraints(lamb, k_dummy)
+
+    # print(new_bond_idxs, new_bond_params)
+
+    # assert 0
+
+    # new_proper_torsion_idxs, new_proper_torsion_params = ht.parameterize_bonded(ff.pt_handle.params, ff.pt_handle, lamb)
+    # new_improper_torsion_idxs, new_improper_torsion_params = ht.parameterize_bonded(
+    #     ff.it_handle.params, ff.it_handle, lamb
+    # )
+
+    # new_dummy_idxs, new_dummy_params = ht.parameterize_dummy_restraints(lamb, k_dummy)
     new_core_idxs, new_core_params = ht.parameterize_core_restraints(k_core)
 
     box = np.eye(3) * 100
@@ -235,59 +281,53 @@ def get_U_fn(ht, ff, lamb, k_core, k_dummy):
         lamb=0.0,
     )
 
-    harmonic_angle_U = functools.partial(
-        bonded.harmonic_angle, angle_idxs=new_angle_idxs, box=box, params=new_angle_params, lamb=0.0
-    )
+    # harmonic_angle_U = functools.partial(
+    #     bonded.harmonic_angle,
+    #     angle_idxs=new_angle_idxs,
+    #     box=box,
+    #     params=new_angle_params,
+    #     lamb=0.0,
+    # )
 
-    proper_torsion_U = functools.partial(
-        bonded.periodic_torsion,
-        torsion_idxs=new_proper_torsion_idxs,
-        box=box,
-        params=new_proper_torsion_params,
-        lamb=0.0,
-    )
+    # proper_torsion_U = functools.partial(
+    #     bonded.periodic_torsion,
+    #     torsion_idxs=new_proper_torsion_idxs,
+    #     box=box,
+    #     params=new_proper_torsion_params,
+    #     lamb=0.0,
+    # )
 
-    improper_torsion_U = functools.partial(
-        bonded.periodic_torsion,
-        torsion_idxs=new_improper_torsion_idxs,
-        box=box,
-        params=new_improper_torsion_params,
-        lamb=0.0,
-    )
+    # improper_torsion_U = functools.partial(
+    #     bonded.periodic_torsion,
+    #     torsion_idxs=new_improper_torsion_idxs,
+    #     box=box,
+    #     params=new_improper_torsion_params,
+    #     lamb=0.0,
+    # )
 
     # core restraints are left on, and can be turned into constraints
     core_bond_U = functools.partial(
         bonded.harmonic_bond, bond_idxs=new_core_idxs, box=box, params=new_core_params, lamb=0.0
     )
 
-    # dummy restraints are alchemically turned on/off, and cannot be made into constraints
-    dummy_bond_U = functools.partial(
-        bonded.harmonic_bond, bond_idxs=new_dummy_idxs, box=box, params=new_dummy_params, lamb=0.0
-    )
-
     def U_fn(x):
-        return (
-            harmonic_bond_U(x)
-            + harmonic_angle_U(x)
-            + core_bond_U(x)
-            + dummy_bond_U(x)
-            + proper_torsion_U(x)
-            + improper_torsion_U(x)
-        )
-        # return harmonic_bond_U(x) + harmonic_angle_U(x) + core_bond_U(x) + dummy_bond_U(x)
+        # return harmonic_bond_U(x) + harmonic_angle_U(x) + core_bond_U(x) + proper_torsion_U(x) + improper_torsion_U(x)
+        return harmonic_bond_U(x) + core_bond_U(x)
 
     return U_fn
 
 
-def run_simulation(mol_a, mol_b, core, k_core, k_dummy):
+def run_simulation(mol_a, mol_b, core, k_core, dt):
 
     ff_handlers = deserialize_handlers(open("ff/params/smirnoff_1_1_0_sc.py").read())
     ff = Forcefield(ff_handlers)
 
     ht = HybridTopology(mol_a, mol_b, ff, core)
 
-    lambda_schedule = np.linspace(0.0, 1.0, 32)
-    lambda_schedule = np.array([0.45, 0.5, 0.55])
+    # lambda_schedule = np.linspace(0.0, 1.0, 24)
+    lambda_schedule = np.array([0.95652174, 1.0])
+    # lambda_schedule = np.linspace(0.0, 1.0, 2)
+    # lambda_schedule = np.array([0.0, 0.5, 1.0])
     # lambda_schedule = np.array([0.0, 0.05, 0.95, 1.0])
     # lambda_schedule = np.array([0.0, 1.0])
 
@@ -295,7 +335,7 @@ def run_simulation(mol_a, mol_b, core, k_core, k_dummy):
     batch_U_fns = []
 
     for lamb in lambda_schedule:
-        U_fn = get_U_fn(ht, ff, lamb, k_core, k_dummy)
+        U_fn = get_U_fn(ht, ff, lamb, k_core)
         U_fns.append(U_fn)
         batch_U_fns.append(jax.vmap(U_fn))
 
@@ -305,14 +345,15 @@ def run_simulation(mol_a, mol_b, core, k_core, k_dummy):
     all_coords = []
 
     burn_in_batches = 20
-    num_batches = 500
+    num_batches = 1000  # total steps is 1000*NUM_WORKERS*steps_per_batch
 
-    for idx, U_fn in tqdm(enumerate(U_fns)):
+    for idx, U_fn in enumerate(tqdm(U_fns)):
 
         x0 = np.concatenate([get_romol_conf(mol_a), get_romol_conf(mol_b)])
 
         masses = np.concatenate([get_romol_masses(mol_a), get_romol_masses(mol_b)])
         coords = integrator.simulate(
+            dt,
             x0,
             U_fn,
             temperature,
@@ -349,8 +390,11 @@ def run_simulation(mol_a, mol_b, core, k_core, k_dummy):
         # plt.hist(fwd, density=True, alpha=0.5, label="fwd")
         # plt.hist(-rev, density=True, alpha=0.5, label="-rev")
         # plt.legend()
+        # plt.show()
 
-        print("fwd nan count", np.sum(np.isnan(fwd)), "rev nan count", np.sum(np.isnan(rev)))
+        # print("fwd min/max", np.amin(fwd), np.amax(fwd))
+        # print("rev min/max", np.amin(rev), np.amax(rev))
+        # print("fwd nan count", np.sum(np.isnan(fwd)), "rev nan count", np.sum(np.isnan(rev)))
 
         dG, dG_err = pymbar.BAR(fwd, rev)
         dG_errs.append(dG_err)
@@ -374,14 +418,9 @@ def run_simulation(mol_a, mol_b, core, k_core, k_dummy):
     pbar_err = np.linalg.norm(dG_errs) / beta
     mbar_estimate = (obj.f_k[-1] - obj.f_k[0]) / beta
 
-    print("pbar", pbar_estimate, "+=", pbar_err, "kJ/mol | mbar", mbar_estimate, "kJ/mol")
+    print(f"dt {dt} pair_bar {pbar_estimate:.3f} += {pbar_err:.3f} kJ/mol | mbar {mbar_estimate:.3f} kJ/mol")
 
     return dG_estimate / beta
-
-
-from scipy.spatial.distance import cdist
-from scipy.optimize import linear_sum_assignment
-from rdkit.Chem import rdFMCS
 
 
 class CompareDist(rdFMCS.MCSAtomCompare):
@@ -453,12 +492,14 @@ def test_hybrid_topology():
                     mol_b.GetProp("_Name"),
                 )
                 core = get_core(mol_a, mol_b)
-                # print("core", core)
 
                 print("testing...", mol_a.GetProp("_Name"), mol_b.GetProp("_Name"), "core size", core.size)
 
                 # if k_core is too large we have numerical stability problems due to integrator error.
-                # keep it around 100000
-                run_simulation(mol_a, mol_b, core, k_core=100000, k_dummy=100000)
+                # keep it around 250000
+                run_simulation(mol_a, mol_b, core, k_core=250000, dt=1.5e-3)
+                run_simulation(mol_a, mol_b, core, k_core=250000, dt=0.5e-3)
             except AnchorError:
                 print("failed")
+
+            assert 0

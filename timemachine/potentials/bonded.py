@@ -207,8 +207,22 @@ def harmonic_angle(conf, params, box, lamb, angle_idxs, lamb_mult=None, lamb_off
     vij = ci - cj
     vjk = ck - cj
 
+    rij = np.linalg.norm(vij, axis=-1)
+    rjk = np.linalg.norm(vjk, axis=-1)
+
+    # make angles numerically stable when bonds shrink to zero
+    # switch_radii = 0.1  # in nm
+    # scale0 = (np.tanh(65 * (rij - switch_radii)) + 1) / 2
+    # scale1 = (np.tanh(65 * (rjk - switch_radii)) + 1) / 2
+    # scale = scale0 * scale1  # hard truncation
+    scale = 1.0
+
+    # scale0 = np.where(rij < 0.02, 0.0, 1.0)
+    # scale1 = np.where(rjk < 0.02, 0.0, 1.0)
+
     top = np.sum(np.multiply(vij, vjk), -1)
-    bot = np.linalg.norm(vij, axis=-1) * np.linalg.norm(vjk, axis=-1)
+    bot = rij * rjk
+    # bot = np.linalg.norm(vij, axis=-1) * np.linalg.norm(vjk, axis=-1)
 
     tb = top / bot
 
@@ -219,7 +233,7 @@ def harmonic_angle(conf, params, box, lamb, angle_idxs, lamb_mult=None, lamb_off
         angle = np.arccos(tb)
         energies = prefactor * kas / 2 * np.power(angle - a0s, 2)
 
-    return np.sum(energies, -1)  # reduce over all angles
+    return np.sum(scale * energies, -1)  # reduce over all angles
 
 
 def signed_torsion_angle(ci, cj, ck, cl):

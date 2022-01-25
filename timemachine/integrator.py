@@ -101,7 +101,7 @@ def _fori_steps(x0, v0, key0, grad_fn, num_steps, dt, ca, cbs, ccs):
     return jax.lax.fori_loop(0, num_steps, body_fn, (x0, v0, key0))
 
 
-def simulate(x0, U_fn, temperature, masses, steps_per_batch, num_batches, num_workers, seed=None):
+def simulate(dt, x0, U_fn, temperature, masses, steps_per_batch, num_batches, num_workers, seed=None):
     """
     Simulate a gas-phase system using a reference jax implementation.
 
@@ -135,7 +135,6 @@ def simulate(x0, U_fn, temperature, masses, steps_per_batch, num_batches, num_wo
         Shape [num_workers, num_batches, num_atoms, num_dimensions]
 
     """
-    dt = 1.5e-3
     friction = 1.0
     ca, cbs, ccs = langevin_coefficients(temperature, dt, friction, masses)
     cbs = np.expand_dims(cbs * -1, axis=-1)
