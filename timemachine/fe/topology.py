@@ -3,8 +3,11 @@ from abc import ABC
 import jax
 import jax.numpy as jnp
 import numpy as np
-from rdkit.Chem import rdmolops
+from rdkit import Chem
+from rdkit.Chem import Draw, rdmolops
 
+from timemachine.fe import dummy, dummy_draw
+from timemachine.fe.dummy import flag_factorizable_bonds, flag_stable_dummy_ixns
 from timemachine.ff.handlers import nonbonded
 from timemachine.lib import potentials
 
@@ -625,6 +628,397 @@ class DualTopologyMinimization(DualTopology):
         nb_potential.set_lambda_plane_idxs(combined_lambda_plane_idxs)
 
         return qlj_params, nb_potential
+
+
+def ordered_tuple(ixn):
+    if ixn[0] > ixn[-1]:
+        return tuple(ixn[::-1])
+    else:
+        return tuple(ixn)
+
+
+class SingleTopologyV2:
+    def __init__(self, mol_a, mol_b, core, ff):
+
+        # test for uniqueness in core idxs for each mol
+        assert len(set(tuple(core[:, 0]))) == len(core[:, 0])
+        assert len(set(tuple(core[:, 1]))) == len(core[:, 1])
+
+        self.mol_a = mol_a
+        self.mol_b = mol_b
+        self.ff = ff
+        self.core = core
+
+        self.a_to_c = np.arange(mol_a.GetNumAtoms(), dtype=np.int32)  # identity
+        self.b_to_c = np.zeros(mol_b.GetNumAtoms(), dtype=np.int32) - 1
+
+        self.NC = mol_a.GetNumAtoms() + mol_b.GetNumAtoms() - len(core)
+
+        # mark membership in the combined atom:
+        # 0: Core
+        # 1: Dummy A
+        # 2: Dummy B
+        self.c_flags = np.ones(self.NC, dtype=np.int32)
+
+        for a, b in core:
+            self.c_flags[a] = 0
+            self.b_to_c[b] = a
+
+        # increment atoms in the second mol
+        iota = self.mol_a.GetNumAtoms()
+        for b_idx, c_idx in enumerate(self.b_to_c):
+            if c_idx == -1:
+                self.b_to_c[b_idx] = iota
+                self.c_flags[iota] = 2
+                iota += 1
+
+    @staticmethod
+    def _transform_indices(bond_idxs, a_to_c):
+
+        updated_idxs = []
+        for atom_idxs in bond_idxs:
+            new_atom_idxs = []
+            for a_idx in atom_idxs:
+                new_atom_idxs.append(a_to_c[a_idx])
+            updated_idxs.append(ordered_tuple(new_atom_idxs))
+
+        return updated_idxs
+
+    def _update_b(self, bond_idxs_b):
+        """
+        Update indices of b using b_to_c mapping. This also canonicalizes
+        the bond indices in the new chimeric molecule.
+        """
+        updated_idxs = []
+        for atom_idxs in bond_idxs_b:
+            new_atom_idxs = []
+            for a_idx in atom_idxs:
+                new_atom_idxs.append(self.b_to_c[a_idx])
+            updated_idxs.append(ordered_tuple(new_atom_idxs))
+
+        return updated_idxs
+
+    def interpolate_params(self, params_a, params_b):
+        """
+        Interpolate two sets of per-particle parameters.
+
+        This can be used to interpolate masses, coordinates, etc.
+
+        Parameters
+        ----------
+        params_a: np.ndarray, shape [N_A, ...]
+            Parameters for the mol_a
+
+        params_b: np.ndarray, shape [N_B, ...]
+            Parameters for the mol_b
+
+        Returns
+        -------
+        tuple: (src, dst)
+            Two np.ndarrays each of shape [N_C, ...]
+
+        """
+
+        src_params = [None] * self.NC
+        dst_params = [None] * self.NC
+
+        for a_idx, c_idx in enumerate(self.a_to_c):
+            src_params[c_idx] = params_a[a_idx]
+            dst_params[c_idx] = params_a[a_idx]
+
+        for b_idx, c_idx in enumerate(self.b_to_c):
+            dst_params[c_idx] = params_b[b_idx]
+            if src_params[c_idx] is None:
+                src_params[c_idx] = params_b[b_idx]
+
+        return np.array(src_params), np.array(dst_params)
+
+    @staticmethod
+    def _fuse_bond_tables(bond_idxs_a, bond_params_a, bond_idxs_b, bond_params_b):
+        """
+        bond_idxs_a and bond_idxs_b take transformed indices identities, and they should be
+        sorted.
+
+        fuse dummy atoms in b unto a
+        """
+        # bond_idxs may have duplicates:
+        # eg: for 1-2 terms (harmonic bond and nonbonded)
+        #     for 1-4 terms (periodic torsions with multiple components
+
+        # sanity check ordering
+        for atom_idxs in bond_idxs_a:
+            assert atom_idxs[0] < atom_idxs[-1]
+        for atom_idxs in bond_idxs_b:
+            assert atom_idxs[0] < atom_idxs[-1]
+
+        bond_idxs_c = []
+        bond_params_c = []
+
+        for atom_idxs, params in zip(bond_idxs_a, bond_params_a):
+            assert atom_idxs[0] < atom_idxs[-1]
+            bond_idxs_c.append(atom_idxs)
+            bond_params_c.append(params)
+
+        for atom_idxs, params in zip(bond_idxs_b, bond_params_b):
+            assert atom_idxs[0] < atom_idxs[-1]
+            if atom_idxs not in bond_idxs_a:
+                bond_idxs_c.append(atom_idxs)
+                bond_params_c.append(params)
+
+        return bond_idxs_c, bond_params_c
+
+    @staticmethod
+    def _generate_hybrid_mol_impl(mol_a, a_to_c, mol_b, b_to_c):
+
+        atom_kv = {}
+
+        for atom in mol_b.GetAtoms():
+            atom_kv[b_to_c[atom.GetIdx()]] = Chem.Atom(atom)
+
+        for atom in mol_a.GetAtoms():
+            atom_kv[a_to_c[atom.GetIdx()]] = Chem.Atom(atom)
+
+        bond_idxs_a = [(x.GetBeginAtomIdx(), x.GetEndAtomIdx()) for x in mol_a.GetBonds()]
+        bond_params_a = [x.GetBondType() for x in mol_a.GetBonds()]
+
+        bond_idxs_b = [(x.GetBeginAtomIdx(), x.GetEndAtomIdx()) for x in mol_b.GetBonds()]
+        bond_params_b = [x.GetBondType() for x in mol_b.GetBonds()]
+
+        bond_idxs_a = SingleTopologyV2._transform_indices(bond_idxs_a, a_to_c)
+        bond_idxs_b = SingleTopologyV2._transform_indices(bond_idxs_b, b_to_c)
+
+        bond_idxs_c, bond_params_c = SingleTopologyV2._fuse_bond_tables(
+            bond_idxs_a, bond_params_a, bond_idxs_b, bond_params_b
+        )
+
+        hybrid_mol = Chem.RWMol()
+        for atom_idx in sorted(atom_kv):
+            hybrid_mol.AddAtom(atom_kv[atom_idx])
+
+        for (i, j), bond_type in zip(bond_idxs_c, bond_params_c):
+            hybrid_mol.AddBond(int(i), int(j), bond_type)
+
+        # make immutable
+        return Chem.Mol(hybrid_mol)
+
+    def generate_hybrid_mol_src(self):
+        return self._generate_hybrid_mol_impl(self.mol_a, self.a_to_c, self.mol_b, self.b_to_c)
+
+    def generate_hybrid_mol_dst(self):
+        return self._generate_hybrid_mol_impl(self.mol_b, self.b_to_c, self.mol_a, self.a_to_c)
+
+    def _draw_dummy_ixns(self):
+
+        hal = [self.core[:, 0].tolist(), self.core[:, 1].tolist()]
+        legends = ["mol_a", "mol_b"]
+        res = Draw.MolsToGridImage([self.mol_a, self.mol_b], highlightAtomLists=hal, legends=legends, useSVG=True)
+        with open("mols.svg", "w") as fh:
+            fh.write(res)
+
+        src, dst = self._parameterize_bonds()
+        src_12, _, src_13, _, src_14, _ = src
+        src_bond_idxs = [x for x in src_12] + [x for x in src_13] + [x for x in src_14]
+        src_mol = self.generate_hybrid_mol_src()
+
+        dst_12, _, dst_13, _, dst_14, _ = dst
+        dst_bond_idxs = [x for x in dst_12] + [x for x in dst_13] + [x for x in dst_14]
+        dst_mol = self.generate_hybrid_mol_dst()
+
+        core_idxs_src = [x for x in range(self.NC) if (self.c_flags[x] == 1 or self.c_flags[x] == 0)]  # A + C dummy
+        core_idxs_dst = [x for x in range(self.NC) if (self.c_flags[x] == 2 or self.c_flags[x] == 0)]  # B + C dummy
+
+        hal = [core_idxs_src, core_idxs_dst]
+        res = Draw.MolsToGridImage(
+            [src_mol, dst_mol], highlightAtomLists=hal, legends=["src_mol", "dst_mol"], useSVG=True
+        )
+        with open("src_dst_mol.svg", "w") as fh:
+            fh.write(res)
+
+        dgs, ags, ag_ixns = dummy.generate_optimal_dg_ag_pairs(core_idxs_src, src_bond_idxs)
+
+        for idx, (dummy_group, anchor_group, anchor_ixns) in enumerate(zip(dgs, ags, ag_ixns)):
+
+            matched_ixns = []
+            for idxs in src_bond_idxs:
+                if tuple(idxs) in anchor_ixns:
+                    if np.all([ii in dummy_group for ii in idxs]):
+                        continue
+                    elif np.all([ii in core_idxs_src for ii in idxs]):
+                        continue
+                    matched_ixns.append(idxs)
+
+            res = dummy_draw.draw_dummy_core_ixns(src_mol, core_idxs_src, matched_ixns, dummy_group)
+
+            with open("debug_src_" + str(idx) + ".svg", "w") as fh:
+                fh.write(res)
+
+        dgs, ags, ag_ixns = dummy.generate_optimal_dg_ag_pairs(core_idxs_dst, dst_bond_idxs)
+
+        for idx, (dummy_group, anchor_group, anchor_ixns) in enumerate(zip(dgs, ags, ag_ixns)):
+
+            matched_ixns = []
+            for idxs in dst_bond_idxs:
+                if tuple(idxs) in anchor_ixns:
+                    if np.all([ii in dummy_group for ii in idxs]):
+                        continue
+                    elif np.all([ii in core_idxs_dst for ii in idxs]):
+                        continue
+                    matched_ixns.append(idxs)
+
+            res = dummy_draw.draw_dummy_core_ixns(dst_mol, core_idxs_dst, matched_ixns, dummy_group)
+
+            with open("debug_dst_" + str(idx) + ".svg", "w") as fh:
+                fh.write(res)
+
+    @staticmethod
+    def _process_end_state_ixns(NC, core_idxs, hb_idxs, hb_params, ha_idxs, ha_params, pt_idxs, pt_params):
+
+        keep_angle_flags, keep_torsion_flags = flag_stable_dummy_ixns(
+            core_idxs, hb_idxs, hb_params, ha_idxs, ha_params, pt_idxs, pt_params
+        )
+
+        bond_idxs = [idxs for idxs in hb_idxs]
+        bond_params = [params for params in hb_params]
+
+        for idx, atom_idxs in enumerate(ha_idxs):
+            if keep_angle_flags[idx]:
+                bond_idxs.append(atom_idxs)
+                bond_params.append(ha_params[idx])
+
+        for idx, atom_idxs in enumerate(pt_idxs):
+            if keep_torsion_flags[idx]:
+                bond_idxs.append(atom_idxs)
+                bond_params.append(pt_params[idx])
+
+        keep_flags = flag_factorizable_bonds(core_idxs, bond_idxs)
+
+        pruned_hb_idxs = []
+        pruned_hb_params = []
+
+        pruned_ha_idxs = []
+        pruned_ha_params = []
+
+        pruned_pt_idxs = []
+        pruned_pt_params = []
+
+        for keep, idxs, params in zip(keep_flags, bond_idxs, bond_params):
+            if keep:
+                if len(idxs) == 2:
+                    pruned_hb_idxs.append(idxs)
+                    pruned_hb_params.append(params)
+                elif len(idxs) == 3:
+                    pruned_ha_idxs.append(idxs)
+                    pruned_ha_params.append(params)
+                elif len(idxs) == 4:
+                    pruned_pt_idxs.append(idxs)
+                    pruned_pt_params.append(params)
+                else:
+                    assert 0
+
+        return pruned_hb_idxs, pruned_hb_params, pruned_ha_idxs, pruned_ha_params, pruned_pt_idxs, pruned_pt_params
+
+    @staticmethod
+    def _parameterize_bonds_impl(NC, ff, core, mol_a, a_to_c, mol_b, b_to_c):
+        hb_params_a, hb_idxs_a = ff.hb_handle.partial_parameterize(ff.hb_handle.params, mol_a)
+        hb_params_b, hb_idxs_b = ff.hb_handle.partial_parameterize(ff.hb_handle.params, mol_b)
+        hb_idxs_a = SingleTopologyV2._transform_indices(hb_idxs_a, a_to_c)
+        hb_idxs_b = SingleTopologyV2._transform_indices(hb_idxs_b, b_to_c)
+
+        ha_params_a, ha_idxs_a = ff.ha_handle.partial_parameterize(ff.ha_handle.params, mol_a)
+        ha_params_b, ha_idxs_b = ff.ha_handle.partial_parameterize(ff.ha_handle.params, mol_b)
+        ha_idxs_a = SingleTopologyV2._transform_indices(ha_idxs_a, a_to_c)
+        ha_idxs_b = SingleTopologyV2._transform_indices(ha_idxs_b, b_to_c)
+
+        pt_params_a, pt_idxs_a = ff.pt_handle.partial_parameterize(ff.pt_handle.params, mol_a)
+        pt_params_b, pt_idxs_b = ff.pt_handle.partial_parameterize(ff.pt_handle.params, mol_b)
+        pt_idxs_a = SingleTopologyV2._transform_indices(pt_idxs_a, a_to_c)
+        pt_idxs_b = SingleTopologyV2._transform_indices(pt_idxs_b, b_to_c)
+
+        # set up potentials to be interpolated on or off
+        hb_idxs, hb_params = SingleTopologyV2._fuse_bond_tables(hb_idxs_a, hb_params_a, hb_idxs_b, hb_params_b)
+        ha_idxs, ha_params = SingleTopologyV2._fuse_bond_tables(ha_idxs_a, ha_params_a, ha_idxs_b, ha_params_b)
+        pt_idxs, pt_params = SingleTopologyV2._fuse_bond_tables(pt_idxs_a, pt_params_a, pt_idxs_b, pt_params_b)
+
+        return SingleTopologyV2._process_end_state_ixns(
+            NC, core, hb_idxs, hb_params, ha_idxs, ha_params, pt_idxs, pt_params
+        )
+
+    def _parameterize_bonds(self):
+        print("PROCESSING SRC")
+        core_idxs_src = [x for x in range(self.NC) if (self.c_flags[x] == 1 or self.c_flags[x] == 0)]  # A + C dummy
+        src = self._parameterize_bonds_impl(
+            self.NC, self.ff, core_idxs_src, self.mol_a, self.a_to_c, self.mol_b, self.b_to_c
+        )
+
+        print("PROCESSING DST")
+        core_idxs_dst = [x for x in range(self.NC) if (self.c_flags[x] == 2 or self.c_flags[x] == 0)]  # B + C dummy
+        dst = self._parameterize_bonds_impl(
+            self.NC, self.ff, core_idxs_dst, self.mol_b, self.b_to_c, self.mol_a, self.a_to_c
+        )
+
+        return src, dst
+
+    # def _parameterize_bonds(self):
+
+    #     ff = self.ff
+
+    #     hb_params_a, hb_idxs_a = ff.hb_handle.partial_parameterize(ff.hb_handle.params, self.mol_a)
+    #     hb_params_b, hb_idxs_b = ff.hb_handle.partial_parameterize(ff.hb_handle.params, self.mol_b)
+    #     hb_idxs_b = self._update_b(hb_idxs_b)  # increment indices in the chimeric molecule
+
+    #     ha_params_a, ha_idxs_a = ff.ha_handle.partial_parameterize(ff.ha_handle.params, self.mol_a)
+    #     ha_params_b, ha_idxs_b = ff.ha_handle.partial_parameterize(ff.ha_handle.params, self.mol_b)
+    #     ha_idxs_b = self._update_b(ha_idxs_b)
+
+    #     pt_params_a, pt_idxs_a = ff.pt_handle.partial_parameterize(ff.pt_handle.params, self.mol_a)
+    #     pt_params_b, pt_idxs_b = ff.pt_handle.partial_parameterize(ff.pt_handle.params, self.mol_b)
+    #     pt_idxs_b = self._update_b(pt_idxs_b)
+
+    #     # set up potentials to be interpolated on or off
+    #     hb_idxs_src, hb_params_src, hb_idxs_dst, hb_params_dst = self._combine_bonded_parameters(
+    #         hb_idxs_a, hb_params_a, hb_idxs_b, hb_params_b
+    #     )
+    #     ha_idxs_src, ha_params_src, ha_idxs_dst, ha_params_dst = self._combine_bonded_parameters(
+    #         ha_idxs_a, ha_params_a, ha_idxs_b, ha_params_b
+    #     )
+    #     pt_idxs_src, pt_params_src, pt_idxs_dst, pt_params_dst = self._combine_bonded_parameters(
+    #         pt_idxs_a, pt_params_a, pt_idxs_b, pt_params_b
+    #     )
+
+    #     core_idxs_src = [x for x in range(self.NC) if (self.c_flags[x] == 1 or self.c_flags[x] == 0)]  # A + C dummy
+    #     core_idxs_dst = [x for x in range(self.NC) if (self.c_flags[x] == 2 or self.c_flags[x] == 0)]  # B + C dummy
+
+    #     (
+    #         hb_idxs_src,
+    #         hb_params_src,
+    #         ha_idxs_src,
+    #         ha_params_src,
+    #         pt_idxs_src,
+    #         pt_params_src,
+    #     ) = self._process_end_state_ixns(
+    #         core_idxs_src, hb_idxs_src, hb_params_src, ha_idxs_src, ha_params_src, pt_idxs_src, pt_params_src
+    #     )
+
+    #     (
+    #         hb_idxs_dst,
+    #         hb_params_dst,
+    #         ha_idxs_dst,
+    #         ha_params_dst,
+    #         pt_idxs_dst,
+    #         pt_params_dst,
+    #     ) = self._process_end_state_ixns(
+    #         core_idxs_dst, hb_idxs_dst, hb_params_dst, ha_idxs_dst, ha_params_dst, pt_idxs_dst, pt_params_dst
+    #     )
+
+    #     # return end-state parameters
+    #     return (hb_idxs_src, hb_params_src, ha_idxs_src, ha_params_src, pt_idxs_src, pt_params_src), (
+    #         hb_idxs_dst,
+    #         hb_params_dst,
+    #         ha_idxs_dst,
+    #         ha_params_dst,
+    #         pt_idxs_dst,
+    #         pt_params_dst,
+    #     )
 
 
 class SingleTopology:

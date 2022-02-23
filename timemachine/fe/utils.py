@@ -271,6 +271,10 @@ def get_romol_conf(mol):
     return guest_conf / 10  # from angstroms to nm
 
 
+def get_romol_masses(mol):
+    return [a.GetMass() for a in mol.GetAtoms()]
+
+
 def sanitize_energies(full_us, lamb_idx, cutoff=10000):
     """
     Given a matrix with F rows and K columns,
