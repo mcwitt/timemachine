@@ -47,7 +47,7 @@ def equilibrate(
     box: NDArray,
     lamb: float,
     equil_steps: int,
-) -> Tuple:
+) -> CoordsVelBox:
     all_impls = []
     v0 = np.zeros_like(coords)
 

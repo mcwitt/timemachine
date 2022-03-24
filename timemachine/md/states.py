@@ -1,5 +1,12 @@
 # Sampler states
 
-from collections import namedtuple
+from dataclasses import dataclass
 
-CoordsVelBox = namedtuple("CoordsVelBox", ["coords", "velocities", "box"])
+from numpy.typing import NDArray
+
+
+@dataclass
+class CoordsVelBox:
+    coords: NDArray
+    velocities: NDArray
+    box: NDArray
