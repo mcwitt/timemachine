@@ -92,7 +92,7 @@ Context::multiple_steps(const std::vector<double> &lambda_schedule, int store_du
             }
 
             double lambda = lambda_schedule[i - 1];
-            this->_step(lambda, du_dl_ptr);
+            this->_step(lambda, du_dl_ptr, nullptr);
 
             if (i % store_x_interval == 0) {
                 gpuErrchk(cudaMemcpy(
@@ -178,7 +178,7 @@ std::array<std::vector<double>, 3> Context::multiple_steps_U(
         cudaStream_t stream = static_cast<cudaStream_t>(0);
         for (int step = 1; step <= n_steps; step++) {
 
-            this->_step(lambda, nullptr);
+            this->_step(lambda, nullptr, nullptr);
 
             if (step % store_x_interval == 0) {
                 gpuErrchk(cudaMemcpy(
@@ -233,11 +233,11 @@ std::array<std::vector<double>, 3> Context::multiple_steps_U(
 }
 
 void Context::step(double lambda) {
-    this->_step(lambda, nullptr);
+    this->_step(lambda, nullptr, nullptr);
     gpuErrchk(cudaDeviceSynchronize());
 }
 
-void Context::_step(double lambda, unsigned long long *du_dl_out) {
+void Context::_step(double lambda, unsigned long long *du_dl_out, unsigned int *atom_idxs) {
 
     cudaStream_t stream = static_cast<cudaStream_t>(0);
 
@@ -269,7 +269,7 @@ void Context::_step(double lambda, unsigned long long *du_dl_out) {
     // for(int i=0; i < streams_.size(); i++) {
     // gpuErrchk(cudaStreamSynchronize(streams_[i]));
     // }
-    intg_->step_fwd(d_x_t_, d_v_t_, d_du_dx_t_, d_box_t_, stream);
+    intg_->step_fwd(d_x_t_, d_v_t_, d_du_dx_t_, d_box_t_, atom_idxs, stream);
 
     if (barostat_) {
         // May modify coords, du_dx and box size

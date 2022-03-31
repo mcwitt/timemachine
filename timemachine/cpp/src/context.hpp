@@ -50,7 +50,7 @@ private:
 
     MonteCarloBarostat *barostat_;
 
-    void _step(double lambda, unsigned long long *du_dl_out);
+    void _step(double lambda, unsigned long long *du_dl_out, unsigned int *atom_idxs);
 
     void _step_equilibrium(double lambda, unsigned long long *du_dl_out);
 
