@@ -8,8 +8,11 @@ import jax
 import pytest
 from common import prepare_nb_system
 
+from timemachine.ff import Forcefield
 from timemachine.integrator import langevin_coefficients
-from timemachine.lib import custom_ops
+from timemachine.lib import LangevinIntegrator, custom_ops
+from timemachine.md.enhanced import get_solvent_phase_system
+from timemachine.testsystems.ligands import get_biphenyl
 
 pytestmark = [pytest.mark.memcheck]
 
@@ -356,6 +359,28 @@ class TestContext(unittest.TestCase):
         )
 
         assert test_us.shape == (num_steps / u_interval, 0)
+
+    def test_local_md(self):
+        mol, _ = get_biphenyl()
+        ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
+        unbound_potentials, sys_params, masses, coords, box = get_solvent_phase_system(mol, ff)
+
+        temperature = 300
+        dt = 2e-3
+        friction = 0.0
+        seed = 2022
+
+        intg = LangevinIntegrator(temperature, dt, friction, masses, seed)
+
+        intg_impl = intg.impl()
+
+        v0 = np.zeros_like(coords)
+        bps = []
+        for p, bp in zip(sys_params, unbound_potentials):
+            bps.append(bp.bind(p).bound_impl(np.float32))
+
+        ctxt = custom_ops.Context(coords, v0, box, intg_impl, bps)
+        ctxt.local_md(0.0, 10, 0, 100, np.arange(len(coords) - mol.GetNumAtoms(), len(coords), dtype=np.int32), 1)
 
 
 if __name__ == "__main__":
