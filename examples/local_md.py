@@ -80,10 +80,9 @@ def get_frozen_idxs(coords, mol, box, cutoff=1.2):
     num_host_atoms = len(coords) - num_lig_atoms
 
     # Construct list of atoms in the inner shell
-    inner_nblist = custom_ops.Neighborlist_f64(num_host_atoms, num_lig_atoms)
-    first_shell_ixns = inner_nblist.get_nblist_host_ligand(
-        coords[:num_host_atoms], coords[num_host_atoms:], box, cutoff
-    )
+    inner_nblist = custom_ops.Neighborlist_f64(len(coords))
+    inner_nblist.set_row_idxs(np.arange(len(coords) - num_lig_atoms, len(coords), dtype=np.uint32))
+    first_shell_ixns = inner_nblist.get_nblist(coords, box, cutoff)
     inner_shell_idxs = reduce_nblist_ixns(first_shell_ixns)
 
     # Construct list of atoms in the outer shell, currently not necessary
@@ -133,51 +132,40 @@ def run_local_steps(state: MDState, sys_state: CoordsVelBox, steps: int, referen
 
     # shift_tolerance = 0.25 * (1.2 ** 2)
     coords = sys_state.coords
-    frozen_idxs = get_frozen_idxs(sys_state.coords, state.mol, box)
     velocities = sys_state.velocities.copy()
     # velocities = sample_velocities(state.masses * unit.amu, state.temperature * unit.kelvin),
     states = []
     if reference:
+        frozen_idxs = get_frozen_idxs(sys_state.coords, state.mol, box)
 
         def force_func(coords: NDArray):
             du_dxs = np.array([bp.execute(coords, box, 0.0)[0] for bp in bound_impls])
             forces = -np.sum(du_dxs, 0)
             return forces
 
-        langevin = ReferenceLangevinIntegrator(
-            force_func, state.masses, state.temperature, state.dt, state.friction, seed=state.seed
-        )
+        langevin = ReferenceLangevinIntegrator(force_func, state.masses, state.temperature, state.dt, state.friction)
         x = coords.copy()
         v = velocities
         for i in range(steps):
             x, v = langevin.step(x, v)
             x[frozen_idxs] = coords[frozen_idxs]
             v[frozen_idxs] = sys_state.velocities[frozen_idxs]
-            # if np.any(distance_on_pairs(coords, x) > shift_tolerance):
-            #     print("Rebuilding neighborlist at step", i)
-            #     frozen_idxs = get_frozen_idxs(x, state.mol, box)
-            #     coords = x
             updated_state = CoordsVelBox(x, v, box)
             states.append(updated_state)
     else:
         integrator = state.get_integrator()
-        velocities = sys_state.velocities.copy()
-        ctxt = custom_ops.Context(coords, velocities, box, integrator, bound_impls)
-        for i in range(steps):
-            ctxt.step(0)
-            x = ctxt.get_x_t()
-            v = ctxt.get_v_t()
-            x[frozen_idxs] = coords[frozen_idxs]
-            v[frozen_idxs] = velocities[frozen_idxs]
-            # if np.any(distance_on_pairs(coords, x) > shift_tolerance):
-            #     print("Rebuilding neighborlist at step", i)
-            #     frozen_idxs = get_frozen_idxs(x, state.mol, box)
-            #     coords = x
-            #     velocities = v
-            ctxt.set_x_t(x)
-            ctxt.set_v_t(v)
-            states.append(CoordsVelBox(x, v, box))
-        np.testing.assert_array_equal(v[frozen_idxs], velocities[frozen_idxs])
+        ctxt = custom_ops.Context(coords, sys_state.velocities.copy(), box, integrator, bound_impls)
+        frames, boxes = ctxt.local_md(
+            np.zeros(1),
+            steps,
+            0,
+            1,  # Run n iterations of a single local step
+            1,
+            np.arange(len(coords) - state.mol.GetNumAtoms(), len(coords), dtype=np.uint32),
+        )
+        states.extend([CoordsVelBox(x, None, box) for x, box in zip(frames, boxes)])
+        states.append(CoordsVelBox(ctxt.get_x_t(), ctxt.get_v_t(), ctxt.get_box()))
+        # np.testing.assert_array_equal(v[frozen_idxs], velocities[frozen_idxs])
     for i in range(len(states) - 1):
         # Clear the velocities for older states, else memory can become an issue
         states[i].velocities = None

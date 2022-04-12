@@ -379,8 +379,18 @@ class TestContext(unittest.TestCase):
         for p, bp in zip(sys_params, unbound_potentials):
             bps.append(bp.bind(p).bound_impl(np.float32))
 
+        local_idxs = np.arange(len(coords) - mol.GetNumAtoms(), len(coords), dtype=np.uint32)
+        iterations = 10
         ctxt = custom_ops.Context(coords, v0, box, intg_impl, bps)
-        ctxt.local_md(0.0, 10, 0, 100, np.arange(len(coords) - mol.GetNumAtoms(), len(coords), dtype=np.int32), 1)
+        xs, boxes = ctxt.local_md(np.zeros(100), iterations, 0, 100, local_idxs, 1)
+
+        assert xs.shape[0] == iterations
+        assert boxes.shape[0] == iterations
+
+        # Indices in the local area should have moved
+        assert np.all(coords[local_idxs] != xs[-1][local_idxs])
+        # Indices not in the local area should match up, as there is no global MD
+        assert np.any(coords == xs[-1])
 
 
 if __name__ == "__main__":
