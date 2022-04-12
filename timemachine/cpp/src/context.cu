@@ -1,9 +1,8 @@
 #include "context.hpp"
 #include "fixed_point.hpp"
 #include "gpu_utils.cuh"
-#include <chrono>
+#include "neighborlist.hpp"
 #include <cub/cub.cuh>
-#include <iostream>
 
 namespace timemachine {
 
@@ -51,6 +50,103 @@ Context::~Context() {
     // gpuErrchk(cudaStreamDestroy(streams_[i]));
     // }
 };
+
+void __global__ k_flatten(
+    const int N, // Number of values in src
+    const int K, // Number of values in dest
+    const unsigned int *__restrict__ src,
+    unsigned int *__restrict__ dest) {
+    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= N) {
+        return;
+    }
+    const unsigned int val = src[idx];
+    if (val > K) {
+        return;
+    }
+    dest[val] = val;
+    // flag_map[val] = 1;
+}
+
+// TODO document this regarding store_x_interval being based on iterations
+std::array<std::vector<double>, 2> Context::local_md(
+    const std::vector<double> &lambda_schedule,
+    const int iterations,
+    const int global_steps,
+    const int local_steps,
+    const int store_x_interval,
+    const std::vector<unsigned int> &local_idxs,
+    const double cutoff) {
+
+    if (store_x_interval <= 0) {
+        throw std::runtime_error("store_x_interval <= 0");
+    }
+    const int x_buffer_size = ceil_divide(iterations, store_x_interval);
+
+    const int box_buffer_size = x_buffer_size * 3 * 3;
+    cudaStream_t stream = static_cast<cudaStream_t>(0);
+
+    const int NR = local_idxs.size();
+    // Initial impl will use a single nblist
+    Neighborlist<float> nblist(N_);
+    nblist.set_row_idxs(local_idxs);
+
+    size_t tpb = 32;
+    int num_items = nblist.num_column_blocks() * nblist.num_row_blocks() * tpb;
+
+    DeviceBuffer<unsigned int> d_idxs_buffer(N_);
+
+    // Store coordinates in host memory as it can be very large
+    std::vector<double> h_x_buffer(x_buffer_size * N_ * 3);
+    // Store boxes on GPU as boxes are a constant size and relatively small1
+    DeviceBuffer<double> d_box_buffer(box_buffer_size);
+
+    DeviceBuffer<unsigned int> d_local_idxs(local_idxs.size());
+    d_local_idxs.copy_from(&local_idxs[0]);
+
+    for (int i = 1; i <= iterations; i++) {
+
+        for (int j = 0; j < global_steps; j++) {
+            this->_step(lambda_schedule[j], nullptr, nullptr);
+        }
+        // Set the array to all N, which means it will be ignored as an idx
+        k_initialize_array<unsigned int><<<ceil_divide(N_, tpb), tpb, 0, stream>>>(N_, d_idxs_buffer.data, N_);
+        gpuErrchk(cudaPeekAtLastError());
+
+        // Build the neighborlist around the idxs to get the atoms that interact
+        nblist.build_nblist_device(N_, d_x_t_, d_box_t_, cutoff, stream);
+
+        k_flatten<<<ceil_divide(num_items, tpb), tpb, 0, stream>>>(
+            num_items, N_, nblist.get_ixn_atoms(), d_idxs_buffer.data);
+        gpuErrchk(cudaPeekAtLastError());
+
+        k_flatten<<<ceil_divide(NR, tpb), tpb, 0, stream>>>(NR, N_, d_local_idxs.data, d_idxs_buffer.data);
+        gpuErrchk(cudaPeekAtLastError());
+
+        for (int j = 0; j < local_steps; j++) {
+            this->_step(lambda_schedule[global_steps + j], nullptr, d_idxs_buffer.data);
+        }
+        if (i % store_x_interval == 0) {
+            gpuErrchk(cudaMemcpy(
+                &h_x_buffer[0] + ((i / store_x_interval) - 1) * N_ * 3,
+                d_x_t_,
+                N_ * 3 * sizeof(*d_x_t_),
+                cudaMemcpyDeviceToHost));
+            gpuErrchk(cudaMemcpyAsync(
+                d_box_buffer.data + ((i / store_x_interval) - 1) * 3 * 3,
+                d_box_t_,
+                3 * 3 * sizeof(*d_box_buffer.data),
+                cudaMemcpyDeviceToDevice,
+                stream));
+        }
+    }
+
+    cudaStreamSynchronize(stream);
+
+    std::vector<double> h_box_buffer(box_buffer_size);
+    d_box_buffer.copy_to(&h_box_buffer[0]);
+    return std::array<std::vector<double>, 2>({h_x_buffer, h_box_buffer});
+}
 
 std::array<std::vector<double>, 3>
 Context::multiple_steps(const std::vector<double> &lambda_schedule, int store_du_dl_interval, int store_x_interval) {
