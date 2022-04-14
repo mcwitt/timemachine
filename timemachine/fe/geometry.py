@@ -4,7 +4,10 @@ from enum import Enum
 from typing import List
 
 from rdkit import Chem
-from rdkit.Chem import HybridizationType
+
+SP = Chem.HybridizationType.SP
+SP2 = Chem.HybridizationType.SP2
+SP3 = Chem.HybridizationType.SP3
 
 
 class LocalGeometry(Enum):
@@ -21,33 +24,32 @@ def assign_atom_geometry(atom):
     Heuristic using hybridization information to assign local description
     of geometry.
     """
-    nbrs = list(atom.GetNeighbors())
-    hybridization = atom.GetHybridization()
-    if len(nbrs) == 0:
+    nbrs = len(list(atom.GetNeighbors()))
+    hybr = atom.GetHybridization()
+
+    two_neighbor_geometries = {
+        SP3: LocalGeometry.G2_KINK,
+        SP2: LocalGeometry.G2_KINK,
+        SP: LocalGeometry.G2_LINEAR,
+    }
+    three_neighbor_geometries = {
+        SP3: LocalGeometry.G3_PYRAMIDAL,
+        SP2: LocalGeometry.G3_PLANAR,
+    }
+    four_neighbor_geometries = {
+        SP3: LocalGeometry.G4_TETRAHEDRAL,
+    }
+
+    if nbrs == 0:
         assert 0, "Ion not supported"
-    elif len(nbrs) == 1:
+    elif nbrs == 1:
         return LocalGeometry.G1_TERMINAL
-    elif len(nbrs) == 2:
-        if hybridization == HybridizationType.SP3:
-            return LocalGeometry.G2_KINK
-        elif hybridization == HybridizationType.SP2:
-            return LocalGeometry.G2_KINK
-        elif hybridization == HybridizationType.SP:
-            return LocalGeometry.G2_LINEAR
-        else:
-            assert 0, "Unknown 2-nbr geometry!"
-    elif len(nbrs) == 3:
-        if hybridization == HybridizationType.SP3:
-            return LocalGeometry.G3_PYRAMIDAL
-        elif hybridization == HybridizationType.SP2:
-            return LocalGeometry.G3_PLANAR
-        else:
-            assert 0, "Unknown 3-nbr geometry"
-    elif len(nbrs) == 4:
-        if hybridization == HybridizationType.SP3:
-            return LocalGeometry.G4_TETRAHEDRAL
-        else:
-            assert 0, "Unknown 4-nbr geometry"
+    elif nbrs == 2:
+        return two_neighbor_geometries[hybr]
+    elif nbrs == 3:
+        return three_neighbor_geometries[hybr]
+    elif nbrs == 4:
+        return four_neighbor_geometries[hybr]
     else:
         assert 0, "Too many neighbors"
 
