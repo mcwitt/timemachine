@@ -1,10 +1,14 @@
 from importlib import resources
-from typing import List
+from typing import Dict, TypeAlias
 
-from rdkit import Chem
+from rdkit.Chem import Mol, SDMolSupplier
+
+MolName: TypeAlias = str
 
 
-def fetch_freesolv() -> List[Chem.Mol]:
+def fetch_freesolv() -> Dict[MolName, Mol]:
     with resources.path("timemachine.datasets.freesolv", "freesolv.sdf") as freesolv_path:
-        supplier = Chem.SDMolSupplier(str(freesolv_path), removeHs=False)
-    return [mol for mol in supplier]
+        supplier = SDMolSupplier(str(freesolv_path), removeHs=False)
+
+    mol_dict = {mol.GetProp("_Name"): mol for mol in supplier}
+    return mol_dict
