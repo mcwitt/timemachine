@@ -1,8 +1,10 @@
 # Utility functions to help assign and identify local geometry points
 
 from enum import Enum
+from typing import List
 
 from rdkit import Chem
+from rdkit.Chem import HybridizationType
 
 
 class LocalGeometry(Enum):
@@ -20,34 +22,37 @@ def assign_atom_geometry(atom):
     of geometry.
     """
     nbrs = list(atom.GetNeighbors())
+    hybridization = atom.GetHybridization()
     if len(nbrs) == 0:
         assert 0, "Ion not supported"
     elif len(nbrs) == 1:
         return LocalGeometry.G1_TERMINAL
     elif len(nbrs) == 2:
-        if atom.GetHybridization() == Chem.HybridizationType.SP3:
+        if hybridization == HybridizationType.SP3:
             return LocalGeometry.G2_KINK
-        elif atom.GetHybridization() == Chem.HybridizationType.SP2:
+        elif hybridization == HybridizationType.SP2:
             return LocalGeometry.G2_KINK
-        elif atom.GetHybridization() == Chem.HybridizationType.SP:
+        elif hybridization == HybridizationType.SP:
             return LocalGeometry.G2_LINEAR
         else:
             assert 0, "Unknown 2-nbr geometry!"
     elif len(nbrs) == 3:
-        if atom.GetHybridization() == Chem.HybridizationType.SP3:
+        if hybridization == HybridizationType.SP3:
             return LocalGeometry.G3_PYRAMIDAL
-        elif atom.GetHybridization() == Chem.HybridizationType.SP2:
+        elif hybridization == HybridizationType.SP2:
             return LocalGeometry.G3_PLANAR
         else:
             assert 0, "Unknown 3-nbr geometry"
     elif len(nbrs) == 4:
-        if atom.GetHybridization() == Chem.HybridizationType.SP3:
+        if hybridization == HybridizationType.SP3:
             return LocalGeometry.G4_TETRAHEDRAL
+        else:
+            assert 0, "Unknown 4-nbr geometry"
     else:
         assert 0, "Too many neighbors"
 
 
-def classify_geometry(mol):
+def classify_geometry(mol: Chem.Mol) -> List[LocalGeometry]:
     """
     Identify the local geometry of the molecule. This current uses a heuristic but we
     should really be generating this from gas-phase simulations of the real forcefield.
@@ -58,6 +63,12 @@ def classify_geometry(mol):
     ----------
     mol: Chem.Mol
         Input molecule.
+
+    Returns
+    -------
+    List[LocalGeometry]
+        List of per atom geometries
+
     """
 
     geometry_types = []
