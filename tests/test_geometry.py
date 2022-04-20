@@ -493,6 +493,58 @@ def test_baran_tetrazole():
     assert atom_types == expected_types
 
 
+def test_aniline():
+    # although aniline is slightly pyramidal, we'd rather it
+    # be assigned planar for safety.
+    mol = Chem.AddHs(Chem.MolFromSmiles("c1ccccc1N"))
+    atom_types = geometry.classify_geometry(mol)
+    expected_types = [
+        LG.G3_PLANAR,
+        LG.G3_PLANAR,
+        LG.G3_PLANAR,
+        LG.G3_PLANAR,
+        LG.G3_PLANAR,
+        LG.G3_PLANAR,
+        LG.G3_PLANAR,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+    ]
+
+    assert atom_types == expected_types
+
+
+def test_ethyl_aniline():
+    # one extra carbon delocalizes it
+    mol = Chem.AddHs(Chem.MolFromSmiles("c1ccccc1CN"))
+    atom_types = geometry.classify_geometry(mol)
+    expected_types = [
+        LG.G3_PLANAR,
+        LG.G3_PLANAR,
+        LG.G3_PLANAR,
+        LG.G3_PLANAR,
+        LG.G3_PLANAR,
+        LG.G3_PLANAR,
+        LG.G4_TETRAHEDRAL,
+        LG.G3_PYRAMIDAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+    ]
+
+    assert atom_types == expected_types
+
+
 # test baran examples with reasonable titratable sites
 def test_protonated_pyridine():
     mol = Chem.AddHs(Chem.MolFromSmiles("c1cccc[nH+]1"))
@@ -531,4 +583,27 @@ def test_protonated_imidazole():
         LG.G1_TERMINAL,
     ]
 
+    assert atom_types == expected_types
+
+
+def test_assign_with_dummy_atoms_sp2():
+    mol = Chem.AddHs(Chem.MolFromSmiles("FC(=O)(-O)"))
+    core = [0, 1, 2]
+    atom_types = geometry.classify_geometry(mol, core)
+    expected_types = [
+        LG.G1_TERMINAL,
+        LG.G2_KINK,
+        LG.G1_TERMINAL,
+        None,
+        None,
+    ]
+    assert atom_types == expected_types
+
+
+def test_assign_with_dummy_atoms_nitrile():
+    mol = Chem.AddHs(Chem.MolFromSmiles("FC#N"))
+    #       C  N
+    core = [1, 2]
+    atom_types = geometry.classify_geometry(mol, core)
+    expected_types = [None, LG.G1_TERMINAL, LG.G1_TERMINAL]
     assert atom_types == expected_types
