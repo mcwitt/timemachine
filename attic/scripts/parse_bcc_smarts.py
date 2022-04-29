@@ -21,12 +21,18 @@ bond = lark.Lark("""
         | atom_expr connective atom_expr
 
     atom_primitive: 
+        | "*"        -> any_atom
         | "#" NUMBER -> element
         | "a"        -> aromatic
         | "X" NUMBER -> connectivity
         | "r" NUMBER -> ring_size
         | "+" NUMBER -> pos_formal_charge
         | "-" NUMBER -> neg_formal_charge
+        | "$(" string ")" -> recursive_smarts
+    
+    symbol: "$" | "("  | ")" | "~" | "*" | "-" | "+" | "=" | "#" | "[" | "]" | ":" | "@" | ","
+    char: LETTER | NUMBER | symbol
+    string: char+
 
     bond_primitive:
         | "~" -> any_bond
@@ -41,9 +47,9 @@ bond = lark.Lark("""
         | ";" -> and
         | "," -> or
 
-    %import common.NUMBER""", start="labeled_bond")
-
-
+    %import common.LETTER
+    %import common.NUMBER
+    """, start="labeled_bond")
 
 
 if __name__ == "__main__":
@@ -74,12 +80,6 @@ if __name__ == "__main__":
     print("\n" + "-" * 50 + "\n")
 
     # categorize failures
-
-    # recursive smarts
-    recursive_patterns = [s for s in failed if '$' in s]
-    print(f"{100 * len(recursive_patterns) / len(failed):.1f}% of failures contain recursive smarts")
-    print('5 examples: ', recursive_patterns[:5])
-    print("\n" + "-" * 50 + "\n")
 
     # other: extended patterns [atom :1](~[atom])(~[atom :2])
     other_patterns = [s for s in failed if '$' not in s]
