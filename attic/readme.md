@@ -37,4 +37,4 @@ Code, documentation, experiments we want to retain for reference, but that we're
     * `hif2a/fit_to_multiple_rbfes.py` fits nonbonded parameters to the experimental IC50s associated with these ligands
   * `overlap_test.py` tests two restraint types, one based on principal moments of inertia and one based on a measure of shape overlap.
   * `potential_energy.py` computes the potential energy of an "alchemical" system, as well as its derivatives w.r.t. coords, params, or lam
-
+  * `parse_bcc_smarts.py` parses a subset of the smirks patterns in the AM1CCC port, to extract atomic primitives etc. for use in a fingerprint definition
