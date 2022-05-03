@@ -9,8 +9,9 @@ from typing import Any, Callable, Collection
 
 import numpy as np
 from jax import numpy as jnp
+from jax import vmap
 from jax.scipy.special import logsumexp
-from pymbar import BAR
+from pymbar import BAR, MBAR
 
 Samples = Collection
 Params = Collection
@@ -339,6 +340,53 @@ class SampledState:
         u_n = self.batched_u_fxn(self.samples)
         assert u_n.shape == (len(self.samples),)
         return u_n
+
+
+class Mixture:
+    def __init__(self, component_samples, u_k_fxn):
+        self.component_samples = component_samples
+        self.u_k_fxn = u_k_fxn
+
+    @property
+    def N_k(self):
+        return np.array([len(s) for s in self.component_samples])
+
+    @property
+    def samples(self):
+        samples = np.concatenate(self.component_samples)
+        assert len(samples) == sum(self.N_k)
+        return samples
+
+    def compute_u_kn(self):
+        """TODO: incremental updates, rather than from scratch"""
+        N, K = sum(self.N_k), len(self.N_k)
+
+        u_kn = (vmap(self.u_k_fxn)(self.samples)).T
+        assert u_kn.shape == (K, N)
+
+        return u_kn
+
+    def compute_f_k(self):
+        u_kn = self.compute_u_kn()
+        N_k = self.N_k
+        mbar = MBAR(u_kn, N_k)
+
+        # TODO: assert small estimation error
+        return mbar.f_k
+
+    def get_mixture_potential(self) -> Callable:
+        f_k = np.array(self.compute_f_k())
+        N_k = np.array(self.N_k)
+
+        u_mix = construct_u_mix(self.u_k_fxn, f_k, N_k)
+        return u_mix
+
+    def collapse_to_single_state(self) -> SampledState:
+        samples = np.array(self.samples)
+        u_mix = self.get_mixture_potential()
+        batched_u_fxn = vmap(u_mix)  # TODO: jit(vmap(u_mix)) ?
+
+        return SampledState(samples, batched_u_fxn)
 
 
 def estimate_delta_f_both_sampled(state_A: SampledState, state_B: SampledState):
