@@ -10,6 +10,7 @@ from typing import Any, Callable, Collection
 import numpy as np
 from jax import numpy as jnp
 from jax.scipy.special import logsumexp
+from pymbar import BAR
 
 Samples = Collection
 Params = Collection
@@ -132,6 +133,26 @@ def interpret_as_mixture_potential(u_kn: Array, f_k: Array, N_k: Array) -> Array
     assert mixture_u_n.shape == (N,)
 
     return mixture_u_n
+
+
+def construct_u_mix(u_k_fxn, f_k, N_k):
+    """variant of interpret_as_mixture_potential where u_k_fxn: X -> R^k is not already precomputed on N samples"""
+    # w_k \propto N_k, \sum_k w_k = 1
+    log_w_k = jnp.log(N_k) - jnp.log(jnp.sum(N_k))
+
+    # Z_k assumed normalization constants
+    log_Z_k = -f_k
+
+    def u_mix_fxn(x):
+        r"""
+        p_k(x)   = exp(-u_k(x)) / Z_k
+        p_mix(x) = \sum_k w_k p_k(x)
+        u_mix(x) = -log(p_mix(x))
+        """
+        log_p_k = -u_k_fxn(x) - log_Z_k
+        return -logsumexp(log_w_k + log_p_k)
+
+    return u_mix_fxn
 
 
 def construct_endpoint_reweighting_estimator(
@@ -305,5 +326,77 @@ def construct_mixture_reweighting_estimator(
         * "f(params, 1) - f(ref)" is estimated by reweighting"""
 
         return f_1(params) - f_0(params)
+
+    return estimate_delta_f
+
+
+class SampledState:
+    def __init__(self, samples, batched_u_fxn):
+        self.samples = samples
+        self.batched_u_fxn = batched_u_fxn
+
+    def compute_u_n(self):
+        u_n = self.batched_u_fxn(self.samples)
+        assert u_n.shape == (len(self.samples),)
+        return u_n
+
+
+def estimate_delta_f_both_sampled(state_A: SampledState, state_B: SampledState):
+    """f(B) - f(A) using BAR"""
+
+    u_A, u_B = state_A.batched_u_fxn, state_B.batched_u_fxn
+    xs_A, xs_B = state_A.samples, state_B.samples
+
+    # forward: A -> B, reverse: B -> A
+    w_F = u_B(xs_A) - u_A(xs_A)
+    w_R = u_A(xs_B) - u_B(xs_B)
+
+    delta_f, uncertainty = BAR(w_F, w_R)
+    # TODO: assert small BAR uncertainty?
+
+    return delta_f
+
+
+def construct_endpoint_reweighting_estimator_with_proposals(
+    proposal_0: SampledState,
+    proposal_1: SampledState,
+    ref_0: SampledState,
+    ref_1: SampledState,
+    ref_delta_f: float,
+    batched_u_0_fxn: BatchedReducedPotentialFxn,
+    batched_u_1_fxn: BatchedReducedPotentialFxn,
+) -> Callable[[Params], float]:
+    """Variant of construct_endpoint_reweighting_estimator that allows different proposal distributions to be used for
+    reweighting than for reference calculation"""
+    ref_to_proposal_0 = estimate_delta_f_both_sampled(ref_0, proposal_0)
+    ref_to_proposal_1 = estimate_delta_f_both_sampled(ref_1, proposal_1)
+
+    ref_0_to_1 = ref_delta_f
+
+    u_0 = proposal_0.compute_u_n()
+    u_1 = proposal_1.compute_u_n()
+
+    def estimate_delta_f(params: Params) -> float:
+        """
+        (params, 0)  --->  (params, 1)
+
+            ^                   ^
+            |                   |
+            |                   |
+            |                   |
+
+         proposal_0         proposal_1
+
+            ^                   ^
+            |                   |
+            |                   |
+            |                   |
+
+        (ref, 0)     --->   (ref, 1)
+        """
+        proposal_to_query_0 = one_sided_exp(batched_u_0_fxn(proposal_0.samples, params) - u_0)
+        proposal_to_query_1 = one_sided_exp(batched_u_1_fxn(proposal_1.samples, params) - u_1)
+
+        return (-proposal_to_query_0) + (-ref_to_proposal_0) + ref_0_to_1 + ref_to_proposal_1 + proposal_to_query_1
 
     return estimate_delta_f
