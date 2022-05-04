@@ -136,15 +136,15 @@ def interpret_as_mixture_potential(u_kn: Array, f_k: Array, N_k: Array) -> Array
     return mixture_u_n
 
 
-def construct_u_mix(u_k_fxn, f_k, N_k):
-    """variant of interpret_as_mixture_potential where u_k_fxn: X -> R^k is not already precomputed on N samples"""
+def construct_u_mix(u_k_fxn: Callable[[Any], Array], f_k: Array, N_k: Array) -> Callable[[Any], float]:
+    """variant of interpret_as_mixture_potential where u_k_fxn: X -> R^K is not already precomputed on N samples"""
     # w_k \propto N_k, \sum_k w_k = 1
     log_w_k = jnp.log(N_k) - jnp.log(jnp.sum(N_k))
 
     # Z_k assumed normalization constants
     log_Z_k = -f_k
 
-    def u_mix_fxn(x):
+    def u_mix_fxn(x: Any) -> float:
         r"""
         p_k(x)   = exp(-u_k(x)) / Z_k
         p_mix(x) = \sum_k w_k p_k(x)
