@@ -405,7 +405,7 @@ def estimate_delta_f_both_sampled(state_A: SampledState, state_B: SampledState):
     return delta_f
 
 
-def construct_endpoint_reweighting_estimator_with_proposals(
+def construct_augmented_endpoint_reweighting_estimator(
     proposal_0: SampledState,
     proposal_1: SampledState,
     ref_0: SampledState,
