@@ -107,7 +107,7 @@ std::array<std::vector<double>, 2> Context::local_md(
     for (int i = 1; i <= iterations; i++) {
 
         for (int j = 0; j < global_steps; j++) {
-            this->_step(lambda_schedule[j], nullptr, nullptr);
+            this->_step(bps_, lambda_schedule[j], nullptr, nullptr, stream);
         }
         // Set the array to all N, which means it will be ignored as an idx
         k_initialize_array<unsigned int><<<ceil_divide(N_, tpb), tpb, 0, stream>>>(N_, d_idxs_buffer.data, N_);
@@ -123,8 +123,10 @@ std::array<std::vector<double>, 2> Context::local_md(
         k_flatten<<<ceil_divide(NR, tpb), tpb, 0, stream>>>(NR, N_, d_local_idxs.data, d_idxs_buffer.data);
         gpuErrchk(cudaPeekAtLastError());
 
+        // Given the new idxs
+
         for (int j = 0; j < local_steps; j++) {
-            this->_step(lambda_schedule[global_steps + j], nullptr, d_idxs_buffer.data);
+            this->_step(bps_, lambda_schedule[global_steps + j], nullptr, d_idxs_buffer.data, stream);
         }
         if (i % store_x_interval == 0) {
             gpuErrchk(cudaMemcpy(
@@ -172,7 +174,7 @@ Context::multiple_steps(const std::vector<double> &lambda_schedule, int store_du
     int box_buffer_size = x_buffer_size * 3 * 3;
 
     std::vector<double> h_x_buffer(x_buffer_size * N_ * 3);
-
+    cudaStream_t stream = static_cast<cudaStream_t>(0);
     try {
         gpuErrchk(cudaMalloc(&d_box_buffer, box_buffer_size * sizeof(*d_box_buffer)));
         // indicator so we can set it to a default arg.
@@ -188,7 +190,7 @@ Context::multiple_steps(const std::vector<double> &lambda_schedule, int store_du
             }
 
             double lambda = lambda_schedule[i - 1];
-            this->_step(lambda, du_dl_ptr, nullptr);
+            this->_step(bps_, lambda, du_dl_ptr, nullptr, stream);
 
             if (i % store_x_interval == 0) {
                 gpuErrchk(cudaMemcpy(
@@ -274,7 +276,7 @@ std::array<std::vector<double>, 3> Context::multiple_steps_U(
         cudaStream_t stream = static_cast<cudaStream_t>(0);
         for (int step = 1; step <= n_steps; step++) {
 
-            this->_step(lambda, nullptr, nullptr);
+            this->_step(bps_, lambda, nullptr, nullptr, stream);
 
             if (step % store_x_interval == 0) {
                 gpuErrchk(cudaMemcpy(
@@ -329,13 +331,17 @@ std::array<std::vector<double>, 3> Context::multiple_steps_U(
 }
 
 void Context::step(double lambda) {
-    this->_step(lambda, nullptr, nullptr);
+    cudaStream_t stream = static_cast<cudaStream_t>(0);
+    this->_step(bps_, lambda, nullptr, nullptr, stream);
     gpuErrchk(cudaDeviceSynchronize());
 }
 
-void Context::_step(double lambda, unsigned long long *du_dl_out, unsigned int *atom_idxs) {
-
-    cudaStream_t stream = static_cast<cudaStream_t>(0);
+void Context::_step(
+    std::vector<BoundPotential *> bps,
+    const double lambda,
+    unsigned long long *du_dl_out,
+    unsigned int *atom_idxs,
+    const cudaStream_t stream) {
 
     gpuErrchk(cudaMemsetAsync(d_du_dx_t_, 0, N_ * 3 * sizeof(*d_du_dx_t_), stream));
 
@@ -344,7 +350,7 @@ void Context::_step(double lambda, unsigned long long *du_dl_out, unsigned int *
     }
 
     for (int i = 0; i < bps_.size(); i++) {
-        bps_[i]->execute_device(
+        bps[i]->execute_device(
             N_,
             d_x_t_,
             d_box_t_,
