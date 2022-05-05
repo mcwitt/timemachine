@@ -68,6 +68,28 @@ void __global__ k_flatten(
     // flag_map[val] = 1;
 }
 
+template <typename T> std::vector<T> set_to_vector(const std::set<T> &s) {
+    std::vector<T> v(s.begin(), s.end());
+    return v;
+}
+
+// Provided a number of indices and a subset of indices, construct
+// the indices from the complete set of indices
+template <typename T> std::vector<T> get_indices_difference(const size_t N, const std::set<T> initial_idxs) {
+    std::vector<T> all_idxs(N);
+    std::iota(all_idxs.begin(), all_idxs.end(), 0);
+    std::set<T> difference;
+    std::set_difference(
+        all_idxs.begin(),
+        all_idxs.end(),
+        initial_idxs.begin(),
+        initial_idxs.end(),
+        std::inserter(difference, difference.end()));
+
+    std::vector<T> dif_vect(set_to_vector(difference));
+    return dif_vect;
+}
+
 // TODO document this regarding store_x_interval being based on iterations
 std::array<std::vector<double>, 2> Context::local_md(
     const std::vector<double> &lambda_schedule,
@@ -77,21 +99,24 @@ std::array<std::vector<double>, 2> Context::local_md(
     const int store_x_interval,
     const std::vector<unsigned int> &local_idxs,
     const double cutoff) {
-
     if (store_x_interval <= 0) {
         throw std::runtime_error("store_x_interval <= 0");
     }
-    const int x_buffer_size = ceil_divide(iterations, store_x_interval);
+    const int x_buffer_size = iterations / store_x_interval;
 
     const int box_buffer_size = x_buffer_size * 3 * 3;
     cudaStream_t stream = static_cast<cudaStream_t>(0);
 
-    const int NR = local_idxs.size();
-    // Initial impl will use a single nblist
     Neighborlist<float> nblist(N_);
     nblist.set_row_idxs(local_idxs);
 
-    size_t tpb = 32;
+    std::set<unsigned int> unique_idxs(local_idxs.begin(), local_idxs.end());
+    std::vector<unsigned int> non_local_idxs = get_indices_difference(static_cast<size_t>(N_), unique_idxs);
+
+    const int NR = local_idxs.size();
+    const int NC = non_local_idxs.size();
+
+    const size_t tpb = 32;
     int num_items = nblist.num_column_blocks() * nblist.num_row_blocks() * tpb;
 
     DeviceBuffer<unsigned int> d_idxs_buffer(N_);
@@ -101,8 +126,11 @@ std::array<std::vector<double>, 2> Context::local_md(
     // Store boxes on GPU as boxes are a constant size and relatively small1
     DeviceBuffer<double> d_box_buffer(box_buffer_size);
 
-    DeviceBuffer<unsigned int> d_local_idxs(local_idxs.size());
-    d_local_idxs.copy_from(&local_idxs[0]);
+    DeviceBuffer<unsigned int> d_row_idxs(local_idxs.size());
+    d_row_idxs.copy_from(&local_idxs[0]);
+
+    DeviceBuffer<unsigned int> d_col_idxs(non_local_idxs.size());
+    d_col_idxs.copy_from(&non_local_idxs[0]);
 
     for (int i = 1; i <= iterations; i++) {
 
@@ -113,6 +141,7 @@ std::array<std::vector<double>, 2> Context::local_md(
         k_initialize_array<unsigned int><<<ceil_divide(N_, tpb), tpb, 0, stream>>>(N_, d_idxs_buffer.data, N_);
         gpuErrchk(cudaPeekAtLastError());
 
+        nblist.set_idxs_device(NC, NR, d_col_idxs.data, d_row_idxs.data, stream);
         // Build the neighborlist around the idxs to get the atoms that interact
         nblist.build_nblist_device(N_, d_x_t_, d_box_t_, cutoff, stream);
 
@@ -120,7 +149,7 @@ std::array<std::vector<double>, 2> Context::local_md(
             num_items, N_, nblist.get_ixn_atoms(), d_idxs_buffer.data);
         gpuErrchk(cudaPeekAtLastError());
 
-        k_flatten<<<ceil_divide(NR, tpb), tpb, 0, stream>>>(NR, N_, d_local_idxs.data, d_idxs_buffer.data);
+        k_flatten<<<ceil_divide(NR, tpb), tpb, 0, stream>>>(NR, N_, d_row_idxs.data, d_idxs_buffer.data);
         gpuErrchk(cudaPeekAtLastError());
 
         // Given the new idxs
