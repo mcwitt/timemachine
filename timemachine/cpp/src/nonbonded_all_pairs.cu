@@ -71,26 +71,30 @@ NonbondedAllPairs<RealType, Interpolated>::NonbondedAllPairs(
     gpuErrchk(cudaMemcpy(
         d_lambda_offset_idxs_, &lambda_offset_idxs[0], N_ * sizeof(*d_lambda_offset_idxs_), cudaMemcpyHostToDevice));
 
+    gpuErrchk(cudaMalloc(&d_atom_idxs_, N_ * sizeof(*d_atom_idxs_)));
+    std::vector<int> atom_idxs_h;
     if (atom_idxs) {
-        gpuErrchk(cudaMalloc(&d_atom_idxs_, K_ * sizeof(*d_atom_idxs_)));
-        std::vector<int> atom_idxs_v(atom_idxs->begin(), atom_idxs->end());
-        gpuErrchk(cudaMemcpy(d_atom_idxs_, &atom_idxs_v[0], K_ * sizeof(*d_atom_idxs_), cudaMemcpyHostToDevice));
+        atom_idxs_h = std::vector<int>(atom_idxs->begin(), atom_idxs->end());
+    } else {
+        atom_idxs_h = std::vector<int>(N_);
+        std::iota(atom_idxs_h.begin(), atom_idxs_h.end(), 0);
     }
+    gpuErrchk(cudaMemcpy(d_atom_idxs_, &atom_idxs_h[0], K_ * sizeof(*d_atom_idxs_), cudaMemcpyHostToDevice));
 
-    gpuErrchk(cudaMalloc(&d_sorted_atom_idxs_, K_ * sizeof(*d_sorted_atom_idxs_)));
+    gpuErrchk(cudaMalloc(&d_sorted_atom_idxs_, N_ * sizeof(*d_sorted_atom_idxs_)));
 
-    gpuErrchk(cudaMalloc(&d_gathered_x_, K_ * 3 * sizeof(*d_gathered_x_)));
+    gpuErrchk(cudaMalloc(&d_gathered_x_, N_ * 3 * sizeof(*d_gathered_x_)));
 
     gpuErrchk(cudaMalloc(&d_w_, N_ * sizeof(*d_w_)));
     gpuErrchk(cudaMalloc(&d_dw_dl_, N_ * sizeof(*d_dw_dl_)));
 
-    gpuErrchk(cudaMalloc(&d_gathered_w_, K_ * sizeof(*d_gathered_w_)));
-    gpuErrchk(cudaMalloc(&d_gathered_dw_dl_, K_ * sizeof(*d_gathered_dw_dl_)));
+    gpuErrchk(cudaMalloc(&d_gathered_w_, N_ * sizeof(*d_gathered_w_)));
+    gpuErrchk(cudaMalloc(&d_gathered_dw_dl_, N_ * sizeof(*d_gathered_dw_dl_)));
 
-    gpuErrchk(cudaMalloc(&d_gathered_p_, K_ * 3 * sizeof(*d_gathered_p_)));         // interpolated
-    gpuErrchk(cudaMalloc(&d_gathered_dp_dl_, K_ * 3 * sizeof(*d_gathered_dp_dl_))); // interpolated
-    gpuErrchk(cudaMalloc(&d_gathered_du_dx_, K_ * 3 * sizeof(*d_gathered_du_dx_)));
-    gpuErrchk(cudaMalloc(&d_gathered_du_dp_, K_ * 3 * sizeof(*d_gathered_du_dp_)));
+    gpuErrchk(cudaMalloc(&d_gathered_p_, N_ * 3 * sizeof(*d_gathered_p_)));         // interpolated
+    gpuErrchk(cudaMalloc(&d_gathered_dp_dl_, N_ * 3 * sizeof(*d_gathered_dp_dl_))); // interpolated
+    gpuErrchk(cudaMalloc(&d_gathered_du_dx_, N_ * 3 * sizeof(*d_gathered_du_dx_)));
+    gpuErrchk(cudaMalloc(&d_gathered_du_dp_, N_ * 3 * sizeof(*d_gathered_du_dp_)));
 
     gpuErrchk(cudaMalloc(&d_du_dp_buffer_, N_ * 3 * sizeof(*d_du_dp_buffer_)));
 
@@ -103,9 +107,9 @@ NonbondedAllPairs<RealType, Interpolated>::NonbondedAllPairs(
     gpuErrchk(cudaMalloc(&d_rebuild_nblist_, 1 * sizeof(*d_rebuild_nblist_)));
     gpuErrchk(cudaMallocHost(&p_rebuild_nblist_, 1 * sizeof(*p_rebuild_nblist_)));
 
-    gpuErrchk(cudaMalloc(&d_sort_keys_in_, K_ * sizeof(d_sort_keys_in_)));
-    gpuErrchk(cudaMalloc(&d_sort_keys_out_, K_ * sizeof(d_sort_keys_out_)));
-    gpuErrchk(cudaMalloc(&d_sort_vals_in_, K_ * sizeof(d_sort_vals_in_)));
+    gpuErrchk(cudaMalloc(&d_sort_keys_in_, N_ * sizeof(d_sort_keys_in_)));
+    gpuErrchk(cudaMalloc(&d_sort_keys_out_, N_ * sizeof(d_sort_keys_out_)));
+    gpuErrchk(cudaMalloc(&d_sort_vals_in_, N_ * sizeof(d_sort_vals_in_)));
 
     // initialize hilbert curve
     std::vector<unsigned int> bin_to_idx(HILBERT_GRID_DIM * HILBERT_GRID_DIM * HILBERT_GRID_DIM);
@@ -145,9 +149,7 @@ template <typename RealType, bool Interpolated> NonbondedAllPairs<RealType, Inte
     gpuErrchk(cudaFree(d_lambda_plane_idxs_));
     gpuErrchk(cudaFree(d_lambda_offset_idxs_));
 
-    if (d_atom_idxs_) {
-        gpuErrchk(cudaFree(d_atom_idxs_));
-    }
+    gpuErrchk(cudaFree(d_atom_idxs_));
 
     gpuErrchk(cudaFree(d_du_dp_buffer_));
     gpuErrchk(cudaFree(d_sorted_atom_idxs_));
