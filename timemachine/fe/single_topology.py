@@ -3,7 +3,6 @@ import numpy as np
 from timemachine.fe import dummy, geometry, topology
 from timemachine.fe.geometry import LocalGeometry
 
-
 def enumerate_anchor_groups(anchor_idx, bond_idxs, core_idxs):
 
     # enumerate all 1 and 2 neighbor anchor atoms to form valid anchor groups.
@@ -338,7 +337,7 @@ class SingleTopologyV2:
                             for d in res:
                                 restraint_torsion_idxs.append((d, i, j, k))
                                 restraint_torsion_params.append((50.0, 3.1415, 2))
-                            print(res)
+
                             # core-dummy torsion
                             # for (a, b, c, d) in mol_b_proper_idxs:
                             # print("mbpi", a, b, c, d)

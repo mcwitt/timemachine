@@ -90,7 +90,7 @@ def test_assign_truncated_sildenafil():
         LG.G4_TETRAHEDRAL,  # S
         LG.G1_TERMINAL,  # O-S
         LG.G1_TERMINAL,  # O-S
-        LG.G3_PYRAMIDAL,  # N
+        LG.G3_PLANAR,  # N, note, rdkit hybridization thinks this is pyramidal
         LG.G4_TETRAHEDRAL,  # C
         LG.G4_TETRAHEDRAL,  # C
         LG.G3_PYRAMIDAL,  # N
@@ -148,6 +148,29 @@ def test_baran_pyrrole():
         LG.G3_PLANAR,
         LG.G3_PLANAR,
         LG.G3_PLANAR,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+    ]
+
+    assert atom_types == expected_types
+
+
+def test_baran_pyrrolidine():
+    mol = Chem.AddHs(Chem.MolFromSmiles("C1CCCN1"))
+    atom_types = geometry.classify_geometry(mol)
+    expected_types = [
+        LG.G4_TETRAHEDRAL,
+        LG.G4_TETRAHEDRAL,
+        LG.G4_TETRAHEDRAL,
+        LG.G4_TETRAHEDRAL,
+        LG.G3_PYRAMIDAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
+        LG.G1_TERMINAL,
         LG.G1_TERMINAL,
         LG.G1_TERMINAL,
         LG.G1_TERMINAL,
@@ -434,7 +457,7 @@ def test_baran_morpholine():
 
 
 def test_baran_piperazine():
-    mol = Chem.AddHs(Chem.MolFromSmiles("[nH]1CC[nH]CC1"))
+    mol = Chem.AddHs(Chem.MolFromSmiles("[NH]1CC[NH]CC1"))
     atom_types = geometry.classify_geometry(mol)
     expected_types = [
         LG.G3_PYRAMIDAL,
@@ -583,27 +606,4 @@ def test_protonated_imidazole():
         LG.G1_TERMINAL,
     ]
 
-    assert atom_types == expected_types
-
-
-def test_assign_with_dummy_atoms_sp2():
-    mol = Chem.AddHs(Chem.MolFromSmiles("FC(=O)(-O)"))
-    core = [0, 1, 2]
-    atom_types = geometry.classify_geometry(mol, core)
-    expected_types = [
-        LG.G1_TERMINAL,
-        LG.G2_KINK,
-        LG.G1_TERMINAL,
-        None,
-        None,
-    ]
-    assert atom_types == expected_types
-
-
-def test_assign_with_dummy_atoms_nitrile():
-    mol = Chem.AddHs(Chem.MolFromSmiles("FC#N"))
-    #       C  N
-    core = [1, 2]
-    atom_types = geometry.classify_geometry(mol, core)
-    expected_types = [None, LG.G1_TERMINAL, LG.G1_TERMINAL]
     assert atom_types == expected_types

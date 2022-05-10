@@ -3,22 +3,63 @@ import functools
 import numpy as np
 from rdkit import Chem
 
-from timemachine.fe import single_topology, utils
+from timemachine.fe import single_topology, utils, topology
 from timemachine.ff import Forcefield
 
-# def test_single_topology():
-#     print("testing")
+def test_nblist_conversion():
+    mol = Chem.MolFromSmiles("CC1CC1C(C)(C)C")
+    bond_idxs = [[b.GetBeginAtomIdx(), b.GetEndAtomIdx()] for b in mol.GetBonds()]
+    nblist = single_topology.bond_idxs_to_nblist(bond_idxs)
 
-#     mol_a = Chem.AddHs(Chem.MolFromSmiles("FC1CCC1"))
-#     mol_b = Chem.AddHs(Chem.MolFromSmiles("C1CC(F)(C#N)C1Br"))
-#     core = np.array([[1, 0], [2, 1], [3, 2], [4, 6]])
+    expected = [
+            [1],
+            [0,2,3],
+            [1,3],
+            [1,2,4],
+            [3,5,6,7],
+            [4],
+            [4],
+            [4]
+    ]
 
-#     st = single_topology.SingleTopologyV2(mol_a, mol_b, core)
-#     st.add_restraints_src()
+    np.testing.assert_array_equal(nblist, expected)
 
+
+def test_flag_stereo():
+    mol = Chem.MolFromSmiles("c1ccccc1C")
+    mol = Chem.AddHs(mol)
+
+    ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
+    bt = topology.BaseTopology(mol, ff)
+
+    bond_params, hb = bt.parameterize_harmonic_bond(ff.hb_handle.params)
+    angle_params, ha = bt.parameterize_harmonic_angle(ff.ha_handle.params)
+    proper_params, pt = bt.parameterize_proper_torsion(ff.pt_handle.params)
+    improper_params, it = bt.parameterize_proper_torsion(ff.pt_handle.params)
+
+    bond_idxs = hb.get_idxs()
+    angle_idxs = ha.get_idxs()
+    proper_idxs = pt.get_idxs()
+    improper_idxs = it.get_idxs()
+
+    atom_geometries, atom_stereo, bond_stereo = single_topology.label_stereo(
+        bond_idxs, bond_params, angle_idxs, angle_params, proper_idxs, proper_params, improper_idxs, improper_params
+    )
+
+    np.testing.assert_array_equal(atom_stereo, [0,0,0,0,0,0,1,0,0,0,0,0,0,0,0])
+    # only carbon-carbon bonds should have stereo codes
+    for idx, (i,j) in enumerate(bond_idxs):
+        if i < 6 and j < 6:
+            assert bond_stereo[idx] == 1
+        else:
+            assert bond_stereo[idx] == 0 
+    
+    print(atom_geometries)
+    print(atom_stereo)
+    print(bond_stereo)
+    print(bond_idxs)
 
 def test_single_carboxylic_acid():
-    print("testing")
     # mol_a = Chem.AddHs(Chem.MolFromSmiles("FC(=O)O"))
     # mol_b = Chem.AddHs(Chem.MolFromSmiles("FC(Cl)(Br)N"))
 
