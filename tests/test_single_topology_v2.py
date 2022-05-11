@@ -3,13 +3,13 @@ import functools
 import numpy as np
 from rdkit import Chem
 
-from timemachine.fe import single_topology, utils, topology
+from timemachine.fe import single_topology, utils, topology, geometry
 from timemachine.ff import Forcefield
 
 def test_nblist_conversion():
     mol = Chem.MolFromSmiles("CC1CC1C(C)(C)C")
     bond_idxs = [[b.GetBeginAtomIdx(), b.GetEndAtomIdx()] for b in mol.GetBonds()]
-    nblist = single_topology.bond_idxs_to_nblist(bond_idxs)
+    nblist = geometry.bond_idxs_to_nblist(bond_idxs)
 
     expected = [
             [1],
@@ -42,7 +42,7 @@ def test_flag_stereo():
     proper_idxs = pt.get_idxs()
     improper_idxs = it.get_idxs()
 
-    atom_geometries, atom_stereo, bond_stereo = single_topology.label_stereo(
+    atom_geometries, atom_stereo, bond_stereo = geometry.label_stereo(
         bond_idxs, bond_params, angle_idxs, angle_params, proper_idxs, proper_params, improper_idxs, improper_params
     )
 
@@ -77,7 +77,24 @@ def test_single_carboxylic_acid():
     ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
 
     st = single_topology.SingleTopologyV2(mol_a, mol_b, core, ff)
-    st.add_restraints_src()
+    st.get_mol_b_dummy_anchor_ixns()
+
+def test_ring_opening():
+    mol_a = Chem.AddHs(Chem.MolFromSmiles("C=CC=CC=CF"))
+    mol_b = Chem.AddHs(Chem.MolFromSmiles("c1ccccc1N"))
+    core = np.array([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]])
+    ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
+    st = single_topology.SingleTopologyV2(mol_a, mol_b, core, ff)
+    st.get_mol_b_dummy_anchor_ixns()
+
+
+def test_ring_opening_extra_map():
+    mol_a = Chem.AddHs(Chem.MolFromSmiles("C=CC=CC=CF"))
+    mol_b = Chem.AddHs(Chem.MolFromSmiles("c1ccccc1C"))
+    core = np.array([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6]])
+    ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
+    st = single_topology.SingleTopologyV2(mol_a, mol_b, core, ff)
+    st.get_mol_b_dummy_anchor_ixns()
 
 
 def test_enumerate_anchor_groups():
@@ -153,3 +170,15 @@ def test_check_stability():
     # everything should be fine
     result = single_topology.check_angle_stability(0, 1, 2, angle_idxs=[[0, 1, 2]], angle_params=[[100.0, 1.2]])
     assert result == True
+
+
+# def test_group_torsions():
+
+#     # given a set of torsion idxs, group them into non-redundant sets.
+#     ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
+#     mol = Chem.MolFromSmiles(r"F\C(Br)=C\Cl")
+#     params, idxs = ff.pt_handle.parameterize(mol)
+
+
+#     print("params", params)
+#     print("idxs", idxs)

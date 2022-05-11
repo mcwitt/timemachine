@@ -9,9 +9,9 @@ from timemachine.fe.geometry import LocalGeometry as LG
 
 def test_assign_aspirin():
     mol = Chem.AddHs(Chem.MolFromSmiles("CC(=O)OC1=CC=CC=C1C(=O)O"))
-    atom_types = geometry.classify_geometry(mol)
+    atom_geometries = geometry.classify_geometry(mol)
 
-    expected_types = [
+    expected_atom_geometries = [
         LG.G4_TETRAHEDRAL,
         LG.G3_PLANAR,
         LG.G1_TERMINAL,
@@ -35,8 +35,7 @@ def test_assign_aspirin():
         LG.G1_TERMINAL,
     ]
 
-    assert atom_types == expected_types
-
+    assert atom_geometries == expected_atom_geometries
 
 def test_assign_nitrogens():
     """Test assignment with weird SP and SP2 nitrogens."""
@@ -607,3 +606,58 @@ def test_protonated_imidazole():
     ]
 
     assert atom_types == expected_types
+
+
+def test_assign_with_dummy_atoms_sp2():
+    mol = Chem.AddHs(Chem.MolFromSmiles("FC(=O)(-O)"))
+    core = [0, 1, 2]
+    atom_types = geometry.classify_geometry(mol, core=core)
+    expected_types = [
+        LG.G1_TERMINAL,
+        LG.G2_KINK,
+        LG.G1_TERMINAL,
+        None,
+        None,
+    ]
+    assert atom_types == expected_types
+
+
+def test_assign_with_dummy_atoms_nitrile():
+    mol = Chem.AddHs(Chem.MolFromSmiles("FC#N"))
+    #       C  N
+    core = [1, 2]
+    atom_types = geometry.classify_geometry(mol, core=core)
+    expected_types = [None, LG.G1_TERMINAL, LG.G1_TERMINAL]
+    assert atom_types == expected_types
+
+
+def test_assign_with_dummy_atoms_aspirin():
+    mol = Chem.AddHs(Chem.MolFromSmiles("CC(=O)OC1=CC=CC=C1C(=O)O"))
+    core = [1,3,4,5,6,7,8,9,10,11]
+    atom_geometries = geometry.classify_geometry(mol, core=core)
+
+    expected_atom_geometries = [
+        None,
+        LG.G1_TERMINAL,
+        None,
+        LG.G2_KINK,
+        LG.G3_PLANAR,
+        LG.G2_KINK,
+        LG.G2_KINK,
+        LG.G2_KINK,
+        LG.G2_KINK,
+        LG.G3_PLANAR,
+        LG.G2_KINK,
+        LG.G1_TERMINAL,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    ]
+
+    assert atom_geometries == expected_atom_geometries
