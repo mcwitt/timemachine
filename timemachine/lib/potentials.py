@@ -279,7 +279,7 @@ class Nonbonded(NonbondedCustomOpWrapper):
 
         assert len(exclusion_set) == exclusion_idxs.shape[0]
 
-        super(Nonbonded, self).__init__(*args)
+        super().__init__(*args)
 
     def unbound_impl(self, precision):
         all_pairs_impl = NonbondedAllPairs(

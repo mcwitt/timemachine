@@ -6,8 +6,11 @@
 #include "nonbonded_all_pairs.hpp"
 #include "nonbonded_common.cuh"
 #include "vendored/hilbert.h"
+#include "device_buffer.hpp"
+#include "kernel_utils.cuh"
 
 #include "k_nonbonded.cuh"
+#include <numeric>
 
 #include <string>
 
@@ -27,7 +30,7 @@ NonbondedAllPairs<RealType, Interpolated>::NonbondedAllPairs(
     // const std::string &transform_lambda_w
     )
     : N_(lambda_offset_idxs.size()), K_(atom_idxs ? atom_idxs->size() : N_), beta_(beta), cutoff_(cutoff),
-      d_atom_idxs_(nullptr), nblist_(K_), nblist_padding_(0.1), d_sort_storage_(nullptr), d_sort_storage_bytes_(0),
+      d_atom_idxs_(nullptr), nblist_(N_), nblist_padding_(0.1), d_sort_storage_(nullptr), d_sort_storage_bytes_(0),
       disable_hilbert_(false),
 
       kernel_ptrs_({// enumerate over every possible kernel combination
@@ -62,6 +65,14 @@ NonbondedAllPairs<RealType, Interpolated>::NonbondedAllPairs(
     if (lambda_offset_idxs.size() != lambda_plane_idxs.size()) {
         throw std::runtime_error("lambda offset idxs and plane idxs need to be equivalent");
     }
+    std::vector<int> atom_idxs_h;
+    if (atom_idxs) {
+        atom_idxs_h = std::vector<int>(atom_idxs->begin(), atom_idxs->end());
+    } else {
+        atom_idxs_h = std::vector<int>(N_);
+        std::iota(atom_idxs_h.begin(), atom_idxs_h.end(), 0);
+    }
+    this->verify_atom_idxs(atom_idxs_h);
 
     gpuErrchk(cudaMalloc(&d_lambda_plane_idxs_, N_ * sizeof(*d_lambda_plane_idxs_)));
     gpuErrchk(cudaMemcpy(
@@ -72,13 +83,6 @@ NonbondedAllPairs<RealType, Interpolated>::NonbondedAllPairs(
         d_lambda_offset_idxs_, &lambda_offset_idxs[0], N_ * sizeof(*d_lambda_offset_idxs_), cudaMemcpyHostToDevice));
 
     gpuErrchk(cudaMalloc(&d_atom_idxs_, N_ * sizeof(*d_atom_idxs_)));
-    std::vector<int> atom_idxs_h;
-    if (atom_idxs) {
-        atom_idxs_h = std::vector<int>(atom_idxs->begin(), atom_idxs->end());
-    } else {
-        atom_idxs_h = std::vector<int>(N_);
-        std::iota(atom_idxs_h.begin(), atom_idxs_h.end(), 0);
-    }
     gpuErrchk(cudaMemcpy(d_atom_idxs_, &atom_idxs_h[0], K_ * sizeof(*d_atom_idxs_), cudaMemcpyHostToDevice));
 
     gpuErrchk(cudaMalloc(&d_sorted_atom_idxs_, N_ * sizeof(*d_sorted_atom_idxs_)));
@@ -142,6 +146,9 @@ NonbondedAllPairs<RealType, Interpolated>::NonbondedAllPairs(
 
     gpuErrchk(cudaPeekAtLastError());
     gpuErrchk(cudaMalloc(&d_sort_storage_, d_sort_storage_bytes_));
+
+    // Tell the NBlist how large the system is to be.
+    nblist_.resize(K_);
 };
 
 template <typename RealType, bool Interpolated> NonbondedAllPairs<RealType, Interpolated>::~NonbondedAllPairs() {
@@ -179,6 +186,40 @@ template <typename RealType, bool Interpolated> NonbondedAllPairs<RealType, Inte
     gpuErrchk(cudaFreeHost(p_rebuild_nblist_));
 };
 
+template<typename RealType, bool Interpolated>
+void NonbondedAllPairs<RealType, Interpolated>::verify_atom_idxs(const std::vector<int> &atom_idxs) {
+    if (atom_idxs.size() == 0) {
+        throw std::runtime_error("idxs can't be empty");
+    }
+    std::set<int> unique_idxs(atom_idxs.begin(), atom_idxs.end());
+    if (unique_idxs.size() != atom_idxs.size()) {
+        throw std::runtime_error("atom indices must be unique");
+    }
+    if (*std::max_element(atom_idxs.begin(), atom_idxs.end()) >= N_) {
+        throw std::runtime_error("indices values must be less than N");
+    }
+}
+
+template <typename RealType, bool Interpolated>
+void NonbondedAllPairs<RealType, Interpolated>::set_atom_idxs(const std::vector<int> &atom_idxs) {
+    this->verify_atom_idxs(atom_idxs);
+    const cudaStream_t stream = static_cast<cudaStream_t>(0);
+    DeviceBuffer<int> atom_idxs_buffer(atom_idxs.size());
+    atom_idxs_buffer.copy_from(&atom_idxs[0]);
+    this->set_atom_idxs_device(atom_idxs_buffer.size, atom_idxs_buffer.data, stream);
+    gpuErrchk(cudaStreamSynchronize(stream));
+}
+
+template <typename RealType, bool Interpolated>
+void NonbondedAllPairs<RealType, Interpolated>::set_atom_idxs_device(const int K, const int * d_atom_idxs, const cudaStream_t stream) {
+    if (K >= N_) {
+        throw std::runtime_error("number of idxs must be less than N");
+    }
+    gpuErrchk(cudaMemcpyAsync(d_atom_idxs_, d_atom_idxs, K * sizeof(*d_atom_idxs_), cudaMemcpyHostToDevice, stream));
+    this->K_ = K;
+    nblist_.resize_device(K, stream);
+}
+
 template <typename RealType, bool Interpolated>
 void NonbondedAllPairs<RealType, Interpolated>::set_nblist_padding(double val) {
     nblist_padding_ = val;
@@ -192,16 +233,11 @@ template <typename RealType, bool Interpolated>
 void NonbondedAllPairs<RealType, Interpolated>::hilbert_sort(
     const double *d_coords, const double *d_box, cudaStream_t stream) {
 
-    const int tpb = 32;
+    const int tpb = warp_size;
     const int B = ceil_divide(K_, tpb);
 
-    if (d_atom_idxs_) {
-        k_coords_to_kv_gather<<<B, tpb, 0, stream>>>(
-            K_, d_atom_idxs_, d_coords, d_box, d_bin_to_idx_, d_sort_keys_in_, d_sort_vals_in_);
-    } else {
-        // N_ == K_
-        k_coords_to_kv<<<B, tpb, 0, stream>>>(K_, d_coords, d_box, d_bin_to_idx_, d_sort_keys_in_, d_sort_vals_in_);
-    }
+    k_coords_to_kv_gather<<<B, tpb, 0, stream>>>(
+        K_, d_atom_idxs_, d_coords, d_box, d_bin_to_idx_, d_sort_keys_in_, d_sort_vals_in_);
 
     gpuErrchk(cudaPeekAtLastError());
 
@@ -267,7 +303,7 @@ void NonbondedAllPairs<RealType, Interpolated>::execute_device(
 
     // identify which tiles contain interpolated parameters
 
-    const int tpb = 32;
+    const int tpb = warp_size;
 
     // (ytz) see if we need to rebuild the neighborlist.
     if (d_atom_idxs_) {
@@ -294,10 +330,10 @@ void NonbondedAllPairs<RealType, Interpolated>::execute_device(
             if (d_atom_idxs_) {
                 gpuErrchk(cudaMemcpyAsync(
                     d_sorted_atom_idxs_, d_atom_idxs_, K_ * sizeof(*d_atom_idxs_), cudaMemcpyDeviceToDevice, stream));
-                gpuErrchk(cudaPeekAtLastError());
             } else {
                 // N_ == K_
                 k_arange<<<ceil_divide(K_, tpb), tpb, 0, stream>>>(K_, d_sorted_atom_idxs_);
+                gpuErrchk(cudaPeekAtLastError());
             }
         }
 

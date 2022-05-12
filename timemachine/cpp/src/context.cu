@@ -3,6 +3,7 @@
 #include "gpu_utils.cuh"
 #include "neighborlist.hpp"
 #include <cub/cub.cuh>
+#include "set_utils.hpp"
 
 namespace timemachine {
 
@@ -68,28 +69,6 @@ void __global__ k_flatten(
     // flag_map[val] = 1;
 }
 
-template <typename T> std::vector<T> set_to_vector(const std::set<T> &s) {
-    std::vector<T> v(s.begin(), s.end());
-    return v;
-}
-
-// Provided a number of indices and a subset of indices, construct
-// the indices from the complete set of indices
-template <typename T> std::vector<T> get_indices_difference(const size_t N, const std::set<T> initial_idxs) {
-    std::vector<T> all_idxs(N);
-    std::iota(all_idxs.begin(), all_idxs.end(), 0);
-    std::set<T> difference;
-    std::set_difference(
-        all_idxs.begin(),
-        all_idxs.end(),
-        initial_idxs.begin(),
-        initial_idxs.end(),
-        std::inserter(difference, difference.end()));
-
-    std::vector<T> dif_vect(set_to_vector(difference));
-    return dif_vect;
-}
-
 // TODO document this regarding store_x_interval being based on iterations
 std::array<std::vector<double>, 2> Context::local_md(
     const std::vector<double> &lambda_schedule,
@@ -98,6 +77,7 @@ std::array<std::vector<double>, 2> Context::local_md(
     const int local_steps,
     const int store_x_interval,
     const std::vector<unsigned int> &local_idxs,
+    const std::vector<BoundPotential *> &local_bps,
     const double cutoff) {
     if (store_x_interval <= 0) {
         throw std::runtime_error("store_x_interval <= 0");
@@ -155,7 +135,7 @@ std::array<std::vector<double>, 2> Context::local_md(
         // Given the new idxs
 
         for (int j = 0; j < local_steps; j++) {
-            this->_step(bps_, lambda_schedule[global_steps + j], nullptr, d_idxs_buffer.data, stream);
+            this->_step(local_bps, lambda_schedule[global_steps + j], nullptr, d_idxs_buffer.data, stream);
         }
         if (i % store_x_interval == 0) {
             gpuErrchk(cudaMemcpy(
@@ -366,7 +346,7 @@ void Context::step(double lambda) {
 }
 
 void Context::_step(
-    std::vector<BoundPotential *> bps,
+    const std::vector<BoundPotential *> &bps,
     const double lambda,
     unsigned long long *du_dl_out,
     unsigned int *atom_idxs,

@@ -8,6 +8,7 @@
 #include "gpu_utils.cuh"
 #include "kernel_utils.cuh"
 #include "nonbonded_common.cuh"
+#include "set_utils.hpp"
 #include "nonbonded_interaction_group.hpp"
 #include "vendored/hilbert.h"
 
