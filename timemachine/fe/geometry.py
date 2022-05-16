@@ -68,6 +68,7 @@ def label_stereo(
             is_stereo = True
             local_geometry = LocalGeometry.G3_PYRAMIDAL
 
+            # (tbd): should we also check propers as well?
             # impropers are centered around the first atom.
             for i,_,_,_ in improper_idxs:
                 if i == atom_idx:
