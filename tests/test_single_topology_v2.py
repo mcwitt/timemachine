@@ -411,32 +411,6 @@ def test_hif2a_set():
                 continue
             print("attempting", mol_a.GetProp("_Name"), "->", mol_b.GetProp("_Name"))
             core = single_topology.find_core(mol_a, mol_b)
-            mol_b_core = core[:, 1]
-            mol_b_bond_idxs = [(b.GetBeginAtomIdx(), b.GetEndAtomIdx()) for b in mol_b.GetBonds()]
-            dgs = dummy.identify_dummy_groups(mol_b_bond_idxs, mol_b_core)
-            for dg in dgs:
-                dg = list(dg)
-                root_anchors = dummy.identify_root_anchors(mol_b_bond_idxs, mol_b_core, dg[0])
-                anchor = root_anchors[0]
-
-                stop = ST(mol_a, mol_b, core, ff)
-                all_idxs, _ = ST.setup_end_state(ff, mol_a, mol_b, core, stop.a_to_c, stop.b_to_c)
-                assert 0
-                # try:
-                # all_idxs, _ = setup_orientational_restraints(ff, mol_a, mol_b, core, dg=dg, anchor=anchor)
-                # bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
-                # except Exception as e:
-                    # print("failed on dummy_group", dg, e)
-
-
-
-# def recursive_map(items, mapping):
-#     if isinstance(items, Iterable):
-#         res = []
-#         for item in items:
-#             res.append(recursive_map(item, mapping))
-#         return res
-#     else:
-#         return mapping[items]
-
-# def test_recursion():
+            s_top = SingleTopologyV2(mol_a, mol_b, core, ff)
+            s_top.generate_end_state_mol_a()
+            s_top.generate_end_state_mol_b()
