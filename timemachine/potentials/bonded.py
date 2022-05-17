@@ -146,6 +146,28 @@ def harmonic_bond(conf, params, box, lamb, bond_idxs, lamb_mult=None, lamb_offse
 
     return jnp.sum(energy)
 
+def harmonic_c_angle(conf, params, box, lamb, angle_idxs, cos_angles=True):
+
+    vij = []
+    vik = []
+    for group_idxs, i, k in angle_idxs:
+        group_conf = conf[group_idxs]
+        j_coord = jnp.mean(group_idxs, axis=0)
+        i_coord = conf[i]
+        k_coord = conf[k]
+        vij.append(j_coord-i_coord)
+        vik.append(k_coord-i_coord)
+
+    top = jnp.sum(jnp.multiply(vij, vik), -1)
+    bot = jnp.linalg.norm(vij, axis=-1) * jnp.linalg.norm(vik, axis=-1)
+
+    tb = top / bot
+
+    kas = params[:, 0]
+    # (ytz): we use the squared version so that the energy is strictly positive
+    energies =  kas / 2 * jnp.power(tb - jnp.cos(0), 2)
+    return jnp.sum(energies)
+    
 
 def harmonic_angle(conf, params, box, lamb, angle_idxs, lamb_mult=None, lamb_offset=None, cos_angles=True):
     """
