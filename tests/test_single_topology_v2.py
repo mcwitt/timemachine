@@ -164,6 +164,23 @@ def test_ethanol_to_carboxylate():
     assert set(x_angle_idxs) == set()
     assert set(c_angle_idxs) == set([((0,3),1,2)])
 
+def test_ethanol_to_ammonium():
+    mol_a = Chem.AddHs(Chem.MolFromSmiles("CO"))
+    mol_b = Chem.AddHs(Chem.MolFromSmiles("CN(F)Br"))
+
+    core = np.array([[0, 0], [1, 1], [5,3]])
+    ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
+
+    all_idxs, _ = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[2], anchor=1)
+    bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
+
+    assert set(bond_idxs) == set([(1,2)])
+    assert set(angle_idxs) == set()
+    assert set(proper_idxs) == set()
+    assert set(improper_idxs) == set()  # disable impropers
+    assert set(x_angle_idxs) == set()
+    assert set(c_angle_idxs) == set([((0,3),1,2)])
+
 def test_ammonium_to_tetrahedral():
     mol_a = Chem.MolFromSmiles("N(F)(Cl)Br")
     mol_b = Chem.MolFromSmiles("C(F)(Cl)(Br)I")
@@ -263,30 +280,30 @@ def test_check_stability():
     result = single_topology.check_angle_stability(0, 1, 2, angle_idxs=[[0, 1, 2]], angle_params=[[100.0, 1.2]])
     assert result == True
 
-# from timemachine.fe import dummy
+from timemachine.fe import dummy
 
-# def test_hif2a_set():
+def test_hif2a_set():
 
-#     ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
-#     suppl = Chem.SDMolSupplier("timemachine/testsystems/data/ligands_40.sdf", removeHs=False)
-#     mols = list(suppl)
-#     for idx, mol_a in enumerate(mols):
-#         for mol_b in mols[idx+1:]:
+    ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
+    suppl = Chem.SDMolSupplier("timemachine/testsystems/data/ligands_40.sdf", removeHs=False)
+    mols = list(suppl)
+    for idx, mol_a in enumerate(mols):
+        for mol_b in mols[idx+1:]:
 
             
-#             if mol_a.GetProp("_Name") != "235" or mol_b.GetProp("_Name") != "165":
-#                 continue
-#             print("attempting", mol_a.GetProp("_Name"), "->", mol_b.GetProp("_Name"))
-#             core = single_topology.find_core(mol_a, mol_b)
-#             mol_b_core = core[:, 1]
-#             mol_b_bond_idxs = [(b.GetBeginAtomIdx(), b.GetEndAtomIdx()) for b in mol_b.GetBonds()]
-#             dgs = dummy.identify_dummy_groups(mol_b_bond_idxs, mol_b_core)
-#             for dg in dgs:                
-#                 dg = list(dg)
-#                 root_anchors = dummy.identify_root_anchors(mol_b_bond_idxs, mol_b_core, dg[0])
-#                 anchor = root_anchors[0]
-#                 # try:
-#                 all_idxs, _ = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=dg, anchor=anchor)
-#                 bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
-#                 # except Exception as e:
-#                     # print("failed on dummy_group", dg, e)
+            if mol_a.GetProp("_Name") != "235" or mol_b.GetProp("_Name") != "165":
+                continue
+            print("attempting", mol_a.GetProp("_Name"), "->", mol_b.GetProp("_Name"))
+            core = single_topology.find_core(mol_a, mol_b)
+            mol_b_core = core[:, 1]
+            mol_b_bond_idxs = [(b.GetBeginAtomIdx(), b.GetEndAtomIdx()) for b in mol_b.GetBonds()]
+            dgs = dummy.identify_dummy_groups(mol_b_bond_idxs, mol_b_core)
+            for dg in dgs:
+                dg = list(dg)
+                root_anchors = dummy.identify_root_anchors(mol_b_bond_idxs, mol_b_core, dg[0])
+                anchor = root_anchors[0]
+                # try:
+                all_idxs, _ = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=dg, anchor=anchor)
+                bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
+                # except Exception as e:
+                    # print("failed on dummy_group", dg, e)

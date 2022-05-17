@@ -489,7 +489,7 @@ class SingleTopologyV2:
                     #      c.j.k <- angle (c,j,k) = 0.0
                     #       /
                     #      b
-                    restraint_centroid_angle_idxs.append((tuple(sorted(a, b)), j, k))
+                    restraint_centroid_angle_idxs.append((tuple(sorted((a, b))), j, k))
                     restraint_centroid_angle_params.append((100.0, 0.0))
 
             elif anchor_full_geometry == LocalGeometry.G3_PLANAR:
