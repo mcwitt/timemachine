@@ -3,95 +3,6 @@ import numpy as np
 from timemachine.fe import dummy, geometry, topology
 from timemachine.fe.geometry import LocalGeometry
 
-
-def enumerate_anchor_groups(anchor_idx, bond_idxs, core_idxs):
-
-    # enumerate all 1 and 2 neighbor anchor atoms to form valid anchor groups.
-
-    assert anchor_idx in core_idxs
-    assert anchor_idx in [x[0] for x in bond_idxs] or anchor_idx in [x[1] for x in bond_idxs]
-
-    nbs_1 = set()
-    nbs_2 = set()
-    for src, dst in bond_idxs:
-        if src == anchor_idx and dst in core_idxs:
-            nbs_1.add(dst)
-        elif dst == anchor_idx and src in core_idxs:
-            nbs_1.add(src)
-
-    nbs_2 = set()  # ordered tuple!
-    for atom in nbs_1:
-        for src, dst in bond_idxs:
-            if src == atom and dst in core_idxs and dst != anchor_idx:
-                nbs_2.add((atom, dst))
-            elif dst == atom and src in core_idxs and src != anchor_idx:
-                nbs_2.add((atom, src))
-
-    return nbs_1, nbs_2
-
-
-def generate_required_torsions(dg, bond_idxs, anchor, core, proper_idxs, proper_params):
-    """
-    Generate planarizing torsions that are required by dummy atoms 1 or 2 bonds away
-    from the anchoring atom. Typically, given a particular choice of anchor groups, we
-    require that every dummy item in the returned dict has at least one term satisified.
-
-    Parameters
-    ----------
-    dg: list of int
-        Atoms in the dummy group
-
-    bond_idxs: list of 2-tuples
-        Bonds connecting atoms in the graph
-
-    anchor: int
-        Junction atom belonging to the core
-
-    proper_idxs: list of 4-tuple
-        Torsion idxs for proper terms
-
-    proper_params: list of 3-tuple
-        Force constant, phase, period of the proper params
-
-    Returns
-    -------
-    dict
-        Keys are dummy atoms that are 1 or 2 bonds away from the anchor
-        Values are torsions that span into the anchor.
-
-    """
-    required_torsions_main = dict()
-    required_torsions_side = dict()
-    atoms = find_attached_dummy_atoms(dg, bond_idxs, anchor)
-    for m in atoms:
-        for (a, b, c, d), (force, phase, period) in zip(proper_idxs, proper_params):
-            if period == 2 and (phase - np.pi) < 0.05 and force > 0.0:
-                # found a planarizing torsion
-                if (a == m and b in core and c in core and d in core) or (
-                    a in core and b in core and c in core and d == m
-                ):
-                    if m not in required_torsions_main:
-                        required_torsions_main[m] = []
-                    required_torsions_main[m].append((a, b, c, d))
-        side_dummies = set()
-        for i, j in bond_idxs:
-            if i == m and j in dg:
-                side_dummies.add(j)
-            elif j == m and i in dg:
-                side_dummies.add(i)
-        for s in side_dummies:
-            for (a, b, c, d), (force, phase, period) in zip(proper_idxs, proper_params):
-                if period == 2 and (phase - np.pi) < 0.05 and force > 0.0:
-                    if (a == s and b == m and c in core and d in core) or (
-                        a in core and b in core and c == m and d == s
-                    ):
-                        if s not in required_torsions_side:
-                            required_torsions_side[s] = []
-                        required_torsions_side[s].append((a, b, c, d))
-
-    return required_torsions_main, required_torsions_side
-
-
 def identify_bonds_spanned_by_planar_torsions(proper_idxs, proper_params):
     """
     Identify bonds that are spanned by planar torsions and returns a dict of bonds
@@ -206,17 +117,6 @@ def find_attached_dummy_atoms(dg, bond_idxs, anchor):
             attached_dummy_atoms.append(a)
     return attached_dummy_atoms
 
-
-def find_dummy_atoms_one_away(dg, bond_idxs, dummy_next_to_anchor):
-    other_dummy_atoms = []
-    for a, b in bond_idxs:
-        if a == dummy_next_to_anchor and b in dg:
-            other_dummy_atoms.append(b)
-        elif b == dummy_next_to_anchor and a in dg:
-            other_dummy_atoms.append(a)
-    return other_dummy_atoms
-
-
 def find_junction_bonds(anchor, bond_idxs):
     jbs = set()
     for i, j in bond_idxs:
@@ -224,6 +124,53 @@ def find_junction_bonds(anchor, bond_idxs):
         if i == anchor or j == anchor:
             jbs.add(dummy.canonicalize_bond((i, j)))
     return jbs
+
+from rdkit.Chem import rdFMCS
+from rdkit import Chem
+
+def enumerate_anchor_groups(anchor_idx, bond_idxs, core_idxs):
+
+    # enumerate all 1 and 2 neighbor anchor atoms to form valid anchor groups.
+
+    assert anchor_idx in core_idxs
+    assert anchor_idx in [x[0] for x in bond_idxs] or anchor_idx in [x[1] for x in bond_idxs]
+
+    nbs_1 = set()
+    nbs_2 = set()
+    for src, dst in bond_idxs:
+        if src == anchor_idx and dst in core_idxs:
+            nbs_1.add(dst)
+        elif dst == anchor_idx and src in core_idxs:
+            nbs_1.add(src)
+
+    nbs_2 = set()  # ordered tuple!
+    for atom in nbs_1:
+        for src, dst in bond_idxs:
+            if src == atom and dst in core_idxs and dst != anchor_idx:
+                nbs_2.add((atom, dst))
+            elif dst == atom and src in core_idxs and src != anchor_idx:
+                nbs_2.add((atom, src))
+
+    return nbs_1, nbs_2
+
+def find_core(mol_a, mol_b):
+    # heuristic, maximize MCS first
+    # later on, truncate terminal to satisfy stereo bond rules
+    res = rdFMCS.FindMCS(
+        [mol_a, mol_b],
+        atomCompare=rdFMCS.AtomCompare.CompareAny,
+        bondCompare=rdFMCS.BondCompare.CompareAny
+    )
+
+
+    query = Chem.MolFromSmarts(res.smartsString)
+
+    a_match = mol_a.GetSubstructMatch(query)
+    b_match = mol_b.GetSubstructMatch(query)
+
+    core = np.stack([a_match, b_match], axis=1)
+
+    return core
 
 
 class SingleTopologyV2:
@@ -394,7 +341,8 @@ class SingleTopologyV2:
 
         anchor_core_geometry = mol_b_core_geometry[anchor]
         anchor_full_geometry = mol_b_full_geometry[anchor]
-        # print(anchor_core_geometry, anchor_full_geometry)
+        print(anchor_core_geometry, anchor_full_geometry)
+
         # specialized restraints that are factorizable
         restraint_cross_angle_idxs = []
         restraint_cross_angle_params = []
@@ -674,17 +622,7 @@ class SingleTopologyV2:
         else:
             assert 0, "Illegal Geometry"
 
-        return (
-            restraint_bond_idxs,
-            restraint_bond_params,
-            restraint_angle_idxs,
-            restraint_angle_params,
-            restraint_proper_idxs,
-            restraint_proper_params,
-            restraint_improper_idxs,
-            restraint_improper_params,
-            restraint_cross_angle_idxs,
-            restraint_cross_angle_params,
-            restraint_centroid_angle_idxs,
-            restraint_centroid_angle_params,
-        )
+
+        all_idxs = restraint_bond_idxs, restraint_angle_idxs, restraint_proper_idxs, restraint_improper_idxs, restraint_cross_angle_idxs, restraint_centroid_angle_idxs
+        all_params = restraint_bond_params, restraint_angle_params, restraint_proper_params, restraint_improper_params, restraint_cross_angle_params, restraint_centroid_angle_params
+        return all_idxs, all_params

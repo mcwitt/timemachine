@@ -8,7 +8,6 @@ from timemachine.fe import geometry, single_topology, topology, utils
 from timemachine.fe.single_topology import SingleTopologyV2 as ST
 from timemachine.ff import Forcefield
 
-
 def test_nblist_conversion():
     mol = Chem.MolFromSmiles("CC1CC1C(C)(C)C")
     bond_idxs = [[b.GetBeginAtomIdx(), b.GetEndAtomIdx()] for b in mol.GetBonds()]
@@ -17,43 +16,6 @@ def test_nblist_conversion():
     expected = [[1], [0, 2, 3], [1, 3], [1, 2, 4], [3, 5, 6, 7], [4], [4], [4]]
 
     np.testing.assert_array_equal(nblist, expected)
-
-
-# def test_flag_stereo():
-#     mol = Chem.MolFromSmiles("c1ccccc1C")
-#     mol = Chem.AddHs(mol)
-
-#     ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
-#     bt = topology.BaseTopology(mol, ff)
-
-#     bond_params, hb = bt.parameterize_harmonic_bond(ff.hb_handle.params)
-#     angle_params, ha = bt.parameterize_harmonic_angle(ff.ha_handle.params)
-#     proper_params, pt = bt.parameterize_proper_torsion(ff.pt_handle.params)
-#     improper_params, it = bt.parameterize_proper_torsion(ff.pt_handle.params)
-
-#     bond_idxs = hb.get_idxs()
-#     angle_idxs = ha.get_idxs()
-#     proper_idxs = pt.get_idxs()
-#     improper_idxs = it.get_idxs()
-
-#     atom_geometries, atom_stereo, bond_stereo = geometry.label_stereo(
-#         bond_idxs, bond_params, angle_idxs, angle_params, proper_idxs, proper_params, improper_idxs, improper_params
-#     )
-
-#     np.testing.assert_array_equal(atom_stereo, [0,0,0,0,0,0,1,0,0,0,0,0,0,0,0])
-#     # only carbon-carbon bonds should have stereo codes
-#     for idx, (i,j) in enumerate(bond_idxs):
-#         if i < 6 and j < 6:
-#             assert bond_stereo[idx] == 1
-#         else:
-#             assert bond_stereo[idx] == 0
-
-#     print(atom_geometries)
-#     print(atom_stereo)
-#     print(bond_stereo)
-
-#     print(bond_idxs)
-
 
 def test_benzene_to_phenol_restraints():
     mol_a = Chem.AddHs(Chem.MolFromSmiles("c1ccccc1"))
@@ -64,20 +26,8 @@ def test_benzene_to_phenol_restraints():
     ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
 
     # add [O,H] as the dummy-group
-    (
-        bond_idxs,
-        _,
-        angle_idxs,
-        _,
-        proper_idxs,
-        _,
-        improper_idxs,
-        _,
-        x_angle_idxs,
-        _,
-        c_angle_idxs,
-        _,
-    ) = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[6, 12], anchor=5)
+    all_idxs, _ = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[6, 12], anchor=5)
+    bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
 
     assert set(bond_idxs) == set([(5, 6)])
     assert set(angle_idxs) == set([(5, 6, 12)])
@@ -88,27 +38,14 @@ def test_benzene_to_phenol_restraints():
 
     # allow H to map to O
     core = np.array([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [11, 6]])
-    (
-        bond_idxs,
-        _,
-        angle_idxs,
-        _,
-        proper_idxs,
-        _,
-        improper_idxs,
-        _,
-        x_angle_idxs,
-        _,
-        c_angle_idxs,
-        _,
-    ) = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[12], anchor=6)
+    all_idxs, _ = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[12], anchor=6)
+    bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
     assert set(bond_idxs) == set([(6, 12)])
     assert set(angle_idxs) == set([(5, 6, 12)])
     assert set(proper_idxs) == set()
     assert set(improper_idxs) == set()
     assert set(x_angle_idxs) == set()
     assert set(c_angle_idxs) == set()
-
 
 def test_benzene_to_benzoic_acid():
     mol_a = Chem.AddHs(Chem.MolFromSmiles("c1ccccc1"))
@@ -119,20 +56,8 @@ def test_benzene_to_benzoic_acid():
 
     # note that the C-C bond in benzoic acid is rotatable, despite being SP2 hybridized at both ends
     # this is because of steric hindrance effects, the only planar non-rotatable bond is O=C-C-H
-    (
-        bond_idxs,
-        _,
-        angle_idxs,
-        _,
-        proper_idxs,
-        _,
-        improper_idxs,
-        _,
-        x_angle_idxs,
-        _,
-        c_angle_idxs,
-        _,
-    ) = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[6, 7, 8, 14], anchor=5)
+    all_idxs, _ = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[6, 7, 8, 14], anchor=5)
+    bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
 
     assert set(bond_idxs) == set([(5, 6)])
     assert set(angle_idxs) == set([(5, 6, 7), (5, 6, 8)])
@@ -155,20 +80,8 @@ def test_benzene_to_aniline():
     core = np.array([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]])
     ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
 
-    (
-        bond_idxs,
-        _,
-        angle_idxs,
-        _,
-        proper_idxs,
-        _,
-        improper_idxs,
-        _,
-        x_angle_idxs,
-        _,
-        c_angle_idxs,
-        _,
-    ) = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[6, 12, 13], anchor=5)
+    all_idxs, _ = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[6, 12, 13], anchor=5)
+    bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
 
     assert set(bond_idxs) == set([(5, 6)])
     assert set(angle_idxs) == set([(5, 6, 13), (5, 6, 12)])
@@ -178,20 +91,8 @@ def test_benzene_to_aniline():
     assert set(c_angle_idxs) == set([((0, 4), 5, 6)])
 
     core = np.array([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [11, 6]])
-    (
-        bond_idxs,
-        _,
-        angle_idxs,
-        _,
-        proper_idxs,
-        _,
-        improper_idxs,
-        _,
-        x_angle_idxs,
-        _,
-        c_angle_idxs,
-        _,
-    ) = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[12, 13], anchor=6)
+    all_idxs, _ = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[12, 13], anchor=6)
+    bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
     assert set(bond_idxs) == set([(6, 12), (6, 13)])
     assert set(angle_idxs) == set([(5, 6, 13), (5, 6, 12), (12, 6, 13)])
     assert set(proper_idxs) == set()
@@ -208,20 +109,8 @@ def test_benzene_to_benzonitrile():
     core = np.array([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]])
     ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
 
-    (
-        bond_idxs,
-        _,
-        angle_idxs,
-        _,
-        proper_idxs,
-        _,
-        improper_idxs,
-        _,
-        x_angle_idxs,
-        _,
-        c_angle_idxs,
-        _,
-    ) = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[6, 7], anchor=5)
+    all_idxs, _ = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[6, 7], anchor=5)
+    bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
 
     assert set(bond_idxs) == set([(5, 6)])
     assert set(angle_idxs) == set([(5, 6, 7)])
@@ -231,20 +120,8 @@ def test_benzene_to_benzonitrile():
     assert set(c_angle_idxs) == set([((0, 4), 5, 6)])
 
     core = np.array([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [11, 6]])
-    (
-        bond_idxs,
-        _,
-        angle_idxs,
-        _,
-        proper_idxs,
-        _,
-        improper_idxs,
-        _,
-        x_angle_idxs,
-        _,
-        c_angle_idxs,
-        _,
-    ) = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[7], anchor=6)
+    all_idxs, _ = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[7], anchor=6)
+    bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
     assert set(bond_idxs) == set([(6, 7)])
     assert set(angle_idxs) == set([(5, 6, 7)])
     assert set(proper_idxs) == set()
@@ -252,6 +129,40 @@ def test_benzene_to_benzonitrile():
     assert set(x_angle_idxs) == set()
     assert set(c_angle_idxs) == set()
 
+def test_benzene_to_toluene():
+    mol_a = Chem.AddHs(Chem.MolFromSmiles("c1ccccc1"))
+    mol_b = Chem.AddHs(Chem.MolFromSmiles("c1ccccc1C"))
+
+    # map hydrogen to carbon
+    core = np.array([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [11, 6]])
+    ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
+
+    all_idxs, _ = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[12,13,14], anchor=6)
+    bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
+
+    assert set(bond_idxs) == set([(6, 12),(6, 13),(6, 14)])
+    assert set(angle_idxs) == set([(5, 6, 12),(5, 6, 13),(5, 6, 14),(12,6,13),(12,6,14),(13,6,14)])
+    assert set(proper_idxs) == set()
+    assert set(improper_idxs) == set()  # disable impropers
+    assert set(x_angle_idxs) == set()
+    assert set(c_angle_idxs) == set()
+
+def test_ethanol_to_carboxylate():
+    mol_a = Chem.AddHs(Chem.MolFromSmiles("CO"))
+    mol_b = Chem.AddHs(Chem.MolFromSmiles("CC(=O)[O-]"))
+
+    core = np.array([[0, 0], [1, 1], [5,3]])
+    ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
+
+    all_idxs, _ = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[2], anchor=1)
+    bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
+
+    assert set(bond_idxs) == set([(1,2)])
+    assert set(angle_idxs) == set()
+    assert set(proper_idxs) == set()
+    assert set(improper_idxs) == set()  # disable impropers
+    assert set(x_angle_idxs) == set()
+    assert set(c_angle_idxs) == set([((0,3),1,2)])
 
 def test_ammonium_to_tetrahedral():
     mol_a = Chem.MolFromSmiles("N(F)(Cl)Br")
@@ -259,20 +170,8 @@ def test_ammonium_to_tetrahedral():
     ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
     core = np.array([[0, 0], [1, 1], [2, 2], [3, 3]])
 
-    (
-        bond_idxs,
-        _,
-        angle_idxs,
-        _,
-        proper_idxs,
-        _,
-        improper_idxs,
-        _,
-        x_angle_idxs,
-        _,
-        c_angle_idxs,
-        _,
-    ) = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[4], anchor=0)
+    all_idxs, _ = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[4], anchor=0)
+    bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
     assert set(bond_idxs) == set([(0, 4)])
     assert set(angle_idxs) == set()
     assert set(proper_idxs) == set()
@@ -281,75 +180,13 @@ def test_ammonium_to_tetrahedral():
     assert set(c_angle_idxs) == set([((1, 2, 3), 0, 4)])
 
     core = np.array([[0, 0], [1, 1], [2, 2]])
-    (
-        bond_idxs,
-        _,
-        angle_idxs,
-        _,
-        proper_idxs,
-        _,
-        improper_idxs,
-        _,
-        x_angle_idxs,
-        _,
-        c_angle_idxs,
-        _,
-    ) = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[3, 4], anchor=0)
+    all_idxs, _ = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[3, 4], anchor=0)
+    bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
     assert set(bond_idxs) == set([(0, 3), (0, 4)])
     assert set(angle_idxs) == set([(3, 0, 4)])
     assert set(proper_idxs) == set()
     assert set(improper_idxs) == set()
     assert set(x_angle_idxs) == set([((0, 1), (0, 2), (0, 3)), ((0, 1), (0, 2), (0, 4))])
-
-
-# def test_single_carboxylic_acid():
-#     # mol_a = Chem.AddHs(Chem.MolFromSmiles("FC(=O)O"))
-#     # mol_b = Chem.AddHs(Chem.MolFromSmiles("FC(Cl)(Br)N"))
-
-#     # mol_a = Chem.AddHs(Chem.MolFromSmiles("FC(Cl)(Br)N"))
-#     # mol_b = Chem.AddHs(Chem.MolFromSmiles("FC(=O)O"))
-
-#     # core = np.array([[0, 0], [1, 1], [2, 2], [3, 3]])
-
-#     mol_a = Chem.AddHs(Chem.MolFromSmiles("c1ccccc1F"))
-#     mol_b = Chem.AddHs(Chem.MolFromSmiles("c1ccccc1N"))
-
-#     core = np.array([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6]])
-
-#     ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
-
-#     st = single_topology.SingleTopologyV2(mol_a, mol_b, core, ff)
-#     st.get_mol_b_dummy_anchor_ixns()
-
-
-# def test_ring_opening():
-#     mol_a = Chem.AddHs(Chem.MolFromSmiles("C=CC=CC=CF"))
-#     mol_b = Chem.AddHs(Chem.MolFromSmiles("c1ccccc1N"))
-#     core = np.array([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]])
-#     ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
-#     st = single_topology.SingleTopologyV2(mol_a, mol_b, core, ff)
-#     st.get_mol_b_dummy_anchor_ixns()
-
-
-# def test_ring_opening_extra_map():
-#     mol_a = Chem.AddHs(Chem.MolFromSmiles("C=CC=CC=CF"))
-#     mol_b = Chem.AddHs(Chem.MolFromSmiles("c1ccccc1C"))
-#     core = np.array([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6]])
-#     ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
-#     st = single_topology.SingleTopologyV2(mol_a, mol_b, core, ff)
-#     st.get_mol_b_dummy_anchor_ixns()
-
-
-# def test_ring_opening_extra_map():
-#     mol_a = Chem.AddHs(Chem.MolFromSmiles("F\C(Cl)=O"))
-#     # mol_b = Chem.AddHs(Chem.MolFromSmiles("F\C(Cl)=N/Br"))
-#     mol_b = Chem.AddHs(Chem.MolFromSmiles("F\C(Cl)=NN=O"))  # 1 side dummy, 1 main dummy
-#     mol_b = Chem.AddHs(Chem.MolFromSmiles("F\C(Cl)=N-c1c[nH]cc1"))  # 2 side dummy, 1 main dummy
-
-#     core = np.array([[0, 0], [1, 1], [2, 2], [3, 3]])
-#     ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
-#     st = single_topology.SingleTopologyV2(mol_a, mol_b, core, ff)
-#     st.get_mol_b_dummy_anchor_ixns()
 
 
 def test_enumerate_anchor_groups():
@@ -426,14 +263,30 @@ def test_check_stability():
     result = single_topology.check_angle_stability(0, 1, 2, angle_idxs=[[0, 1, 2]], angle_params=[[100.0, 1.2]])
     assert result == True
 
+# from timemachine.fe import dummy
 
-# def test_group_torsions():
+# def test_hif2a_set():
 
-#     # given a set of torsion idxs, group them into non-redundant sets.
 #     ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
-#     mol = Chem.MolFromSmiles(r"F\C(Br)=C\Cl")
-#     params, idxs = ff.pt_handle.parameterize(mol)
+#     suppl = Chem.SDMolSupplier("timemachine/testsystems/data/ligands_40.sdf", removeHs=False)
+#     mols = list(suppl)
+#     for idx, mol_a in enumerate(mols):
+#         for mol_b in mols[idx+1:]:
 
-
-#     print("params", params)
-#     print("idxs", idxs)
+            
+#             if mol_a.GetProp("_Name") != "235" or mol_b.GetProp("_Name") != "165":
+#                 continue
+#             print("attempting", mol_a.GetProp("_Name"), "->", mol_b.GetProp("_Name"))
+#             core = single_topology.find_core(mol_a, mol_b)
+#             mol_b_core = core[:, 1]
+#             mol_b_bond_idxs = [(b.GetBeginAtomIdx(), b.GetEndAtomIdx()) for b in mol_b.GetBonds()]
+#             dgs = dummy.identify_dummy_groups(mol_b_bond_idxs, mol_b_core)
+#             for dg in dgs:                
+#                 dg = list(dg)
+#                 root_anchors = dummy.identify_root_anchors(mol_b_bond_idxs, mol_b_core, dg[0])
+#                 anchor = root_anchors[0]
+#                 # try:
+#                 all_idxs, _ = ST.setup_orientational_restraints(ff, mol_a, mol_b, core, dg=dg, anchor=anchor)
+#                 bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
+#                 # except Exception as e:
+#                     # print("failed on dummy_group", dg, e)
