@@ -3,6 +3,7 @@ import numpy as np
 from timemachine.fe import dummy, geometry, topology
 from timemachine.fe.geometry import LocalGeometry
 
+
 def enumerate_anchor_groups(anchor_idx, bond_idxs, core_idxs):
 
     # enumerate all 1 and 2 neighbor anchor atoms to form valid anchor groups.
@@ -45,13 +46,13 @@ def generate_required_torsions(dg, bond_idxs, anchor, core, proper_idxs, proper_
 
     anchor: int
         Junction atom belonging to the core
-    
+
     proper_idxs: list of 4-tuple
         Torsion idxs for proper terms
 
     proper_params: list of 3-tuple
         Force constant, phase, period of the proper params
-    
+
     Returns
     -------
     dict
@@ -63,30 +64,33 @@ def generate_required_torsions(dg, bond_idxs, anchor, core, proper_idxs, proper_
     required_torsions_side = dict()
     atoms = find_attached_dummy_atoms(dg, bond_idxs, anchor)
     for m in atoms:
-        for (a,b,c,d), (force, phase, period) in zip(proper_idxs, proper_params):
+        for (a, b, c, d), (force, phase, period) in zip(proper_idxs, proper_params):
             if period == 2 and (phase - np.pi) < 0.05 and force > 0.0:
                 # found a planarizing torsion
-                if (a == m and b in core and c in core and d in core) or \
-                (a in core and b in core and c in core and d == m):
+                if (a == m and b in core and c in core and d in core) or (
+                    a in core and b in core and c in core and d == m
+                ):
                     if m not in required_torsions_main:
                         required_torsions_main[m] = []
-                    required_torsions_main[m].append((a,b,c,d))
+                    required_torsions_main[m].append((a, b, c, d))
         side_dummies = set()
-        for i,j in bond_idxs:
+        for i, j in bond_idxs:
             if i == m and j in dg:
                 side_dummies.add(j)
             elif j == m and i in dg:
                 side_dummies.add(i)
         for s in side_dummies:
-            for (a,b,c,d), (force, phase, period) in zip(proper_idxs, proper_params):
+            for (a, b, c, d), (force, phase, period) in zip(proper_idxs, proper_params):
                 if period == 2 and (phase - np.pi) < 0.05 and force > 0.0:
-                    if (a == s and b == m and c in core and d in core) or \
-                    (a in core and b in core and c == m and d == s):
+                    if (a == s and b == m and c in core and d in core) or (
+                        a in core and b in core and c == m and d == s
+                    ):
                         if s not in required_torsions_side:
                             required_torsions_side[s] = []
-                        required_torsions_side[s].append((a,b,c,d))
+                        required_torsions_side[s].append((a, b, c, d))
 
     return required_torsions_main, required_torsions_side
+
 
 def identify_bonds_spanned_by_planar_torsions(proper_idxs, proper_params):
     """
@@ -95,12 +99,12 @@ def identify_bonds_spanned_by_planar_torsions(proper_idxs, proper_params):
     """
     planar_bonds = dict()
 
-    for (i,j,k,l), (force, phase, period) in zip(proper_idxs, proper_params):
+    for (i, j, k, l), (force, phase, period) in zip(proper_idxs, proper_params):
         if period == 2 and (phase - np.pi) < 0.05 and force > 5.0:
-            canon_jk = dummy.canonicalize_bond((j,k))
+            canon_jk = dummy.canonicalize_bond((j, k))
             if canon_jk not in planar_bonds:
                 planar_bonds[canon_jk] = []
-            planar_bonds[canon_jk].append((i,j,k,l))
+            planar_bonds[canon_jk].append((i, j, k, l))
 
     return planar_bonds
 
@@ -109,13 +113,13 @@ def find_stereo_bonds(ring_bonds, proper_idxs, proper_params):
     # a stereo bond is defined as a bond that
     # 1) has a proper torsion term that has k > 0, period=2, phase=3.1415
     # 2) a bond that is not part of a ring system.
-    # 3) 
+    # 3)
     # the reason why 2) is present is because the planar torsions spanning a
     # ring system are not used to enforce stereochemistry, since if we simply
     # disabled them, we would *still* get the correct stereochemistry.
     # consider a benzene devoid of any torsions (proper or improper), or non-bonded
     # terms, and only angles and bonds are present. The hydrogens would still be correctly
-    # placed since the angles intrinsically restrain them. 
+    # placed since the angles intrinsically restrain them.
 
     canonical_ring_bonds = set()
     for ij in ring_bonds:
@@ -128,6 +132,7 @@ def find_stereo_bonds(ring_bonds, proper_idxs, proper_params):
             canonical_stereo_bonds.add(k)
 
     return canonical_stereo_bonds
+
 
 def find_stereo_atoms(mol):
     mol_geom = geometry.classify_geometry(mol)
@@ -144,6 +149,7 @@ def find_stereo_atoms(mol):
         elif len(nbs) > 4:
             assert 0
     return stereo_atoms
+
 
 def check_bond_stability(j, k, bond_idxs, bond_params):
     # tbd this should really be based on the pdf, we should expect to see
@@ -213,15 +219,14 @@ def find_dummy_atoms_one_away(dg, bond_idxs, dummy_next_to_anchor):
 
 def find_junction_bonds(anchor, bond_idxs):
     jbs = set()
-    for i,j in bond_idxs:
+    for i, j in bond_idxs:
         assert i != j
         if i == anchor or j == anchor:
-            jbs.add(dummy.canonicalize_bond((i,j)))
+            jbs.add(dummy.canonicalize_bond((i, j)))
     return jbs
 
+
 class SingleTopologyV2:
-
-
     def __init__(self, mol_a, mol_b, core, forcefield):
         """
         SingleTopology combines two molecules through a common core. The combined mol has
@@ -279,7 +284,6 @@ class SingleTopologyV2:
         assert len(set(tuple(core[:, 0]))) == len(core[:, 0])
         assert len(set(tuple(core[:, 1]))) == len(core[:, 1])
 
-
     def get_num_atoms(self):
         return self.NC
 
@@ -292,7 +296,6 @@ class SingleTopologyV2:
         for b, c in enumerate(self.b_to_c):
             if c == core_idx:
                 return b
-                
 
     # tbd, refactor into a function that setups up orientational restraints at an anchor site.
     @staticmethod
@@ -301,9 +304,9 @@ class SingleTopologyV2:
         Add restraints between dummy atoms in a dummy_group and core atoms.
         """
         core_b_to_a = dict()
-        for a,b in core:
+        for a, b in core:
             core_b_to_a[b] = a
-    
+
         assert anchor in core_b_to_a
         for d in dg:
             assert d not in core_b_to_a
@@ -335,8 +338,8 @@ class SingleTopologyV2:
         dg = list(dg)
         # pick an arbitrary atom in the dummy_group and find the anchors, there may be
         # multiple anchors, eg (d=dummy, c=core):
-        #   d...d  
-        #   |   |  
+        #   d...d
+        #   |   |
         #   c---c
         root_anchors = dummy.identify_root_anchors(mol_b_bond_idxs, mol_b_core, dg[0])
         assert anchor in root_anchors
@@ -349,7 +352,6 @@ class SingleTopologyV2:
                 mol_b_ring_bonds.append((b.GetBeginAtomIdx(), b.GetEndAtomIdx()))
 
         stereo_bonds = find_stereo_bonds(mol_b_ring_bonds, mol_b_proper_idxs, mol_b_proper_params)
-        print("SB", stereo_bonds)
         stereo_atoms = find_stereo_atoms(mol_b)
 
         junction_bonds = find_junction_bonds(anchor, mol_b_bond_idxs)
@@ -369,15 +371,13 @@ class SingleTopologyV2:
         restraint_improper_idxs = []
         restraint_improper_params = []
 
-
-        print("MBIT", mol_b_improper_idxs)
         # copy restraints that involve only anchor and dummy atoms. These restraints are always
         # numerically stable and factorizable.
         dga = dg + [anchor]
         for idxs, params in zip(mol_b_bond_idxs, mol_b_bond_params):
             # core/anchor + exactly one anchor atom.
             if np.all([a in dga for a in idxs]) and np.sum([a == anchor for a in idxs]) == 1:
-                restraint_bond_idxs.append(tuple([int(x) for x in idxs])) # tuples are hashable etc.
+                restraint_bond_idxs.append(tuple([int(x) for x in idxs]))  # tuples are hashable etc.
                 restraint_bond_params.append(params)
         for idxs, params in zip(mol_b_angle_idxs, mol_b_angle_params):
             if np.all([a in dga for a in idxs]) and np.sum([a == anchor for a in idxs]) == 1:
@@ -394,7 +394,7 @@ class SingleTopologyV2:
 
         anchor_core_geometry = mol_b_core_geometry[anchor]
         anchor_full_geometry = mol_b_full_geometry[anchor]
-
+        # print(anchor_core_geometry, anchor_full_geometry)
         # specialized restraints that are factorizable
         restraint_cross_angle_idxs = []
         restraint_cross_angle_params = []
@@ -407,12 +407,12 @@ class SingleTopologyV2:
         if anchor_core_geometry == LocalGeometry.G1_TERMINAL:
             # type i-j, i and j are core atoms, j being the anchor
             assert len(nbs_1) == 1
-            i = list(nbs_1)[0] # core atom next to anchor
+            i = list(nbs_1)[0]  # core atom next to anchor
             j = anchor
             # require that the core bond i,j is stable in both mol_a and mol_b
             # note: there is no recovery here, so assert when this fails.
-            assert check_bond_stability(i,j,mol_b_bond_idxs, mol_b_bond_params)
-            assert check_bond_stability(core_b_to_a[i],core_b_to_a[j],mol_a_bond_idxs, mol_a_bond_params)
+            assert check_bond_stability(i, j, mol_b_bond_idxs, mol_b_bond_params)
+            assert check_bond_stability(core_b_to_a[i], core_b_to_a[j], mol_a_bond_idxs, mol_a_bond_params)
 
             if anchor_full_geometry == LocalGeometry.G2_KINK:
                 # type:
@@ -424,8 +424,8 @@ class SingleTopologyV2:
                 assert len(atoms) == 1
                 k = atoms[0]
                 # add one angle
-                restraint_angle_idxs.append((i,j,k))
-                restraint_angle_params.append((100.0, (2.0/3.0)*np.pi))
+                restraint_angle_idxs.append((i, j, k))
+                restraint_angle_params.append((100.0, (2.0 / 3.0) * np.pi))
             elif anchor_full_geometry == LocalGeometry.G2_LINEAR:
                 # type:
                 # i-j.k
@@ -433,7 +433,7 @@ class SingleTopologyV2:
                 atoms = find_attached_dummy_atoms(dg, mol_b_bond_idxs, anchor)
                 assert len(atoms) == 1
                 k = atoms[0]
-                restraint_angle_idxs.append((i,j,k))
+                restraint_angle_idxs.append((i, j, k))
                 restraint_angle_params.append((100.0, np.pi))
             elif anchor_full_geometry == LocalGeometry.G3_PYRAMIDAL:
                 # type:
@@ -445,15 +445,15 @@ class SingleTopologyV2:
                 assert len(atoms) == 2
                 k0, k1 = atoms
                 if anchor in stereo_atoms:
-                    restraint_angle_idxs.append((i,j,k0))
-                    restraint_angle_params.append((100.0, 1.91)) # 109 degrees
-                    restraint_angle_idxs.append((i,j,k1))
-                    restraint_angle_params.append((100.0, 1.91)) # 109 degrees
+                    restraint_angle_idxs.append((i, j, k0))
+                    restraint_angle_params.append((100.0, 1.91))  # 109 degrees
+                    restraint_angle_idxs.append((i, j, k1))
+                    restraint_angle_params.append((100.0, 1.91))  # 109 degrees
                 else:
-                    restraint_angle_idxs.append((i,j,k0))
-                    restraint_angle_params.append((100.0, (2.0/3.0)*np.pi))
-                    restraint_angle_idxs.append((i,j,k1))
-                    restraint_angle_params.append((100.0, (2.0/3.0)*np.pi))
+                    restraint_angle_idxs.append((i, j, k0))
+                    restraint_angle_params.append((100.0, (2.0 / 3.0) * np.pi))
+                    restraint_angle_idxs.append((i, j, k1))
+                    restraint_angle_params.append((100.0, (2.0 / 3.0) * np.pi))
             elif anchor_full_geometry == LocalGeometry.G3_PLANAR:
                 # type:
                 #     k0
@@ -467,10 +467,10 @@ class SingleTopologyV2:
                 atoms = find_attached_dummy_atoms(dg, mol_b_bond_idxs, anchor)
                 assert len(atoms) == 2
                 k0, k1 = atoms
-                restraint_angle_idxs.append((i,j,k0))
-                restraint_angle_params.append((100.0, (2.0/3.0)*np.pi))
-                restraint_angle_idxs.append((i,j,k1))
-                restraint_angle_params.append((100.0, (2.0/3.0)*np.pi))
+                restraint_angle_idxs.append((i, j, k0))
+                restraint_angle_params.append((100.0, (2.0 / 3.0) * np.pi))
+                restraint_angle_idxs.append((i, j, k1))
+                restraint_angle_params.append((100.0, (2.0 / 3.0) * np.pi))
             elif anchor_full_geometry == LocalGeometry.G4_TETRAHEDRAL:
                 # type:
                 #     k0
@@ -483,11 +483,11 @@ class SingleTopologyV2:
                 atoms = find_attached_dummy_atoms(dg, mol_b_bond_idxs, anchor)
                 assert len(atoms) == 3
                 k0, k1, k2 = atoms
-                restraint_angle_idxs.append((i,j,k0))
+                restraint_angle_idxs.append((i, j, k0))
                 restraint_angle_params.append((100.0, 1.91))
-                restraint_angle_idxs.append((i,j,k1))
+                restraint_angle_idxs.append((i, j, k1))
                 restraint_angle_params.append((100.0, 1.91))
-                restraint_angle_idxs.append((i,j,k2))
+                restraint_angle_idxs.append((i, j, k2))
                 restraint_angle_params.append((100.0, 1.91))
             else:
                 assert 0, "Illegal Geometry"
@@ -502,15 +502,16 @@ class SingleTopologyV2:
             j = anchor
 
             if anchor_full_geometry == LocalGeometry.G3_PYRAMIDAL:
-
                 # type
                 #    a - j
-                #       / . 
+                #       / .
                 #      b   k
                 # find stable core atoms next to anchor that we can build angle restraints off of.
                 a, b = nbs_1
 
-                assert check_bond_angle_stability(a,j,b, mol_a_bond_idxs, mol_a_bond_params, mol_a_angle_idxs, mol_a_angle_params)
+                assert check_bond_angle_stability(
+                    a, j, b, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params
+                )
                 assert check_bond_angle_stability(
                     core_b_to_a[a],
                     core_b_to_a[j],
@@ -518,7 +519,7 @@ class SingleTopologyV2:
                     mol_a_bond_idxs,
                     mol_a_bond_params,
                     mol_a_angle_idxs,
-                    mol_a_angle_params
+                    mol_a_angle_params,
                 )
 
                 # a and b are core atoms, j being the anchor
@@ -528,10 +529,10 @@ class SingleTopologyV2:
 
                 if anchor in stereo_atoms:
                     # two options
-                    # 1) two wells at zero and pi 
+                    # 1) two wells at zero and pi
                     # 2) one well explicitly encoding the stereo - probably better!
                     # implement 1 for now?
-                    restraint_cross_angle_idxs.append(((j,a),(j,b),(j,k)))
+                    restraint_cross_angle_idxs.append(((j, a), (j, b), (j, k)))
                     restraint_cross_angle_params.append((100.0, 0.0))
                 else:
                     # planarize so we can enhance sample both stereoisomers using a centroid
@@ -540,22 +541,31 @@ class SingleTopologyV2:
                     #      c.j.k <- angle (c,j,k) = 0.0
                     #       /
                     #      b
-                    restraint_centroid_angle_idxs.append(((a,b),j,k))
+                    restraint_centroid_angle_idxs.append((tuple(sorted(a, b)), j, k))
                     restraint_centroid_angle_params.append((100.0, 0.0))
 
             elif anchor_full_geometry == LocalGeometry.G3_PLANAR:
                 # same as G3_PYRAMIDAL non-stereo
-
-                print("anchor", anchor, "st", stereo_atoms)
+                # print("anchor", anchor, "st", stereo_atoms)
                 assert anchor not in stereo_atoms
                 a, b = nbs_1
-                assert check_bond_angle_stability(a,j,b, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params)
-                assert check_bond_angle_stability(core_b_to_a[a], core_b_to_a[j], core_b_to_a[b], mol_a_bond_idxs, mol_a_bond_params, mol_a_angle_idxs, mol_a_angle_params)
+                assert check_bond_angle_stability(
+                    a, j, b, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params
+                )
+                assert check_bond_angle_stability(
+                    core_b_to_a[a],
+                    core_b_to_a[j],
+                    core_b_to_a[b],
+                    mol_a_bond_idxs,
+                    mol_a_bond_params,
+                    mol_a_angle_idxs,
+                    mol_a_angle_params,
+                )
                 # a and b are core atoms, j being the anchor
                 atoms = find_attached_dummy_atoms(dg, mol_b_bond_idxs, anchor)
                 assert len(atoms) == 1
                 k = atoms[0]
-                restraint_centroid_angle_idxs.append(((a,b),j,k))
+                restraint_centroid_angle_idxs.append((tuple(sorted((a, b))), j, k))
                 restraint_centroid_angle_params.append((100.0, 0.0))
 
             elif anchor_full_geometry == LocalGeometry.G4_TETRAHEDRAL:
@@ -566,17 +576,29 @@ class SingleTopologyV2:
                 #            b
                 a, b = nbs_1
                 # core-atoms a,j,b
-                assert check_bond_angle_stability(a,j,b, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params)
-                assert check_bond_angle_stability(core_b_to_a[a], core_b_to_a[j], core_b_to_a[b], mol_a_bond_idxs, mol_a_bond_params, mol_a_angle_idxs, mol_a_angle_params)
+                assert check_bond_angle_stability(
+                    a, j, b, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params
+                )
+                assert check_bond_angle_stability(
+                    core_b_to_a[a],
+                    core_b_to_a[j],
+                    core_b_to_a[b],
+                    mol_a_bond_idxs,
+                    mol_a_bond_params,
+                    mol_a_angle_idxs,
+                    mol_a_angle_params,
+                )
 
                 atoms = find_attached_dummy_atoms(dg, mol_b_bond_idxs, anchor)
                 assert len(atoms) == 2
                 k, l = atoms
                 # dummy-atoms l,j,k
-                assert check_bond_angle_stability(l,j,k, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params)
-                restraint_cross_angle_idxs.append(([j,a],[j,b],[j,k]))
+                assert check_bond_angle_stability(
+                    l, j, k, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params
+                )
+                restraint_cross_angle_idxs.append(((j, a), (j, b), (j, k)))
                 restraint_cross_angle_params.append((100.0, 0.0))
-                restraint_cross_angle_idxs.append(([j,a],[j,b],[j,l]))
+                restraint_cross_angle_idxs.append(((j, a), (j, b), (j, l)))
                 restraint_cross_angle_params.append((100.0, 0.0))
             else:
                 assert 0, "Illegal Geometry"
@@ -585,13 +607,14 @@ class SingleTopologyV2:
         elif anchor_core_geometry == LocalGeometry.G3_PLANAR:
             assert 0, "Illegal Geometry"
         elif anchor_core_geometry == LocalGeometry.G3_PYRAMIDAL:
+            j = anchor
             if anchor_full_geometry == LocalGeometry.G4_TETRAHEDRAL:
                 #            c
                 #           /
                 # type a - j . k
                 #           \
                 #            b
-                # 
+                #
                 # we have some choices here:
                 # 1) if there is no ring-opening and closing, then we use a centroid angle restraint defined by [a,b,c],j,k
                 # 2) if there is ring-opening and closing, then we need to enumerate possible cross-product based restraints.
@@ -599,16 +622,50 @@ class SingleTopologyV2:
 
                 a, b, c = nbs_1
                 # core-atoms a,j,b
-                assert check_bond_angle_stability(a,j,b, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params)
-                assert check_bond_angle_stability(core_b_to_a[a], core_b_to_a[j], core_b_to_a[b], mol_a_bond_idxs, mol_a_bond_params, mol_a_angle_idxs, mol_a_angle_params)
+                assert check_bond_angle_stability(
+                    a, j, b, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params
+                )
+                assert check_bond_angle_stability(
+                    core_b_to_a[a],
+                    core_b_to_a[j],
+                    core_b_to_a[b],
+                    mol_a_bond_idxs,
+                    mol_a_bond_params,
+                    mol_a_angle_idxs,
+                    mol_a_angle_params,
+                )
                 # core-atoms a,j,c
-                assert check_bond_angle_stability(a,j,c, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params)
-                assert check_bond_angle_stability(core_b_to_a[a], core_b_to_a[j], core_b_to_a[c], mol_a_bond_idxs, mol_a_bond_params, mol_a_angle_idxs, mol_a_angle_params)
+                assert check_bond_angle_stability(
+                    a, j, c, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params
+                )
+                assert check_bond_angle_stability(
+                    core_b_to_a[a],
+                    core_b_to_a[j],
+                    core_b_to_a[c],
+                    mol_a_bond_idxs,
+                    mol_a_bond_params,
+                    mol_a_angle_idxs,
+                    mol_a_angle_params,
+                )
                 # core-atoms b,j,c
-                assert check_bond_angle_stability(b,j,c, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params)
-                assert check_bond_angle_stability(core_b_to_a[b], core_b_to_a[j], core_b_to_a[c], mol_a_bond_idxs, mol_a_bond_params, mol_a_angle_idxs, mol_a_angle_params)
+                assert check_bond_angle_stability(
+                    b, j, c, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params
+                )
+                assert check_bond_angle_stability(
+                    core_b_to_a[b],
+                    core_b_to_a[j],
+                    core_b_to_a[c],
+                    mol_a_bond_idxs,
+                    mol_a_bond_params,
+                    mol_a_angle_idxs,
+                    mol_a_angle_params,
+                )
 
-                restraint_centroid_angle_idxs.append(([a,b,c],j,k))
+                atoms = find_attached_dummy_atoms(dg, mol_b_bond_idxs, anchor)
+                assert len(atoms) == 1
+                k = atoms[0]
+
+                restraint_centroid_angle_idxs.append((tuple(sorted((a, b, c))), j, k))
                 restraint_centroid_angle_params.append((100.0, 0.0))
 
             else:
@@ -617,5 +674,17 @@ class SingleTopologyV2:
         else:
             assert 0, "Illegal Geometry"
 
-        return restraint_bond_idxs, restraint_bond_params, restraint_angle_idxs, restraint_angle_params, restraint_proper_idxs, restraint_proper_params, restraint_improper_idxs, restraint_improper_params, \
-            restraint_cross_angle_idxs, restraint_cross_angle_params, restraint_centroid_angle_idxs, restraint_centroid_angle_params
+        return (
+            restraint_bond_idxs,
+            restraint_bond_params,
+            restraint_angle_idxs,
+            restraint_angle_params,
+            restraint_proper_idxs,
+            restraint_proper_params,
+            restraint_improper_idxs,
+            restraint_improper_params,
+            restraint_cross_angle_idxs,
+            restraint_cross_angle_params,
+            restraint_centroid_angle_idxs,
+            restraint_centroid_angle_params,
+        )
