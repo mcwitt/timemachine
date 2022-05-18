@@ -7,6 +7,80 @@ from rdkit import Chem
 from timemachine.fe import geometry, single_topology, topology, utils
 from timemachine.fe.single_topology import setup_orientational_restraints, setup_end_state, SingleTopologyV2
 from timemachine.ff import Forcefield
+from timemachine.integrator import simulate
+from timemachine.fe import dummy
+from timemachine.potentials import bonded
+
+
+from timemachine.fe import pdb_writer, utils
+
+
+import functools
+import jax
+import scipy
+
+import matplotlib.pyplot as plt
+
+def minimize_bfgs(x0, U_fn):
+    N = x0.shape[0]
+    def u_bfgs(x_flat):
+        x_full = x_flat.reshape(N, 3)
+        return U_fn(x_full)
+
+    grad_bfgs_fn = jax.grad(u_bfgs)
+    res = scipy.optimize.minimize(u_bfgs, x0.reshape(-1), jac=grad_bfgs_fn)
+    xi = res.x.reshape(N,3)
+    return xi
+
+def simulate_idxs_and_params(idxs_and_params, x0):
+
+    (bond_idxs, bond_params), (angle_idxs, angle_params), (proper_idxs, proper_params), (improper_idxs, improper_params), (x_angle_idxs, x_angle_params), (c_angle_idxs, c_angle_params) = idxs_and_params
+
+    box = None
+    bond_U = functools.partial(bonded.harmonic_bond, params=bond_params, box=box, lamb=0.0, bond_idxs=bond_idxs)
+    angle_U = functools.partial(bonded.harmonic_angle, params=angle_params,box=box, lamb=0.0, angle_idxs=angle_idxs)
+    proper_U = functools.partial(bonded.periodic_torsion, params=proper_params, box=box, lamb=0.0, torsion_idxs=proper_idxs)
+    improper_U = functools.partial(bonded.periodic_torsion, params=improper_params, box=box, lamb=0.0, torsion_idxs=improper_idxs)
+    c_angle_U = functools.partial(bonded.harmonic_c_angle, params=c_angle_params, box=box, lamb=0.0, angle_idxs=c_angle_idxs)
+
+    # for idxs, params in zip(angle_idxs, angle_params):
+        # print(idxs, params)
+
+
+    # angle_params[-3][1] = 1.3
+    # angle_params[-2][1] = 1.3
+    # angle_params[-1][1] = 1.3
+    # print(angle_idxs, angle_params)
+    # assert 0
+
+    def U_fn(x):
+        return bond_U(x) + angle_U(x) + proper_U(x) + improper_U(x) + c_angle_U(x)
+
+    num_atoms = x0.shape[0]
+
+    x_min = minimize_bfgs(x0, U_fn)
+    num_workers = 1
+    num_batches = 2000
+    print("starting md...")
+    frames = simulate(x_min, U_fn, 300.0, np.ones(num_atoms)*4.0, 1000, num_batches, num_workers)
+    # discard burn in
+    burn_in_batches = num_batches//10
+    frames = frames[:, burn_in_batches:, :, :]
+    # collect over all workers
+    frames = frames.reshape(-1, num_atoms, 3)
+
+    angles = []
+    for f_idx, f in enumerate(frames):
+        angle = np.arccos(bonded.get_centroid_cos_angles(f, c_angle_idxs)[0])
+        print(f_idx, "angle", angle)
+        angles.append(angle)
+
+    # plt.hist(angles, bins=20)
+    # plt.show()
+    # print(frames.shape)
+
+    return frames
+
 
 def test_nblist_conversion():
     mol = Chem.MolFromSmiles("CC1CC1C(C)(C)C")
@@ -47,6 +121,76 @@ def test_benzene_to_phenol_restraints():
     assert set(x_angle_idxs) == set()
     assert set(c_angle_idxs) == set()
 
+def measure_chiral_volume(x0, x1, x2, x3):
+    
+    # x0 is the center
+    # x1, x2, x3 are the atoms of interest
+    v0 = x1 - x0
+    v1 = x2 - x0
+    v2 = x3 - x0
+
+    v0 = v0/np.linalg.norm(v0)
+    v1 = v1/np.linalg.norm(v1)
+    v2 = v2/np.linalg.norm(v2)
+
+    return np.dot(np.cross(v0, v1), v2)
+
+
+def test_methyl_to_methylamine():
+
+    #                                      0 1   2   3  4
+    # mol_a = Chem.AddHs(Chem.MolFromSmiles("C(Br)(Br)(Br)I"))
+    # mol_b = Chem.AddHs(Chem.MolFromSmiles("C(Br)(Br)(Br)N"))
+
+    #                                      0  1 2 3 4 5 6 7 8 9 0 
+    mol_a = Chem.AddHs(Chem.MolFromSmiles("c1(F)c(F)c(F)c(F)c(F)c(Cl)1"))
+    mol_b = Chem.AddHs(Chem.MolFromSmiles("c1(F)c(F)c(F)c(F)c(F)c(c2c(F)c(F)c(F)c(F)c(F)2)1"))
+    core = np.array([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9], [10, 10]])
+
+    ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
+    s_top = SingleTopologyV2(mol_a, mol_b, core, ff)
+
+    # mol_a must be embedded
+    AllChem.EmbedMolecule(mol_a)
+    x0 = single_topology.embed_molecules(mol_a, mol_b, s_top)
+
+    writer = pdb_writer.PDBWriter([mol_a, mol_b], "dummy_mol_a.pdb")
+    idxs_and_params = s_top.generate_end_state_mol_a()
+    frames = simulate_idxs_and_params(idxs_and_params, x0)
+
+    vols_a = []
+    for f in frames:
+        vol = measure_chiral_volume(f[0], f[5], f[6], f[7])
+        vols_a.append(vol)
+        new_x = pdb_writer.convert_single_topology_mols(f, s_top)
+        new_x = new_x - np.mean(new_x, axis=0)
+        writer.write_frame(new_x*10)
+    writer.close()
+
+    plt.hist(vols_a, label="vols_a", alpha=0.5)
+
+    writer = pdb_writer.PDBWriter([mol_a, mol_b], "dummy_mol_b.pdb")
+    idxs_and_params = s_top.generate_end_state_mol_b()
+    frames = simulate_idxs_and_params(idxs_and_params, x0)
+    vols_b = []
+    for f in frames:
+        vol = measure_chiral_volume(f[0], f[5], f[6], f[7])
+        vols_b.append(vol)
+        new_x = pdb_writer.convert_single_topology_mols(f, s_top)
+        new_x = new_x - np.mean(new_x, axis=0)
+        writer.write_frame(new_x*10)
+
+
+    plt.hist(vols_b, label="vols_b", alpha=0.5)
+    plt.xlim(-1, 1)
+    plt.legend()
+    plt.show()
+
+    writer.close()
+
+
+from rdkit.Chem import AllChem
+
 def test_phenol_end_state_max_core():
     # test morphing of phenol using the largest core possible
 
@@ -58,6 +202,26 @@ def test_phenol_end_state_max_core():
     ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
     s_top = SingleTopologyV2(mol_a, mol_b, core, ff)
     idxs_and_params = s_top.generate_end_state_mol_a()
+
+    x0 = np.random.rand(s_top.get_num_atoms(), 3)
+    s_top = SingleTopologyV2(mol_a, mol_b, core, ff)
+    idxs_and_params = s_top.generate_end_state_mol_a()
+    frames = simulate_idxs_and_params(idxs_and_params, x0)
+    writer = pdb_writer.PDBWriter([mol_a, mol_b], "dummy.pdb")
+
+    for f in frames:
+        new_x = pdb_writer.convert_single_topology_mols(f, s_top)
+        new_x = new_x - np.mean(new_x, axis=0)
+        writer.write_frame(new_x*10)
+    
+    writer.close()
+
+    # visualize
+
+
+    assert 0
+
+    
 
     bond_idxs, bond_params = idxs_and_params[0]
 
@@ -113,8 +277,6 @@ def test_phenol_end_state_max_core():
     assert set(c_angle_idxs) == set([((0,4),5,12)])
 
     # generate the other end-state, grafting mol_a unto mol_b, note that core is flipped
-    # core = np.array([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [7,6], [8,7], [9,8], [10,9], [11,10]])
-    # idxs_and_params = setup_end_state(ff, mol_b, mol_a, core, s_top.b_to_c, s_top.a_to_c)
     idxs_and_params = s_top.generate_end_state_mol_b()
     bond_idxs, bond_params = idxs_and_params[0]
 
@@ -397,7 +559,7 @@ def test_check_stability():
     result = single_topology.check_angle_stability(0, 1, 2, angle_idxs=[[0, 1, 2]], angle_params=[[100.0, 1.2]])
     assert result == True
 
-from timemachine.fe import dummy
+    # simulate(x0, U_)
 
 def test_hif2a_set():
 
@@ -405,12 +567,58 @@ def test_hif2a_set():
     suppl = Chem.SDMolSupplier("timemachine/testsystems/data/ligands_40.sdf", removeHs=False)
     mols = list(suppl)
     for idx, mol_a in enumerate(mols):
-        for mol_b in mols[idx+1:]:
-            
-            if mol_a.GetProp("_Name") != "235" or mol_b.GetProp("_Name") != "165":
-                continue
-            print("attempting", mol_a.GetProp("_Name"), "->", mol_b.GetProp("_Name"))
+        for mol_b in mols[idx+2:]:
+
+            # if mol_a.GetProp("_Name") != "235" or mol_b.GetProp("_Name") != "165":
+                # continue
+
+            print(mol_a.GetProp("_Name"), "->", mol_b.GetProp("_Name"))
             core = single_topology.find_core(mol_a, mol_b)
             s_top = SingleTopologyV2(mol_a, mol_b, core, ff)
-            s_top.generate_end_state_mol_a()
-            s_top.generate_end_state_mol_b()
+
+            # mol_a must be embedded
+            AllChem.EmbedMolecule(mol_a)
+            x0 = single_topology.embed_molecules(mol_a, mol_b, s_top)
+
+            writer = pdb_writer.PDBWriter([mol_a, mol_b], "dummy_mol_a.pdb")
+            idxs_and_params = s_top.generate_end_state_mol_a()
+            frames = simulate_idxs_and_params(idxs_and_params, x0)
+
+            vols_a = []
+            for f in frames:
+                vol = measure_chiral_volume(f[0], f[5], f[6], f[7])
+                vols_a.append(vol)
+                new_x = pdb_writer.convert_single_topology_mols(f, s_top)
+                new_x = new_x - np.mean(new_x, axis=0)
+                writer.write_frame(new_x*10)
+            writer.close()
+
+            plt.hist(vols_a, label="vols_a", alpha=0.5)
+
+            writer = pdb_writer.PDBWriter([mol_a, mol_b], "dummy_mol_b.pdb")
+            idxs_and_params = s_top.generate_end_state_mol_b()
+            frames = simulate_idxs_and_params(idxs_and_params, x0)
+            vols_b = []
+            for f in frames:
+                vol = measure_chiral_volume(f[0], f[5], f[6], f[7])
+                vols_b.append(vol)
+                new_x = pdb_writer.convert_single_topology_mols(f, s_top)
+                new_x = new_x - np.mean(new_x, axis=0)
+                writer.write_frame(new_x*10)
+
+
+            plt.hist(vols_b, label="vols_b", alpha=0.5)
+            plt.xlim(-1, 1)
+            plt.legend()
+            plt.show()
+
+            writer.close()
+
+            assert 0
+
+            U_fn_lambda_1 = s_top.generate_end_state_mol_b()
+
+            # def U_fn_lambda(conf, params, box, lambda):
+                # return (1-lambda)*U_fn_lambda_0(conf, params, box) + lambda*U_fn_lambda_0(conf, params, box)
+
+import cProfile

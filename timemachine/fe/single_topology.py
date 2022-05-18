@@ -1,5 +1,10 @@
 import numpy as np
 
+
+from timemachine.fe import utils
+from rdkit.Chem import AllChem
+from rdkit.Geometry import Point3D
+from collections.abc import Iterable
 from timemachine.fe import dummy, geometry, topology
 from timemachine.fe.geometry import LocalGeometry
 
@@ -11,13 +16,55 @@ def identify_bonds_spanned_by_planar_torsions(proper_idxs, proper_params):
     planar_bonds = dict()
 
     for (i, j, k, l), (force, phase, period) in zip(proper_idxs, proper_params):
-        if period == 2 and (phase - np.pi) < 0.05 and force > 30.0:
-            canon_jk = dummy.canonicalize_bond((j, k))
-            if canon_jk not in planar_bonds:
-                planar_bonds[canon_jk] = []
-            planar_bonds[canon_jk].append((i, j, k, l))
+        if (j == 10 and k == 11) or (j == 11 and k == 10):
+            print((i,j,k,l), (force, phase, period))
+            if period == 2 and (phase - np.pi) < 0.05 and force > 30.0:
+                canon_jk = dummy.canonicalize_bond((j, k))
+                if canon_jk not in planar_bonds:
+                    planar_bonds[canon_jk] = []
+                planar_bonds[canon_jk].append((i, j, k, l))
 
     return planar_bonds
+
+
+# recursively replace items in a list of list
+def recursive_map(items, mapping):
+    """
+    mapping = np.arange(100)[::-1]
+    items = [[0,2,3], [5,1,[2,5,6]], 3]
+    result = recursive_map(items, mapping)
+
+    """
+    if isinstance(items, Iterable):
+        res = []
+        for item in items:
+            res.append(recursive_map(item, mapping))
+        return tuple(res)
+    else:
+        return mapping[items]
+
+
+def embed_molecules(mol_a, mol_b, s_top):
+    """
+    Given conformation of mol_a, embed mol_b relative to mol_a.
+    """
+    assert mol_a.GetNumConformers() == 1
+        # AllChem.EmbedMolecule(mol_a)
+    x0_a = utils.get_romol_conf(mol_a) # nanometers
+    core = s_top.core
+    coord_map = {}
+    for i,j in core:
+        x,y,z = 10*x0_a[i]
+        coord_map[int(j)] = Point3D(x,y,z)
+    AllChem.EmbedMolecule(mol_b, coordMap=coord_map)
+    x0_b = utils.get_romol_conf(mol_b)
+    x0 = np.zeros((s_top.get_num_atoms(), 3))
+    for src, dst in enumerate(s_top.a_to_c):
+        x0[dst] = x0_a[src]
+    for src, dst in enumerate(s_top.b_to_c):
+        x0[dst] = x0_b[src]
+
+    return x0
 
 
 def find_stereo_bonds(ring_bonds, proper_idxs, proper_params):
@@ -35,6 +82,7 @@ def find_stereo_bonds(ring_bonds, proper_idxs, proper_params):
     canonical_ring_bonds = set()
     for ij in ring_bonds:
         canonical_ring_bonds.add(dummy.canonicalize_bond(ij))
+
 
     planar_bonds_kv = identify_bonds_spanned_by_planar_torsions(proper_idxs, proper_params)
     canonical_stereo_bonds = set()
@@ -171,24 +219,6 @@ def find_core(mol_a, mol_b):
     core = np.stack([a_match, b_match], axis=1)
 
     return core
-
-from collections.abc import Iterable
-
-# recursively replace items in a list of list
-def recursive_map(items, mapping):
-    """
-    mapping = np.arange(100)[::-1]
-    items = [[0,2,3], [5,1,[2,5,6]], 3]
-    result = recursive_map(items, mapping)
-
-    """
-    if isinstance(items, Iterable):
-        res = []
-        for item in items:
-            res.append(recursive_map(item, mapping))
-        return tuple(res)
-    else:
-        return mapping[items]
 
 def setup_orientational_restraints(ff, mol_a, mol_b, core, dg, anchor):
     """
@@ -435,11 +465,10 @@ def setup_orientational_restraints(ff, mol_a, mol_b, core, dg, anchor):
                 #       /
                 #      b
                 restraint_centroid_angle_idxs.append((tuple(sorted((a, b))), j, k))
-                restraint_centroid_angle_params.append((100.0, 0.0))
+                restraint_centroid_angle_params.append((5000.0, np.pi))
 
         elif anchor_full_geometry == LocalGeometry.G3_PLANAR:
             # same as G3_PYRAMIDAL non-stereo
-            # print("anchor", anchor, "st", stereo_atoms)
             assert anchor not in stereo_atoms
             a, b = nbs_1
             assert check_bond_angle_stability(
@@ -459,7 +488,7 @@ def setup_orientational_restraints(ff, mol_a, mol_b, core, dg, anchor):
             assert len(atoms) == 1
             k = atoms[0]
             restraint_centroid_angle_idxs.append((tuple(sorted((a, b))), j, k))
-            restraint_centroid_angle_params.append((100.0, 0.0))
+            restraint_centroid_angle_params.append((5000.0, np.pi))
 
         elif anchor_full_geometry == LocalGeometry.G4_TETRAHEDRAL:
             #            l
@@ -518,6 +547,7 @@ def setup_orientational_restraints(ff, mol_a, mol_b, core, dg, anchor):
             assert check_bond_angle_stability(
                 a, j, b, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params
             )
+
             assert check_bond_angle_stability(
                 core_b_to_a[a],
                 core_b_to_a[j],
@@ -558,8 +588,11 @@ def setup_orientational_restraints(ff, mol_a, mol_b, core, dg, anchor):
             assert len(atoms) == 1
             k = atoms[0]
 
+
+            # this site may be unstable if any of the terms are too close to 120.
             restraint_centroid_angle_idxs.append((tuple(sorted((a, b, c))), j, k))
-            restraint_centroid_angle_params.append((100.0, 0.0))
+            restraint_centroid_angle_params.append((0.0, np.pi))
+            # restraint_centroid_angle_params.append((5000.0, np.pi))
 
         else:
             assert 0, "Illegal Geometry"
@@ -622,7 +655,8 @@ def setup_end_state(ff, mol_a, mol_b, core, a_to_c, b_to_c):
         dummy_bond_idxs, dummy_angle_idxs, dummy_proper_idxs, dummy_improper_idxs, dummy_x_angle_idxs, dummy_c_angle_idxs = all_idxs
         dummy_bond_params, dummy_angle_params, dummy_proper_params, dummy_improper_params, dummy_x_angle_params, dummy_c_angle_params = all_params
 
-        # dummy interactions
+        # dummy-dummy interactions, note that we may actually want to disable rotatable bonds, planarize SP2 centers, etc.
+        # completely here in order to enhance sampling - this can be tricky, also disable nonbonded ixns within dummy
         for idxs, params in zip(mol_b_bond_idxs, mol_b_bond_params):
             # core/anchor + exactly one anchor atom.
             if np.all([a in dg for a in idxs]):
@@ -675,8 +709,14 @@ def setup_end_state(ff, mol_a, mol_b, core, a_to_c, b_to_c):
     mol_c_proper_idxs = mol_a_proper_idxs + dummy_proper_idxs
     mol_c_proper_params = mol_a_proper_params + dummy_proper_params
 
+
     mol_c_improper_idxs = mol_a_improper_idxs + dummy_improper_idxs
     mol_c_improper_params = mol_a_improper_params + dummy_improper_params
+
+    # print("mol_c_proper_idxs", mol_c_proper_idxs)
+    # print("mol_c_improper_idxs", mol_c_improper_idxs)
+    # assert 0
+
 
     mol_c_x_angle_idxs = dummy_x_angle_idxs
     mol_c_x_angle_params = dummy_x_angle_params
