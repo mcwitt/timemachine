@@ -1,13 +1,13 @@
 #include "vendored/jitify.hpp"
 #include <cub/cub.cuh>
 
+#include "device_buffer.hpp"
 #include "fixed_point.hpp"
 #include "gpu_utils.cuh"
+#include "kernel_utils.cuh"
 #include "nonbonded_all_pairs.hpp"
 #include "nonbonded_common.cuh"
 #include "vendored/hilbert.h"
-#include "device_buffer.hpp"
-#include "kernel_utils.cuh"
 
 #include "k_nonbonded.cuh"
 #include <numeric>
@@ -65,15 +65,6 @@ NonbondedAllPairs<RealType, Interpolated>::NonbondedAllPairs(
     if (lambda_offset_idxs.size() != lambda_plane_idxs.size()) {
         throw std::runtime_error("lambda offset idxs and plane idxs need to be equivalent");
     }
-    std::vector<int> atom_idxs_h;
-    if (atom_idxs) {
-        atom_idxs_h = std::vector<int>(atom_idxs->begin(), atom_idxs->end());
-    } else {
-        atom_idxs_h = std::vector<int>(N_);
-        std::iota(atom_idxs_h.begin(), atom_idxs_h.end(), 0);
-    }
-    this->verify_atom_idxs(atom_idxs_h);
-
     gpuErrchk(cudaMalloc(&d_lambda_plane_idxs_, N_ * sizeof(*d_lambda_plane_idxs_)));
     gpuErrchk(cudaMemcpy(
         d_lambda_plane_idxs_, &lambda_plane_idxs[0], N_ * sizeof(*d_lambda_plane_idxs_), cudaMemcpyHostToDevice));
@@ -83,7 +74,6 @@ NonbondedAllPairs<RealType, Interpolated>::NonbondedAllPairs(
         d_lambda_offset_idxs_, &lambda_offset_idxs[0], N_ * sizeof(*d_lambda_offset_idxs_), cudaMemcpyHostToDevice));
 
     gpuErrchk(cudaMalloc(&d_atom_idxs_, N_ * sizeof(*d_atom_idxs_)));
-    gpuErrchk(cudaMemcpy(d_atom_idxs_, &atom_idxs_h[0], K_ * sizeof(*d_atom_idxs_), cudaMemcpyHostToDevice));
 
     gpuErrchk(cudaMalloc(&d_sorted_atom_idxs_, N_ * sizeof(*d_sorted_atom_idxs_)));
 
@@ -147,8 +137,14 @@ NonbondedAllPairs<RealType, Interpolated>::NonbondedAllPairs(
     gpuErrchk(cudaPeekAtLastError());
     gpuErrchk(cudaMalloc(&d_sort_storage_, d_sort_storage_bytes_));
 
-    // Tell the NBlist how large the system is to be.
-    nblist_.resize(K_);
+    std::vector<int> atom_idxs_h;
+    if (atom_idxs) {
+        atom_idxs_h = std::vector<int>(atom_idxs->begin(), atom_idxs->end());
+    } else {
+        atom_idxs_h = std::vector<int>(N_);
+        std::iota(atom_idxs_h.begin(), atom_idxs_h.end(), 0);
+    }
+    this->set_atom_idxs(atom_idxs_h);
 };
 
 template <typename RealType, bool Interpolated> NonbondedAllPairs<RealType, Interpolated>::~NonbondedAllPairs() {
@@ -186,7 +182,7 @@ template <typename RealType, bool Interpolated> NonbondedAllPairs<RealType, Inte
     gpuErrchk(cudaFreeHost(p_rebuild_nblist_));
 };
 
-template<typename RealType, bool Interpolated>
+template <typename RealType, bool Interpolated>
 void NonbondedAllPairs<RealType, Interpolated>::verify_atom_idxs(const std::vector<int> &atom_idxs) {
     if (atom_idxs.size() == 0) {
         throw std::runtime_error("idxs can't be empty");
@@ -200,24 +196,29 @@ void NonbondedAllPairs<RealType, Interpolated>::verify_atom_idxs(const std::vect
     }
 }
 
+// Set atom idxs upon which to compute the non-bonded potential. This will trigger a neighborlist rebuild.
 template <typename RealType, bool Interpolated>
 void NonbondedAllPairs<RealType, Interpolated>::set_atom_idxs(const std::vector<int> &atom_idxs) {
     this->verify_atom_idxs(atom_idxs);
     const cudaStream_t stream = static_cast<cudaStream_t>(0);
     DeviceBuffer<int> atom_idxs_buffer(atom_idxs.size());
     atom_idxs_buffer.copy_from(&atom_idxs[0]);
-    this->set_atom_idxs_device(atom_idxs_buffer.size, atom_idxs_buffer.data, stream);
+    this->set_atom_idxs_device(atom_idxs.size(), atom_idxs_buffer.data, stream);
     gpuErrchk(cudaStreamSynchronize(stream));
 }
 
 template <typename RealType, bool Interpolated>
-void NonbondedAllPairs<RealType, Interpolated>::set_atom_idxs_device(const int K, const int * d_atom_idxs, const cudaStream_t stream) {
-    if (K >= N_) {
-        throw std::runtime_error("number of idxs must be less than N");
+void NonbondedAllPairs<RealType, Interpolated>::set_atom_idxs_device(
+    const int K, const int *d_in_atom_idxs, const cudaStream_t stream) {
+    if (K > N_) {
+        throw std::runtime_error("number of idxs must be less than or equal to N");
     }
-    gpuErrchk(cudaMemcpyAsync(d_atom_idxs_, d_atom_idxs, K * sizeof(*d_atom_idxs_), cudaMemcpyHostToDevice, stream));
-    this->K_ = K;
+    gpuErrchk(
+        cudaMemcpyAsync(d_atom_idxs_, d_in_atom_idxs, K * sizeof(*d_atom_idxs_), cudaMemcpyDeviceToDevice, stream));
     nblist_.resize_device(K, stream);
+    // Clear the nblist box to force a NBlist rebuild, which will update the ordering of the sorted idxs
+    gpuErrchk(cudaMemsetAsync(d_nblist_box_, 0, 3 * 3 * sizeof(*d_nblist_box_), stream));
+    this->K_ = K;
 }
 
 template <typename RealType, bool Interpolated>

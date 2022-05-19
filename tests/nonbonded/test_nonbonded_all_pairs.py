@@ -128,6 +128,45 @@ def test_nonbonded_all_pairs_improper_subset(rng: np.random.Generator):
     assert u_1 == u_2
 
 
+def test_nonbonded_all_pairs_set_atom_idxs(rng: np.random.Generator):
+    num_atoms = 100
+    beta = 2.0
+    lamb = 0.1
+    cutoff = 1.1
+    box = 3.0 * np.eye(3)
+    conf = rng.uniform(0, 1, size=(num_atoms, 3))
+    params = rng.uniform(0, 1, size=(num_atoms, 3))
+
+    lambda_plane_idxs = rng.integers(-2, 3, size=(num_atoms,), dtype=np.int32)
+    lambda_offset_idxs = rng.integers(-2, 3, size=(num_atoms,), dtype=np.int32)
+
+    atom_idxs = np.arange(0, num_atoms // 2, dtype=np.int32)
+
+    potential = NonbondedAllPairs(lambda_plane_idxs, lambda_offset_idxs, beta, cutoff)
+    unbound_pot = potential.unbound_impl(np.float32)
+
+    identity_idxs = np.arange(0, num_atoms, dtype=np.int32)
+    for num_idxs in [5, 25, 50, 80]:
+        atom_idxs = rng.choice(num_atoms, size=(num_idxs,), replace=False).astype(np.int32)
+        ignored_idxs = np.delete(identity_idxs, atom_idxs)
+        unbound_pot.set_atom_idxs(atom_idxs)
+
+        ref_potential = NonbondedAllPairs(lambda_plane_idxs, lambda_offset_idxs, beta, cutoff, atom_idxs)
+        unbound_ref = ref_potential.unbound_impl(np.float32)
+
+        du_dx, du_dl, du_dp, u = unbound_pot.execute(conf, params, box, lamb)
+        ref_du_dx, ref_du_dl, ref_du_dp, ref_u = unbound_ref.execute(conf, params, box, lamb)
+
+        # Atoms that are ignored by the potential, should always return 0.0
+        assert np.all(du_dx[ignored_idxs] == 0.0)
+        assert np.all(du_dl[ignored_idxs] == 0.0)
+
+        np.testing.assert_array_equal(ref_du_dx, du_dx)
+        np.testing.assert_array_equal(ref_du_dp, du_dp)
+        np.testing.assert_equal(ref_du_dp, du_dp)
+        np.testing.assert_equal(ref_u, u)
+
+
 @pytest.mark.parametrize("beta", [2.0])
 @pytest.mark.parametrize("cutoff", [1.1])
 @pytest.mark.parametrize("precision,rtol,atol", [(np.float64, 1e-8, 1e-8), (np.float32, 1e-4, 5e-4)])

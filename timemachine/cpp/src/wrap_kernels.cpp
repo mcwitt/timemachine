@@ -20,8 +20,8 @@
 #include "periodic_torsion.hpp"
 #include "potential.hpp"
 #include "rmsd_align.hpp"
-#include "summed_potential.hpp"
 #include "set_utils.hpp"
+#include "summed_potential.hpp"
 
 #include <iostream>
 
@@ -887,6 +887,7 @@ template <typename RealType, bool Interpolated> void declare_nonbonded_all_pairs
     py::class_<Class, std::shared_ptr<Class>, timemachine::Potential>(
         m, pyclass_name.c_str(), py::buffer_protocol(), py::dynamic_attr())
         .def("set_nblist_padding", &timemachine::NonbondedAllPairs<RealType, Interpolated>::set_nblist_padding)
+        .def("set_atom_idxs", &timemachine::NonbondedAllPairs<RealType, Interpolated>::set_atom_idxs)
         .def("disable_hilbert_sort", &timemachine::NonbondedAllPairs<RealType, Interpolated>::disable_hilbert_sort)
         .def(
             py::init([](const std::string &kernel_dir,
