@@ -535,6 +535,7 @@ def setup_orientational_restraints(ff, mol_a, mol_b, core, dg, anchor):
             assert check_bond_angle_stability(
                 a, j, b, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params
             )
+
             assert check_bond_angle_stability(
                 core_b_to_a[a],
                 core_b_to_a[j],
@@ -577,7 +578,7 @@ def setup_orientational_restraints(ff, mol_a, mol_b, core, dg, anchor):
             # we currently support only 1) right now. But it would not be difficult to implement 2).
 
             # it turns out that 1) is quite difficult, since ammonium groups do not have reasonable centroids due to
-            # rapid conversion. So we should always do 2).
+            # rapid conversion. So we should always do 2) as it's more robust and enables more kinds of transformations.
 
             a, b, c = nbs_1
 
@@ -607,56 +608,6 @@ def setup_orientational_restraints(ff, mol_a, mol_b, core, dg, anchor):
             assert len(atoms) == 1
             k = atoms[0]
 
-            # core-atoms a,j,b
-            # assert check_bond_angle_stability(
-            #     a, j, b, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params
-            # )
-
-            # assert check_bond_angle_stability(
-            #     core_b_to_a[a],
-            #     core_b_to_a[j],
-            #     core_b_to_a[b],
-            #     mol_a_bond_idxs,
-            #     mol_a_bond_params,
-            #     mol_a_angle_idxs,
-            #     mol_a_angle_params,
-            # )
-            # # core-atoms a,j,c
-            # assert check_bond_angle_stability(
-            #     a, j, c, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params
-            # )
-            # assert check_bond_angle_stability(
-            #     core_b_to_a[a],
-            #     core_b_to_a[j],
-            #     core_b_to_a[c],
-            #     mol_a_bond_idxs,
-            #     mol_a_bond_params,
-            #     mol_a_angle_idxs,
-            #     mol_a_angle_params,
-            # )
-            # # core-atoms b,j,c
-            # assert check_bond_angle_stability(
-            #     b, j, c, mol_b_bond_idxs, mol_b_bond_params, mol_b_angle_idxs, mol_b_angle_params
-            # )
-            # assert check_bond_angle_stability(
-            #     core_b_to_a[b],
-            #     core_b_to_a[j],
-            #     core_b_to_a[c],
-            #     mol_a_bond_idxs,
-            #     mol_a_bond_params,
-            #     mol_a_angle_idxs,
-            #     mol_a_angle_params,
-            # )
-
-            # atoms = find_attached_dummy_atoms(dg, mol_b_bond_idxs, anchor)
-            # assert len(atoms) == 1
-            # k = atoms[0]
-
-            # this site may be unstable if any of the terms are too close to 120.
-            # restraint_centroid_angle_idxs.append((tuple(sorted((a, b, c))), j, k))
-            # restraint_centroid_angle_params.append((0.0, np.pi))
-            
-            print("cross", (j,x), (j,y), (j, k))
             restraint_cross_angle_idxs.append(((j,x), (j,y), (j, k)))
             restraint_cross_angle_params.append((1000.0, np.nan))
 
