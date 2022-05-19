@@ -76,11 +76,10 @@ def embed_molecules(mol_a, mol_b, s_top, seed):
     return x0
 
 
-def find_stereo_bonds(ring_bonds, proper_idxs, proper_params):
+def find_stereo_bonds(ring_bonds, proper_idxs, proper_params, mol):
     # a stereo bond is defined as a bond that
     # 1) has a proper torsion term that has k > 30 kJ/mol, period=2, phase=3.1415
     # 2) a bond that is not part of a ring system.
-    # 3)
     # the reason why 2) is present is because the planar torsions spanning a
     # ring system are not used to enforce stereochemistry, since if we simply
     # disabled them, we would *still* get the correct stereochemistry.
@@ -92,12 +91,18 @@ def find_stereo_bonds(ring_bonds, proper_idxs, proper_params):
     for ij in ring_bonds:
         canonical_ring_bonds.add(dummy.canonicalize_bond(ij))
 
-
     planar_bonds_kv = identify_bonds_spanned_by_planar_torsions(proper_idxs, proper_params)
     canonical_stereo_bonds = set()
     for k in planar_bonds_kv.keys():
         if k not in canonical_ring_bonds:
-            canonical_stereo_bonds.add(k)
+            src, dst = k
+            src = mol.GetAtomWithIdx(src)
+            dst = mol.GetAtomWithIdx(dst)
+            if src.GetDegree() == 4 or dst.GetDegree() == 4:
+                # if either atom is tetrahedral then it has no pi bonds to conjugate over
+                continue
+            else:
+                canonical_stereo_bonds.add(k)
 
     return canonical_stereo_bonds
 
@@ -307,7 +312,7 @@ def setup_orientational_restraints(ff, mol_a, mol_b, core, dg, anchor):
         if b.IsInRing():
             mol_b_ring_bonds.append((b.GetBeginAtomIdx(), b.GetEndAtomIdx()))
 
-    stereo_bonds = find_stereo_bonds(mol_b_ring_bonds, mol_b_proper_idxs, mol_b_proper_params)
+    stereo_bonds = find_stereo_bonds(mol_b_ring_bonds, mol_b_proper_idxs, mol_b_proper_params, mol_b)
     stereo_atoms = find_stereo_atoms(mol_b)
 
     junction_bonds = find_junction_bonds(anchor, mol_b_bond_idxs)
@@ -341,7 +346,10 @@ def setup_orientational_restraints(ff, mol_a, mol_b, core, dg, anchor):
             restraint_angle_params.append(params)
     for idxs, params in zip(mol_b_proper_idxs, mol_b_proper_params):
         # only add torsions that are responsible for planarization
-        if np.all([a in dga for a in idxs]) and is_planarizing(*params):
+        # print(idxs, params, is_planarizing(*params)) # rework this
+        # if np.all([a in dga for a in idxs]) and is_planarizing(*params):
+        _,jj,kk,_ = idxs
+        if np.all([a in dga for a in idxs]) and (dummy.canonicalize_bond((jj, kk)) in stereo_bonds):
             restraint_proper_idxs.append(tuple([int(x) for x in idxs]))
             restraint_proper_params.append(params)
     for idxs, params in zip(mol_b_improper_idxs, mol_b_improper_params):

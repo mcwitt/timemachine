@@ -4,17 +4,12 @@ import numpy as np
 import pytest
 from rdkit import Chem
 
-from timemachine.fe import geometry, single_topology, topology, utils
-from timemachine.fe.single_topology import setup_orientational_restraints, setup_end_state, SingleTopologyV2
+from timemachine.fe import single_topology, utils
+from timemachine.fe.single_topology import setup_orientational_restraints, SingleTopologyV2
 from timemachine.ff import Forcefield
-from timemachine.integrator import simulate
-from timemachine.fe import dummy
-from timemachine.potentials import bonded
 from timemachine.fe import pdb_writer, utils
 
 import functools
-import jax
-import scipy
 import matplotlib.pyplot as plt
 from rdkit.Chem import AllChem
 
@@ -30,7 +25,7 @@ def test_benzene_to_phenol():
     all_idxs, _ = setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[6, 12], anchor=5)
     bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
 
-    assert set(bond_idxs) == set([(5, 6)])
+    assert set(bond_idxs) == set([(5, 6), (6, 12)])
     assert set(angle_idxs) == set([(5, 6, 12)])
     assert set(proper_idxs) == set()
     assert set(improper_idxs) == set()
@@ -61,18 +56,18 @@ def test_benzene_to_benzoic_acid():
     all_idxs, _ = setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[6, 7, 8, 14], anchor=5)
     bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
 
-    assert set(bond_idxs) == set([(5, 6)])
-    assert set(angle_idxs) == set([(5, 6, 7), (5, 6, 8)])
-    assert set(proper_idxs) == set([(5, 6, 8, 14)])
+    assert set(bond_idxs) == set([(5, 6), (6,7), (6,8), (8,14)])
+    assert set(angle_idxs) == set([(5, 6, 7), (5, 6, 8), (6, 8, 14), (7,6,8)])
+    # assert set(proper_idxs) == set([(5, 6, 8, 14)]) # used to be a stereo-bond
+    assert set(proper_idxs) == set()
     assert set(improper_idxs) == set([(6, 5, 7, 8), (5, 8, 7, 6), (6, 8, 5, 7)])
     assert set(x_angle_idxs) == set()
     assert set(c_angle_idxs) == set([((0, 4), 5, 6)])
 
-    core = np.array([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [11, 6]])
-
-    # this should raise because a stereo bond is present
-    with pytest.raises(AssertionError):
-        setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[7, 8, 14], anchor=6)
+    # core = np.array([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [11, 6]])
+    # no longer a stereo bond
+    # with pytest.raises(AssertionError):
+        # setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[7, 8, 14], anchor=6)
 
 
 def test_benzene_to_aniline():
@@ -85,8 +80,8 @@ def test_benzene_to_aniline():
     all_idxs, _ = setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[6, 12, 13], anchor=5)
     bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
 
-    assert set(bond_idxs) == set([(5, 6)])
-    assert set(angle_idxs) == set([(5, 6, 13), (5, 6, 12)])
+    assert set(bond_idxs) == set([(5, 6),(6,12),(6,13)])
+    assert set(angle_idxs) == set([(5, 6, 13), (5, 6, 12), (12,6,13)])
     assert set(proper_idxs) == set()
     assert set(improper_idxs) == set([(6, 13, 5, 12), (6, 5, 12, 13), (5, 13, 12, 6)])
     assert set(x_angle_idxs) == set()
@@ -114,7 +109,7 @@ def test_benzene_to_benzonitrile():
     all_idxs, _ = setup_orientational_restraints(ff, mol_a, mol_b, core, dg=[6, 7], anchor=5)
     bond_idxs, angle_idxs, proper_idxs, improper_idxs, x_angle_idxs, c_angle_idxs = all_idxs
 
-    assert set(bond_idxs) == set([(5, 6)])
+    assert set(bond_idxs) == set([(5, 6),(6,7)])
     assert set(angle_idxs) == set([(5, 6, 7)])
     assert set(proper_idxs) == set()
     assert set(improper_idxs) == set()
