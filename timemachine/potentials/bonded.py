@@ -197,7 +197,39 @@ def get_centroid_cos_angles(conf, angle_idxs):
     return tb
 
 
+def harmonic_x_angle(conf, params, box, lamb, angle_idxs):
+    if len(angle_idxs) == 0:
+        return 0.0
+
+    params = jnp.array(params)
+    v_ij = []
+    v_ik = []
+
+    for (j, a), (j, b), (j, c) in angle_idxs:
+        x_a = conf[a]
+        x_b = conf[b]
+        x_c = conf[c]
+        x_j = conf[j]
+        v_ja = x_a - x_j
+        v_jb = x_b - x_j
+        v_jc = x_c - x_j
+        v_ij.append(jnp.cross(v_ja, v_jb))
+        v_ik.append(v_jc)
+
+    v_ij = jnp.array(v_ij)
+    v_ik = jnp.array(v_ik)
+    top = jnp.sum(jnp.multiply(v_ij, v_ik), -1)
+    bot = jnp.linalg.norm(v_ij, axis=-1) * jnp.linalg.norm(v_ik, axis=-1)
+    cos_angles = top / bot
+    kas = params[:, 0]
+    cos_2_angles = 2*cos_angles**2 - 1 # double angle - symmetrized to both ends
+    energies = kas / 2 * jnp.power(cos_2_angles - 1, 2)
+    return jnp.sum(energies)
+
+
 def harmonic_c_angle(conf, params, box, lamb, angle_idxs):
+    if len(angle_idxs) == 0:
+        return 0.0
 
     params = jnp.array(params)
     tbs = get_centroid_cos_angles(conf, angle_idxs)

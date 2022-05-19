@@ -10,16 +10,15 @@ from timemachine.ff import Forcefield
 from timemachine.integrator import simulate
 from timemachine.fe import dummy
 from timemachine.potentials import bonded
-
-
 from timemachine.fe import pdb_writer, utils
-
 
 import functools
 import jax
 import scipy
-
 import matplotlib.pyplot as plt
+from rdkit.Chem import AllChem
+
+
 
 def minimize_bfgs(x0, U_fn):
     N = x0.shape[0]
@@ -42,19 +41,10 @@ def simulate_idxs_and_params(idxs_and_params, x0):
     proper_U = functools.partial(bonded.periodic_torsion, params=proper_params, box=box, lamb=0.0, torsion_idxs=proper_idxs)
     improper_U = functools.partial(bonded.periodic_torsion, params=improper_params, box=box, lamb=0.0, torsion_idxs=improper_idxs)
     c_angle_U = functools.partial(bonded.harmonic_c_angle, params=c_angle_params, box=box, lamb=0.0, angle_idxs=c_angle_idxs)
-
-    # for idxs, params in zip(angle_idxs, angle_params):
-        # print(idxs, params)
-
-
-    # angle_params[-3][1] = 1.3
-    # angle_params[-2][1] = 1.3
-    # angle_params[-1][1] = 1.3
-    # print(angle_idxs, angle_params)
-    # assert 0
+    x_angle_U = functools.partial(bonded.harmonic_x_angle, params=x_angle_params, box=box, lamb=0.0, angle_idxs=x_angle_idxs)
 
     def U_fn(x):
-        return bond_U(x) + angle_U(x) + proper_U(x) + improper_U(x) + c_angle_U(x)
+        return bond_U(x) + angle_U(x) + proper_U(x) + improper_U(x) + c_angle_U(x) + x_angle_U(x)
 
     num_atoms = x0.shape[0]
 
@@ -64,20 +54,11 @@ def simulate_idxs_and_params(idxs_and_params, x0):
     print("starting md...")
     frames = simulate(x_min, U_fn, 300.0, np.ones(num_atoms)*4.0, 1000, num_batches, num_workers)
     # discard burn in
-    burn_in_batches = num_batches//10
+    # burn_in_batches = num_batches//10
+    burn_in_batches = 0
     frames = frames[:, burn_in_batches:, :, :]
     # collect over all workers
     frames = frames.reshape(-1, num_atoms, 3)
-
-    angles = []
-    for f_idx, f in enumerate(frames):
-        angle = np.arccos(bonded.get_centroid_cos_angles(f, c_angle_idxs)[0])
-        print(f_idx, "angle", angle)
-        angles.append(angle)
-
-    # plt.hist(angles, bins=20)
-    # plt.show()
-    # print(frames.shape)
 
     return frames
 
@@ -136,60 +117,235 @@ def measure_chiral_volume(x0, x1, x2, x3):
     return np.dot(np.cross(v0, v1), v2)
 
 
-def test_methyl_to_methylamine():
+def test_halomethyl_to_halomethylamine():
+    # test that we preserve stereochemistry when morphing from SP3->SP3"
+    mol_a = Chem.MolFromMolBlock("""
+  Mrv2202 05192216353D          
 
-    #                                      0 1   2   3  4
-    # mol_a = Chem.AddHs(Chem.MolFromSmiles("C(Br)(Br)(Br)I"))
-    # mol_b = Chem.AddHs(Chem.MolFromSmiles("C(Br)(Br)(Br)N"))
+  5  4  0  0  0  0            999 V2000
+    0.3495    0.4000   -0.7530 C   0  0  2  0  0  0  0  0  0  0  0  0
+   -0.5582   -0.1718    0.8478 Br  0  0  0  0  0  0  0  0  0  0  0  0
+   -0.8566    1.4388   -1.8390 Br  0  0  0  0  0  0  0  0  0  0  0  0
+    0.9382   -1.1442   -1.7440 Br  0  0  0  0  0  0  0  0  0  0  0  0
+    2.0273    1.5851   -0.2289 I   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0  0  0  0
+  1  3  1  0  0  0  0
+  1  4  1  0  0  0  0
+  1  5  1  0  0  0  0
+M  END
+$$$$""", removeHs=False)
 
-    #                                      0  1 2 3 4 5 6 7 8 9 0 
-    mol_a = Chem.AddHs(Chem.MolFromSmiles("c1(F)c(F)c(F)c(F)c(F)c(Cl)1"))
-    mol_b = Chem.AddHs(Chem.MolFromSmiles("c1(F)c(F)c(F)c(F)c(F)c(c2c(F)c(F)c(F)c(F)c(F)2)1"))
-    core = np.array([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9], [10, 10]])
+    mol_b = Chem.MolFromMolBlock("""
+  Mrv2202 05192216363D          
 
+  7  6  0  0  0  0            999 V2000
+    0.3495    0.4000   -0.7530 C   0  0  2  0  0  0  0  0  0  0  0  0
+   -0.5582   -0.1718    0.8478 Br  0  0  0  0  0  0  0  0  0  0  0  0
+   -0.8566    1.4388   -1.8390 Br  0  0  0  0  0  0  0  0  0  0  0  0
+    0.9382   -1.1442   -1.7440 Br  0  0  0  0  0  0  0  0  0  0  0  0
+    2.0273    1.5851   -0.2289 N   0  0  0  0  0  0  0  0  0  0  0  0
+    2.2242    3.2477   -0.2289 H   0  0  0  0  0  0  0  0  0  0  0  0
+    3.1718    0.5547   -0.2289 H   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0  0  0  0
+  1  3  1  0  0  0  0
+  1  4  1  0  0  0  0
+  1  5  1  0  0  0  0
+  5  6  1  0  0  0  0
+  5  7  1  0  0  0  0
+M  END
+$$$$""", removeHs=False)
+
+    core = np.array([[0, 0], [1, 1], [2, 2], [3, 3]])
     ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
     s_top = SingleTopologyV2(mol_a, mol_b, core, ff)
 
-    # mol_a must be embedded
-    AllChem.EmbedMolecule(mol_a)
-    x0 = single_topology.embed_molecules(mol_a, mol_b, s_top)
+    x_a = utils.get_romol_conf(mol_a)
+    x_b = utils.get_romol_conf(mol_b)
+    x0 = s_top.combine_confs(x_a, x_b)
 
-    writer = pdb_writer.PDBWriter([mol_a, mol_b], "dummy_mol_a.pdb")
+    # check initial chirality
+    vol_a = measure_chiral_volume(x0[0], x0[1], x0[2], x0[4])
+    vol_d = measure_chiral_volume(x0[0], x0[1], x0[2], x0[5])
+    assert vol_a < 0 and vol_d < 0
+
+    # re-enable visualization is desired
+    # writer = pdb_writer.PDBWriter([mol_a, mol_b], "dummy_mol_a.pdb")
     idxs_and_params = s_top.generate_end_state_mol_a()
     frames = simulate_idxs_and_params(idxs_and_params, x0)
 
-    vols_a = []
     for f in frames:
-        vol = measure_chiral_volume(f[0], f[5], f[6], f[7])
-        vols_a.append(vol)
-        new_x = pdb_writer.convert_single_topology_mols(f, s_top)
-        new_x = new_x - np.mean(new_x, axis=0)
-        writer.write_frame(new_x*10)
-    writer.close()
+        vol_a = measure_chiral_volume(f[0], f[1], f[2], f[4])
+        vol_d = measure_chiral_volume(f[0], f[1], f[2], f[5])
+        # we should not be be inverting chirality here
+        assert vol_a < 0 and vol_d < 0
+        # new_x = pdb_writer.convert_single_topology_mols(f, s_top)
+        # new_x = new_x - np.mean(new_x, axis=0)
+        # writer.write_frame(new_x*10)
+    # writer.close()
 
-    plt.hist(vols_a, label="vols_a", alpha=0.5)
-
-    writer = pdb_writer.PDBWriter([mol_a, mol_b], "dummy_mol_b.pdb")
     idxs_and_params = s_top.generate_end_state_mol_b()
     frames = simulate_idxs_and_params(idxs_and_params, x0)
-    vols_b = []
+
     for f in frames:
-        vol = measure_chiral_volume(f[0], f[5], f[6], f[7])
-        vols_b.append(vol)
-        new_x = pdb_writer.convert_single_topology_mols(f, s_top)
-        new_x = new_x - np.mean(new_x, axis=0)
-        writer.write_frame(new_x*10)
+        vol_a = measure_chiral_volume(f[0], f[1], f[2], f[4])
+        vol_d = measure_chiral_volume(f[0], f[1], f[2], f[5])
+        assert vol_a < 0 and vol_d < 0
 
 
-    plt.hist(vols_b, label="vols_b", alpha=0.5)
-    plt.xlim(-1, 1)
-    plt.legend()
-    plt.show()
+def test_halomethyl_to_halomethylamine_inverted():
+    # test that we preserve stereochemistry when morphing from SP3->SP3, except
+    # the nitrogen is assigned an alternative chirality
 
-    writer.close()
+    mol_a = Chem.MolFromMolBlock("""
+  Mrv2202 05192216353D          
+
+  5  4  0  0  0  0            999 V2000
+    0.3495    0.4000   -0.7530 C   0  0  2  0  0  0  0  0  0  0  0  0
+   -0.5582   -0.1718    0.8478 Br  0  0  0  0  0  0  0  0  0  0  0  0
+   -0.8566    1.4388   -1.8390 Br  0  0  0  0  0  0  0  0  0  0  0  0
+    0.9382   -1.1442   -1.7440 Br  0  0  0  0  0  0  0  0  0  0  0  0
+    2.0273    1.5851   -0.2289 I   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0  0  0  0
+  1  3  1  0  0  0  0
+  1  4  1  0  0  0  0
+  1  5  1  0  0  0  0
+M  END
+$$$$""", removeHs=False)
+
+    mol_b = Chem.MolFromMolBlock("""
+  Mrv2202 05192216593D          
+
+  7  6  0  0  0  0            999 V2000
+   -0.0814    0.0208   -1.3024 C   0  0  1  0  0  0  0  0  0  0  0  0
+   -0.0096    0.1615    0.6181 Br  0  0  0  0  0  0  0  0  0  0  0  0
+   -1.6626    0.9097   -1.9529 Br  0  0  0  0  0  0  0  0  0  0  0  0
+   -0.1350   -1.8376   -1.8089 Br  0  0  0  0  0  0  0  0  0  0  0  0
+   -1.1201   -0.6482    0.3122 N   0  0  1  0  0  0  0  0  0  0  0  0
+   -2.2975   -0.5188    1.0529 H   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.3037   -1.9164    0.9197 H   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0  0  0  0
+  1  3  1  0  0  0  0
+  1  4  1  0  0  0  0
+  1  5  1  0  0  0  0
+  5  6  1  0  0  0  0
+  5  7  1  0  0  0  0
+M  END
+$$$$""", removeHs=False)
+
+    core = np.array([[0, 0], [1, 1], [2, 2], [3, 3]])
+    ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
+    s_top = SingleTopologyV2(mol_a, mol_b, core, ff)
+
+    x_a = utils.get_romol_conf(mol_a)
+    x_b = utils.get_romol_conf(mol_b)
+    x0 = s_top.combine_confs(x_a, x_b)
+
+    # check initial chirality
+    vol_a = measure_chiral_volume(x0[0], x0[1], x0[2], x0[4])
+    vol_d = measure_chiral_volume(x0[0], x0[1], x0[2], x0[5])
+    assert vol_a < 0 and vol_d > 0
+
+    idxs_and_params = s_top.generate_end_state_mol_a()
+    frames = simulate_idxs_and_params(idxs_and_params, x0)
+
+    for f in frames:
+        vol_a = measure_chiral_volume(f[0], f[1], f[2], f[4])
+        vol_d = measure_chiral_volume(f[0], f[1], f[2], f[5])
+        assert vol_a < 0 and vol_d > 0
+
+    idxs_and_params = s_top.generate_end_state_mol_b()
+    frames = simulate_idxs_and_params(idxs_and_params, x0)
+
+    for f in frames:
+        vol_a = measure_chiral_volume(f[0], f[1], f[2], f[4])
+        vol_d = measure_chiral_volume(f[0], f[1], f[2], f[5])
+        assert vol_a < 0 and vol_d > 0
 
 
-from rdkit.Chem import AllChem
+def test_ammonium_to_chloromethyl():
+    # NH3 easily interconverts between the two chiral states. In the event that we
+    # morph NH3 to something that is actually chiral, we should still be able to
+    # ensure enantiopurity of the end-states.
+    # we expect the a-state to be:
+    #   mixed stereo on vol_a, fixed stereo on vol_b
+    # we expect the b-state to be:
+    #   fixed stereo on vol_a, fixed stereo on vol_b
+
+    mol_a = Chem.MolFromMolBlock("""
+  Mrv2202 05192218063D          
+
+  4  3  0  0  0  0            999 V2000
+   -0.0541    0.5427   -0.3433 N   0  0  0  0  0  0  0  0  0  0  0  0
+    0.4368    0.0213    0.3859 H   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.9636    0.0925   -0.4646 H   0  0  0  0  0  0  0  0  0  0  0  0
+    0.4652    0.3942   -1.2109 H   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0  0  0  0
+  1  3  1  0  0  0  0
+  1  4  1  0  0  0  0
+M  END
+$$$$""", removeHs=False)
+
+    mol_b = Chem.MolFromMolBlock("""
+  Mrv2202 05192218063D          
+
+  5  4  0  0  0  0            999 V2000
+   -0.0541    0.5427   -0.3433 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.4368    0.0213    0.3859 H   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.9636    0.0925   -0.4646 H   0  0  0  0  0  0  0  0  0  0  0  0
+    0.4652    0.3942   -1.2109 H   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.0541    2.0827   -0.3433 Cl  0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0  0  0  0
+  1  3  1  0  0  0  0
+  1  4  1  0  0  0  0
+  1  5  1  0  0  0  0
+M  END
+$$$$""", removeHs=False)
+
+
+    core = np.array([[0, 0], [1, 1], [2, 2], [3, 3]])
+    ff = Forcefield.load_from_file("smirnoff_1_1_0_sc.py")
+    s_top = SingleTopologyV2(mol_a, mol_b, core, ff)
+
+    x_a = utils.get_romol_conf(mol_a)
+    x_b = utils.get_romol_conf(mol_b)
+    x0 = s_top.combine_confs(x_a, x_b)
+
+    # check initial chirality
+    vol_a = measure_chiral_volume(x0[0], x0[1], x0[2], x0[3])
+    vol_d = measure_chiral_volume(x0[0], x0[1], x0[2], x0[4])
+    print(vol_a, vol_d)
+    assert vol_a > 0 and vol_d < 0
+
+    idxs_and_params = s_top.generate_end_state_mol_a()
+    frames = simulate_idxs_and_params(idxs_and_params, x0)
+
+    num_vol_a_pos = 0
+    num_vol_a_neg = 0
+
+    for f in frames:
+        vol_a = measure_chiral_volume(f[0], f[1], f[2], f[3])
+        vol_d = measure_chiral_volume(f[0], f[1], f[2], f[4])
+        # ammonium is freely invertible
+        if vol_a < 0:
+            num_vol_a_neg += 1
+        else:
+            num_vol_a_pos += 1
+        # but stereochemistry of the dummy is still enforced
+        assert vol_d < 0
+    
+    # writer.close()
+
+    # should be within 5% of 50/50
+    assert abs(num_vol_a_pos/len(frames) - 0.5) < 0.05
+
+    idxs_and_params = s_top.generate_end_state_mol_b()
+    frames = simulate_idxs_and_params(idxs_and_params, x0)
+
+    for f in frames:
+        vol_a = measure_chiral_volume(f[0], f[1], f[2], f[3])
+        vol_d = measure_chiral_volume(f[0], f[1], f[2], f[4])
+        assert vol_a > 0 and vol_d < 0
+
 
 def test_phenol_end_state_max_core():
     # test morphing of phenol using the largest core possible
@@ -269,7 +425,6 @@ def test_phenol_end_state_max_core():
     # there are too many of these to enumerate out fully
     proper_idxs, proper_params = idxs_and_params[2]
     improper_idxs, improper_params = idxs_and_params[3]
-
     x_angle_idxs, x_angle_params = idxs_and_params[4]
     assert set(x_angle_idxs) == set()
 
