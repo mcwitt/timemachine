@@ -286,8 +286,8 @@ def harmonic_angle(conf, params, box, lamb, angle_idxs, lamb_mult=None, lamb_off
     * lamb argument unused
     """
 
-    angle_idxs = np.array(angle_idxs)
-    params = np.array(params)
+    angle_idxs = jnp.array(angle_idxs)
+    params = jnp.array(params)
 
     if angle_idxs.shape[0] == 0:
         return 0.0
@@ -405,8 +405,8 @@ def periodic_torsion(conf, params, box, lamb, torsion_idxs, lamb_mult=None, lamb
     * if conf has more than 3 dimensions, this function only depends on the first 3
     """
 
-    torsion_idxs = np.array(torsion_idxs)
-    params = np.array(params)
+    torsion_idxs = jnp.array(torsion_idxs)
+    params = jnp.array(params)
 
     if torsion_idxs.shape[0] == 0:
         return 0.0
