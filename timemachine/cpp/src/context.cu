@@ -1,11 +1,22 @@
 #include "context.hpp"
+#include "fanout_summed_potential.hpp"
 #include "fixed_point.hpp"
 #include "gpu_utils.cuh"
 #include "neighborlist.hpp"
-#include <cub/cub.cuh>
+#include "nonbonded_all_pairs.hpp"
 #include "set_utils.hpp"
+#include "summed_potential.hpp"
+#include <cub/cub.cuh>
+#include <memory>
+#include <typeinfo>
 
 namespace timemachine {
+
+struct LessThan {
+    int compare;
+    CUB_RUNTIME_FUNCTION __device__ __forceinline__ explicit LessThan(int compare) : compare(compare) {}
+    CUB_RUNTIME_FUNCTION __device__ __forceinline__ bool operator()(const int &a) const { return (a < compare); }
+};
 
 Context::Context(
     int N,
@@ -52,7 +63,7 @@ Context::~Context() {
     // }
 };
 
-void __global__ k_flatten(
+void __global__ k_flatten_nblist(
     const int N, // Number of values in src
     const int K, // Number of values in dest
     const unsigned int *__restrict__ src,
@@ -69,6 +80,60 @@ void __global__ k_flatten(
     // flag_map[val] = 1;
 }
 
+// Any value that is >=N becomes the idx and any value that is an idx becomes N
+void __global__ k_invert_indices(const int N, unsigned int *__restrict__ arr) {
+    const unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= N) {
+        return;
+    }
+
+    arr[idx] = arr[idx] >= N ? idx : N;
+}
+
+bool is_nonbonded_potential(std::shared_ptr<Potential> pot) {
+    if (std::shared_ptr<NonbondedAllPairs<float, true>> nb_pot =
+            std::dynamic_pointer_cast<NonbondedAllPairs<float, true>>(pot);
+        nb_pot) {
+        return true;
+    } else if (std::shared_ptr<NonbondedAllPairs<float, false>> nb_pot =
+                   std::dynamic_pointer_cast<NonbondedAllPairs<float, false>>(pot);
+               nb_pot) {
+        return true;
+    } else if (std::shared_ptr<NonbondedAllPairs<double, true>> nb_pot =
+                   std::dynamic_pointer_cast<NonbondedAllPairs<double, true>>(pot);
+               nb_pot) {
+        return true;
+    } else if (std::shared_ptr<NonbondedAllPairs<double, false>> nb_pot =
+                   std::dynamic_pointer_cast<NonbondedAllPairs<double, false>>(pot);
+               nb_pot) {
+        return true;
+    }
+    return false;
+}
+
+void set_nonbonded_potential_idxs(
+    std::shared_ptr<Potential> pot, const int num_idxs, const unsigned int *d_idxs, const cudaStream_t stream) {
+    if (std::shared_ptr<NonbondedAllPairs<float, true>> nb_pot =
+            std::dynamic_pointer_cast<NonbondedAllPairs<float, true>>(pot);
+        nb_pot) {
+        nb_pot->set_atom_idxs_device(num_idxs, d_idxs, stream);
+    } else if (std::shared_ptr<NonbondedAllPairs<float, false>> nb_pot =
+                   std::dynamic_pointer_cast<NonbondedAllPairs<float, false>>(pot);
+               nb_pot) {
+        nb_pot->set_atom_idxs_device(num_idxs, d_idxs, stream);
+    } else if (std::shared_ptr<NonbondedAllPairs<double, true>> nb_pot =
+                   std::dynamic_pointer_cast<NonbondedAllPairs<double, true>>(pot);
+               nb_pot) {
+        nb_pot->set_atom_idxs_device(num_idxs, d_idxs, stream);
+    } else if (std::shared_ptr<NonbondedAllPairs<double, false>> nb_pot =
+                   std::dynamic_pointer_cast<NonbondedAllPairs<double, false>>(pot);
+               nb_pot) {
+        nb_pot->set_atom_idxs_device(num_idxs, d_idxs, stream);
+    } else {
+        throw std::runtime_error("Unable to cast potential to NonbondedAllPairs");
+    }
+}
+
 // TODO document this regarding store_x_interval being based on iterations
 std::array<std::vector<double>, 2> Context::local_md(
     const std::vector<double> &lambda_schedule,
@@ -77,7 +142,6 @@ std::array<std::vector<double>, 2> Context::local_md(
     const int local_steps,
     const int store_x_interval,
     const std::vector<unsigned int> &local_idxs,
-    const std::vector<BoundPotential *> &local_bps,
     const double cutoff) {
     if (store_x_interval <= 0) {
         throw std::runtime_error("store_x_interval <= 0");
@@ -85,74 +149,228 @@ std::array<std::vector<double>, 2> Context::local_md(
     const int x_buffer_size = iterations / store_x_interval;
 
     const int box_buffer_size = x_buffer_size * 3 * 3;
-    cudaStream_t stream = static_cast<cudaStream_t>(0);
+    cudaStream_t stream;
+    gpuErrchk(cudaStreamCreate(&stream));
 
+    // Construct neighborlist to find the inner and outer sphere
     Neighborlist<float> nblist(N_);
-    nblist.set_row_idxs(local_idxs);
 
     std::set<unsigned int> unique_idxs(local_idxs.begin(), local_idxs.end());
     std::vector<unsigned int> non_local_idxs = get_indices_difference(static_cast<size_t>(N_), unique_idxs);
 
-    const int NR = local_idxs.size();
-    const int NC = non_local_idxs.size();
+    int NR = local_idxs.size();
+    int NC = non_local_idxs.size();
 
     const size_t tpb = 32;
-    int num_items = nblist.num_column_blocks() * nblist.num_row_blocks() * tpb;
+    int max_interactions = nblist.num_column_blocks() * nblist.num_row_blocks() * tpb;
 
-    DeviceBuffer<unsigned int> d_idxs_buffer(N_);
+    DeviceBuffer<unsigned int> d_sphere_idxs_inner(N_);
+    DeviceBuffer<unsigned int> d_sphere_idxs_outer(N_);
 
     // Store coordinates in host memory as it can be very large
     std::vector<double> h_x_buffer(x_buffer_size * N_ * 3);
     // Store boxes on GPU as boxes are a constant size and relatively small1
     DeviceBuffer<double> d_box_buffer(box_buffer_size);
 
-    DeviceBuffer<unsigned int> d_row_idxs(local_idxs.size());
-    d_row_idxs.copy_from(&local_idxs[0]);
+    DeviceBuffer<unsigned int> d_init_row_idxs(local_idxs.size());
+    d_init_row_idxs.copy_from(&local_idxs[0]);
+    DeviceBuffer<unsigned int> d_init_col_idxs(non_local_idxs.size());
+    d_init_col_idxs.copy_from(&non_local_idxs[0]);
 
-    DeviceBuffer<unsigned int> d_col_idxs(non_local_idxs.size());
-    d_col_idxs.copy_from(&non_local_idxs[0]);
+    DeviceBuffer<unsigned int> d_row_idxs(N_);
+    DeviceBuffer<unsigned int> d_col_idxs(N_);
+
+    std::vector<unsigned int> atom_idxs_h = std::vector<unsigned int>(N_);
+    std::iota(atom_idxs_h.begin(), atom_idxs_h.end(), 0);
+    DeviceBuffer<unsigned int> d_identity_idxs(N_);
+    d_identity_idxs.copy_from(&atom_idxs_h[0]);
+
+    // Potentials we need
+    // Bonded/torsions
+    // All exclusions
+    // Nonbonded all pairs within inner
+    // Ixn group with inner set
+
+    std::vector<BoundPotential *> local_bps;
+
+    // Copy assignment, so we can modify it
+    local_bps = bps_;
+
+    // Need to keep references to the bound potential
+    std::vector<BoundPotential> ref_bps;
+
+    std::shared_ptr<Potential> nonbonded_potential;
+
+    // Flatten out potentials into bound potentials for local_bps when applicable
+    // Traverse backways to pop off the potentials that are fanned out
+    for (int i = bps_.size() - 1; i >= 0; i--) {
+        std::shared_ptr<FanoutSummedPotential> fanned_potential =
+            std::dynamic_pointer_cast<FanoutSummedPotential>(bps_[i]->potential);
+        if (fanned_potential != nullptr) {
+            std::vector<std::shared_ptr<Potential>> potentials = fanned_potential->get_potentials();
+            for (std::shared_ptr<Potential> pot : fanned_potential->get_potentials()) {
+                if (is_nonbonded_potential(pot)) {
+                    nonbonded_potential = pot;
+                    break;
+                }
+            }
+            continue;
+        }
+        std::shared_ptr<SummedPotential> summed_potential =
+            std::dynamic_pointer_cast<SummedPotential>(bps_[i]->potential);
+        if (summed_potential != nullptr) {
+            for (std::shared_ptr<Potential> pot : summed_potential->get_potentials()) {
+                if (is_nonbonded_potential(pot)) {
+                    nonbonded_potential = pot;
+                    break;
+                }
+            }
+            continue;
+        }
+    }
+    if (!nonbonded_potential) {
+        throw std::runtime_error("Unable to find a NonbondedAllPairs potential");
+    }
+
+    int *p_num_selected;
+    gpuErrchk(cudaMallocHost(&p_num_selected, 1 * sizeof(*p_num_selected)));
+    DeviceBuffer<int> num_selected_buffer(1);
+    LessThan select_op(N_);
+
+    std::size_t temp_storage_bytes = 0;
+    cub::DevicePartition::If(
+        nullptr,
+        temp_storage_bytes,
+        d_sphere_idxs_inner.data,
+        d_row_idxs.data,
+        num_selected_buffer.data,
+        N_,
+        select_op);
+    DeviceBuffer<char> d_temp_storage_buffer(temp_storage_bytes);
 
     for (int i = 1; i <= iterations; i++) {
 
+        // Use the provided bound potentials as is
         for (int j = 0; j < global_steps; j++) {
             this->_step(bps_, lambda_schedule[j], nullptr, nullptr, stream);
         }
-        // Set the array to all N, which means it will be ignored as an idx
-        k_initialize_array<unsigned int><<<ceil_divide(N_, tpb), tpb, 0, stream>>>(N_, d_idxs_buffer.data, N_);
-        gpuErrchk(cudaPeekAtLastError());
+        NR = local_idxs.size();
+        NC = non_local_idxs.size();
 
-        nblist.set_idxs_device(NC, NR, d_col_idxs.data, d_row_idxs.data, stream);
+        nblist.set_idxs_device(NC, NR, d_init_col_idxs.data, d_init_row_idxs.data, stream);
+
+        max_interactions = nblist.num_column_blocks() * nblist.num_row_blocks() * tpb;
         // Build the neighborlist around the idxs to get the atoms that interact
         nblist.build_nblist_device(N_, d_x_t_, d_box_t_, cutoff, stream);
 
-        k_flatten<<<ceil_divide(num_items, tpb), tpb, 0, stream>>>(
-            num_items, N_, nblist.get_ixn_atoms(), d_idxs_buffer.data);
+        // Set the array to all N, which means it will be ignored as an idx
+        k_initialize_array<unsigned int><<<ceil_divide(N_, tpb), tpb, 0, stream>>>(N_, d_sphere_idxs_inner.data, N_);
+        gpuErrchk(cudaPeekAtLastError());
+        // Fill inner sphere with ixn atoms + atoms used to build nblist
+        k_flatten_nblist<<<ceil_divide(max_interactions, tpb), tpb, 0, stream>>>(
+            max_interactions, N_, nblist.get_ixn_atoms(), d_sphere_idxs_inner.data);
         gpuErrchk(cudaPeekAtLastError());
 
-        k_flatten<<<ceil_divide(NR, tpb), tpb, 0, stream>>>(NR, N_, d_row_idxs.data, d_idxs_buffer.data);
+        // Add the row indices to the indices that will be modified
+        k_flatten_nblist<<<ceil_divide(NR, tpb), tpb, 0, stream>>>(
+            NR, N_, d_init_row_idxs.data, d_sphere_idxs_inner.data);
         gpuErrchk(cudaPeekAtLastError());
 
-        // Given the new idxs
+        // Partition the valid row indices to the front of the array
+        cub::DevicePartition::If(
+            d_temp_storage_buffer.data,
+            temp_storage_bytes,
+            d_sphere_idxs_inner.data,
+            d_row_idxs.data,
+            num_selected_buffer.data,
+            N_,
+            select_op,
+            stream);
+        gpuErrchk(cudaPeekAtLastError());
+
+        // Copy the num out, that is the new NR, NC == N_ - NR
+        gpuErrchk(cudaMemcpyAsync(
+            p_num_selected, num_selected_buffer.data, 1 * sizeof(*p_num_selected), cudaMemcpyDeviceToHost, stream));
+        gpuErrchk(cudaStreamSynchronize(stream));
+
+        NR = p_num_selected[0];
+        NC = N_ - NR;
+
+        k_invert_indices<<<ceil_divide(N_, tpb), tpb, 0, stream>>>(N_, d_sphere_idxs_inner.data);
+        gpuErrchk(cudaPeekAtLastError());
+
+        // Partition the col idx to the front
+        cub::DevicePartition::If(
+            d_temp_storage_buffer.data,
+            temp_storage_bytes,
+            d_sphere_idxs_inner.data,
+            d_col_idxs.data,
+            num_selected_buffer.data,
+            N_,
+            select_op,
+            stream);
+        gpuErrchk(cudaPeekAtLastError());
+
+        k_invert_indices<<<ceil_divide(N_, tpb), tpb, 0, stream>>>(N_, d_sphere_idxs_inner.data);
+        gpuErrchk(cudaPeekAtLastError());
+
+        nblist.set_idxs_device(NC, NR, d_col_idxs.data, d_row_idxs.data, stream);
+        max_interactions = nblist.num_column_blocks() * nblist.num_row_blocks() * tpb;
+        // Build the neighborlist around the idxs to get the atoms that interact
+        nblist.build_nblist_device(N_, d_x_t_, d_box_t_, cutoff, stream);
+
+        k_initialize_array<unsigned int><<<ceil_divide(N_, tpb), tpb, 0, stream>>>(N_, d_sphere_idxs_outer.data, N_);
+        gpuErrchk(cudaPeekAtLastError());
+
+        k_flatten_nblist<<<ceil_divide(max_interactions, tpb), tpb, 0, stream>>>(
+            max_interactions, N_, nblist.get_ixn_atoms(), d_sphere_idxs_outer.data);
+        gpuErrchk(cudaPeekAtLastError());
+
+        // Add the row indices to the indices that will be modified
+        k_flatten_nblist<<<ceil_divide(NR, tpb), tpb, 0, stream>>>(NR, N_, d_row_idxs.data, d_sphere_idxs_outer.data);
+        gpuErrchk(cudaPeekAtLastError());
+
+        // Partition all the indices that make up the the inner and outer sphere, reuse the d_row_Idxs
+        cub::DevicePartition::If(
+            d_temp_storage_buffer.data,
+            temp_storage_bytes,
+            d_sphere_idxs_outer.data,
+            d_row_idxs.data,
+            num_selected_buffer.data,
+            N_,
+            select_op,
+            stream);
+        gpuErrchk(cudaPeekAtLastError());
+
+        gpuErrchk(cudaMemcpyAsync(
+            p_num_selected, num_selected_buffer.data, 1 * sizeof(*p_num_selected), cudaMemcpyDeviceToHost, stream));
+        gpuErrchk(cudaStreamSynchronize(stream));
+
+        // Copy value from partition into potential idxs
+        set_nonbonded_potential_idxs(nonbonded_potential, p_num_selected[0], d_row_idxs.data, stream);
 
         for (int j = 0; j < local_steps; j++) {
-            this->_step(local_bps, lambda_schedule[global_steps + j], nullptr, d_idxs_buffer.data, stream);
+            this->_step(bps_, lambda_schedule[global_steps + j], nullptr, d_sphere_idxs_inner.data, stream);
         }
+        // Set back to the full system, for when we go back to global or end the loop
+        set_nonbonded_potential_idxs(nonbonded_potential, N_, d_identity_idxs.data, stream);
         if (i % store_x_interval == 0) {
-            gpuErrchk(cudaMemcpy(
-                &h_x_buffer[0] + ((i / store_x_interval) - 1) * N_ * 3,
-                d_x_t_,
-                N_ * 3 * sizeof(*d_x_t_),
-                cudaMemcpyDeviceToHost));
             gpuErrchk(cudaMemcpyAsync(
                 d_box_buffer.data + ((i / store_x_interval) - 1) * 3 * 3,
                 d_box_t_,
                 3 * 3 * sizeof(*d_box_buffer.data),
                 cudaMemcpyDeviceToDevice,
                 stream));
+            gpuErrchk(cudaMemcpy(
+                &h_x_buffer[0] + ((i / store_x_interval) - 1) * N_ * 3,
+                d_x_t_,
+                N_ * 3 * sizeof(*d_x_t_),
+                cudaMemcpyDeviceToHost));
         }
     }
 
-    cudaStreamSynchronize(stream);
+    gpuErrchk(cudaStreamSynchronize(stream));
+    gpuErrchk(cudaStreamDestroy(stream));
 
     std::vector<double> h_box_buffer(box_buffer_size);
     d_box_buffer.copy_to(&h_box_buffer[0]);

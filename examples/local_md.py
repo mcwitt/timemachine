@@ -161,6 +161,7 @@ def run_local_steps(state: MDState, sys_state: CoordsVelBox, steps: int, referen
             0,
             1,  # Run n iterations of a single local step
             1,
+            # Use ligand as the coordinates around the molecule
             np.arange(len(coords) - state.mol.GetNumAtoms(), len(coords), dtype=np.uint32),
         )
         states.extend([CoordsVelBox(x, None, box) for x, box in zip(frames, boxes)])

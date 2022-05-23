@@ -2,7 +2,6 @@
 
 #include "k_fixed_point.cuh"
 
-
 typedef void (*k_nonbonded_fn)(
     const int N,
     const int NR,

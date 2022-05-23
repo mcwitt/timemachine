@@ -24,7 +24,7 @@ def bind_potentials(topo, ff):
     ]
 
     u_impls = []
-
+    # TODO SummedPotential
     for fn, handles in tuples:
         params, potential = fn(*[h.params for h in handles])
         bp = potential.bind(params)

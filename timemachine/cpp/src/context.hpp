@@ -39,7 +39,6 @@ public:
         const int local_steps,
         const int store_x_interval,
         const std::vector<unsigned int> &local_idxs,
-        const std::vector<BoundPotential *> &local_bps,
         const double cutoff = 1.4);
 
     int num_atoms() const;

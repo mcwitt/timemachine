@@ -3,8 +3,7 @@
 #include <set>
 #include <vector>
 
-template <typename T>
-std::set<T> unique_idxs(const std::vector<T> &idxs) {
+template <typename T> std::set<T> unique_idxs(const std::vector<T> &idxs) {
     std::set<T> unique_idxs(idxs.begin(), idxs.end());
     if (unique_idxs.size() < idxs.size()) {
         throw std::runtime_error("atom indices must be unique");

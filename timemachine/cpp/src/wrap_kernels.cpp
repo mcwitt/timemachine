@@ -192,7 +192,6 @@ void declare_context(py::module &m) {
                const int local_steps,
                const int store_x_interval,
                const py::array_t<unsigned int, py::array::c_style> &local_idxs,
-               std::vector<timemachine::BoundPotential *> local_bps,
                const double cutoff) -> py::tuple {
                 if (lambda_schedule.size() != (global_steps + local_steps)) {
                     throw std::runtime_error("Lambda_schedule length must equal global_steps + local_steps");
@@ -212,7 +211,6 @@ void declare_context(py::module &m) {
                     local_steps,
                     store_x_interval,
                     vec_local_idxs,
-                    local_bps,
                     cutoff);
 
                 int N = ctxt.num_atoms();
@@ -231,7 +229,6 @@ void declare_context(py::module &m) {
             py::arg("local_steps"),
             py::arg("store_x_interval"),
             py::arg("local_idxs"),
-            py::arg("local_bps"),
             py::arg("cutoff") = 1.4)
         .def(
             "multiple_steps_U",
