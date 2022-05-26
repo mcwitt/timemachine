@@ -71,7 +71,7 @@ def run_global_steps(state: MDState, sys_state: CoordsVelBox, steps: int) -> Lis
 
 
 def reduce_nblist_ixns(ixns) -> NDArray:
-    flattened = np.concatenate(ixns).ravel()
+    flattened = np.concatenate(ixns).reshape(-1)
     return np.unique(flattened)
 
 
@@ -165,7 +165,7 @@ def run_local_steps(state: MDState, sys_state: CoordsVelBox, steps: int, referen
             np.arange(len(coords) - state.mol.GetNumAtoms(), len(coords), dtype=np.uint32),
         )
         states.extend([CoordsVelBox(x, None, box) for x, box in zip(frames, boxes)])
-        states.append(CoordsVelBox(ctxt.get_x_t(), ctxt.get_v_t(), ctxt.get_box()))
+        states[-1].velocities = ctxt.get_v_t()
         # np.testing.assert_array_equal(v[frozen_idxs], velocities[frozen_idxs])
     for i in range(len(states) - 1):
         # Clear the velocities for older states, else memory can become an issue
@@ -174,15 +174,23 @@ def run_local_steps(state: MDState, sys_state: CoordsVelBox, steps: int, referen
 
 
 def write_energy_distribution(
-    iterations: int, global_steps: int, local_steps: int, potentials: Any, frames: List[CoordsVelBox]
+    iterations: int,
+    global_steps: int,
+    local_steps: int,
+    potentials: List[Any],
+    params: List[Any],
+    frames: List[CoordsVelBox],
 ):
     def energy_func(coords: NDArray, box: NDArray):
-        energies = np.array([bp.execute(coords, box, 0.0)[2] for bp in potentials])
-        return np.sum(energies)
+        energies = np.array(
+            [
+                ubp.execute_selective_batch(coords, np.array([params]), box, np.zeros(1), False, False, False, True)[3]
+                for ubp, param in zip(potentials, params)
+            ]
+        )
+        return energies.reshape(-1)
 
-    energies = []
-    for frame in frames:
-        energies.append(energy_func(frame.coords, frame.box))
+    energies = energy_func(np.asarray([frame.coords for frame in frames]), np.asarray([frame.box for frame in frames]))
     plt.hist(energies, bins=100, density=True)
     plt.xlabel("Energies")
     plt.ylabel("Density")
@@ -271,18 +279,16 @@ def main():
             iteration_frames.extend(states)
 
     beta = 1 / (constants.BOLTZ * temperature)
-    potential = (
-        NonbondedInteractionGroup(
-            np.arange(len(coords) - mol.GetNumAtoms(), len(coords), dtype=np.int32),
-            np.zeros(len(coords), dtype=np.int32),
-            np.zeros(len(coords), dtype=np.int32),
-            beta,
-            cutoff,
-        )
-        .bind(sys_params[-1])
-        .bound_impl(np.float32)
+    potential = NonbondedInteractionGroup(
+        np.arange(len(coords) - mol.GetNumAtoms(), len(coords), dtype=np.int32),
+        np.zeros(len(coords), dtype=np.int32),
+        np.zeros(len(coords), dtype=np.int32),
+        beta,
+        cutoff,
+    ).unbound_impl(np.float32)
+    write_energy_distribution(
+        args.iterations, args.global_steps, args.local_steps, [potential], [sys_params[-1]], iteration_frames
     )
-    write_energy_distribution(args.iterations, args.global_steps, args.local_steps, [potential], iteration_frames)
     write_frames(args.host_output, args.traj_output, iteration_frames)
 
 
