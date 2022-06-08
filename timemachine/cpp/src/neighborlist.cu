@@ -16,7 +16,7 @@ template <typename RealType> Neighborlist<RealType>::Neighborlist(const int N) :
     const int Y = this->Y();
 
     const unsigned long long MAX_TILE_BUFFER = row_blocks * column_blocks;
-    const unsigned long long MAX_ATOM_BUFFER = MAX_TILE_BUFFER * tpb;
+    const unsigned long long MAX_ATOM_BUFFER = this->max_ixn_count();
 
     // interaction buffers
     gpuErrchk(cudaMalloc(&d_ixn_count_, 1 * sizeof(*d_ixn_count_)));
@@ -25,8 +25,8 @@ template <typename RealType> Neighborlist<RealType>::Neighborlist(const int N) :
     gpuErrchk(cudaMalloc(&d_trim_atoms_, column_blocks * Y * tpb * sizeof(*d_trim_atoms_)));
 
     // bounding box buffers
-    gpuErrchk(cudaMalloc(&d_row_block_bounds_ctr_, column_blocks * 3 * sizeof(*d_row_block_bounds_ctr_)));
-    gpuErrchk(cudaMalloc(&d_row_block_bounds_ext_, column_blocks * 3 * sizeof(*d_row_block_bounds_ext_)));
+    gpuErrchk(cudaMalloc(&d_row_block_bounds_ctr_, row_blocks * 3 * sizeof(*d_row_block_bounds_ctr_)));
+    gpuErrchk(cudaMalloc(&d_row_block_bounds_ext_, row_blocks * 3 * sizeof(*d_row_block_bounds_ext_)));
     gpuErrchk(cudaMalloc(&d_column_block_bounds_ctr_, column_blocks * 3 * sizeof(*d_column_block_bounds_ctr_)));
     gpuErrchk(cudaMalloc(&d_column_block_bounds_ext_, column_blocks * 3 * sizeof(*d_column_block_bounds_ext_)));
 
@@ -99,7 +99,7 @@ Neighborlist<RealType>::get_nblist_host(int N, const double *h_coords, const dou
     const int row_blocks = this->num_row_blocks();
 
     unsigned long long MAX_TILE_BUFFER = row_blocks * column_blocks;
-    unsigned long long MAX_ATOM_BUFFER = MAX_TILE_BUFFER * tpb;
+    unsigned long long MAX_ATOM_BUFFER = this->max_ixn_count();
 
     unsigned int h_ixn_count;
     gpuErrchk(cudaMemcpy(&h_ixn_count, d_ixn_count_, 1 * sizeof(*d_ixn_count_), cudaMemcpyDeviceToHost));
@@ -331,6 +331,10 @@ template <typename RealType> int Neighborlist<RealType>::Y() const {
 };
 
 template <typename RealType> int Neighborlist<RealType>::num_row_blocks() const { return ceil_divide(NR_, tile_size); }
+
+template <typename RealType> int Neighborlist<RealType>::max_ixn_count() const {
+    return num_column_blocks() * num_row_blocks() * warp_size;
+}
 
 template class Neighborlist<double>;
 template class Neighborlist<float>;
