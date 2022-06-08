@@ -229,6 +229,9 @@ void declare_context(py::module &m) {
         Take multiple steps with a specified lambda value at each step, with a mix
         of regular MD steps (the entire system is simulated) and local MD steps.
 
+        If run using a barostat, the barostat's interval will be for global steps and not local steps.
+        Running a barostat and local MD at the same time are not currently supported.
+
         F = iterations / store_x_interval
 
         Parameters

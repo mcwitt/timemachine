@@ -10,8 +10,9 @@ from common import prepare_nb_system
 
 from timemachine.ff import Forcefield
 from timemachine.integrator import langevin_coefficients
-from timemachine.lib import LangevinIntegrator, custom_ops
+from timemachine.lib import LangevinIntegrator, MonteCarloBarostat, custom_ops
 from timemachine.lib.potentials import SummedPotential
+from timemachine.md.barostat.utils import get_bond_list, get_group_indices
 from timemachine.md.enhanced import get_solvent_phase_system
 from timemachine.testsystems.ligands import get_biphenyl
 
@@ -370,7 +371,10 @@ class TestContext(unittest.TestCase):
         friction = 0.0
         seed = 2022
         cutoff = 1.2
+        pressure = 1.0
         iterations = 10
+        num_steps = 15
+        barostat_interval = 3
 
         unbound_potentials, sys_params, masses, coords, box = get_solvent_phase_system(mol, ff)
         local_idxs = np.arange(len(coords) - mol.GetNumAtoms(), len(coords), dtype=np.uint32)
@@ -384,25 +388,39 @@ class TestContext(unittest.TestCase):
         for p, bp in zip(sys_params, unbound_potentials):
             bps.append(bp.bind(p).bound_impl(np.float32))
 
+        harmonic_bond_potential = unbound_potentials[0]
+        bond_list = get_bond_list(harmonic_bond_potential)
+
+        group_idxs = get_group_indices(bond_list)
+        baro = MonteCarloBarostat(
+            coords.shape[0],
+            pressure,
+            temperature,
+            group_idxs,
+            barostat_interval,
+            seed,
+        )
+        baro_impl = baro.impl(bps)
+
         reference_values = []
         for bp in bps:
             reference_values.append(bp.execute(coords, box, 0.0))
 
         # Construct context with no potentials, local MD should fail.
-        ctxt = custom_ops.Context(coords, v0, box, intg_impl, [])
+        ctxt = custom_ops.Context(coords, v0, box, intg_impl, [], barostat=baro_impl)
         with pytest.raises(RuntimeError) as e:
             ctxt.local_md(np.zeros(100), iterations, 0, 100, 1, local_idxs, cutoff=cutoff)
         assert "unable to find a NonbondedAllPairs potential" == str(e.value)
 
         # If you have multiple nonbonded potentials, should fail
-        ctxt = custom_ops.Context(coords, v0, box, intg_impl, bps * 2)
+        ctxt = custom_ops.Context(coords, v0, box, intg_impl, bps * 2, barostat=baro_impl)
         with pytest.raises(RuntimeError) as e:
             ctxt.local_md(np.zeros(100), iterations, 0, 100, 1, local_idxs, cutoff=cutoff)
         assert "found multiple NonbondedAllPairs potentials" == str(e.value)
 
-        ctxt = custom_ops.Context(coords, v0, box, intg_impl, bps)
-        # Run iterations of 5 local steps
-        xs, boxes = ctxt.local_md(np.zeros(5), iterations, 0, 5, 1, local_idxs, cutoff=cutoff)
+        ctxt = custom_ops.Context(coords, v0, box, intg_impl, bps, barostat=baro_impl)
+        # Run iterations of local md
+        xs, boxes = ctxt.local_md(np.zeros(num_steps), iterations, 0, num_steps, 1, local_idxs, cutoff=cutoff)
 
         assert xs.shape[0] == iterations
         assert boxes.shape[0] == iterations
@@ -426,11 +444,14 @@ class TestContext(unittest.TestCase):
         bp = summed_potential.bound_impl(precision=np.float32)
 
         intg_impl = intg.impl()
+        baro_impl = baro.impl(bps)
 
         # Rerun with the summed potential
-        ctxt = custom_ops.Context(coords, v0, box, intg_impl, [bp])
-        # Run iterations of 5 local steps
-        summed_pot_xs, summed_pot_boxes = ctxt.local_md(np.zeros(5), iterations, 0, 5, 1, local_idxs, cutoff=cutoff)
+        ctxt = custom_ops.Context(coords, v0, box, intg_impl, [bp], barostat=baro_impl)
+        # Run iterations of local steps
+        summed_pot_xs, summed_pot_boxes = ctxt.local_md(
+            np.zeros(num_steps), iterations, 0, num_steps, 1, local_idxs, cutoff=cutoff
+        )
 
         assert summed_pot_xs.shape == xs.shape
         assert summed_pot_boxes.shape == boxes.shape

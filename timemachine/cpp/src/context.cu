@@ -591,7 +591,9 @@ void Context::_step(
     // }
     intg_->step_fwd(d_x_t_, d_v_t_, d_du_dx_t_, d_box_t_, atom_idxs, stream);
 
-    if (barostat_) {
+    // If atom idxs are passed, indicates that only a subset of the system should move. Don't
+    // run the barostat in this situation.
+    if (atom_idxs == nullptr && barostat_) {
         // May modify coords, du_dx and box size
         barostat_->inplace_move(d_x_t_, d_box_t_, lambda, stream);
     }
