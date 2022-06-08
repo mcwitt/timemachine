@@ -146,7 +146,7 @@ def test_nonbonded_all_pairs_set_atom_idxs(rng: np.random.Generator):
     unbound_pot = potential.unbound_impl(np.float32)
 
     identity_idxs = np.arange(0, num_atoms, dtype=np.uint32)
-    for num_idxs in [5, 25, 50, 80]:
+    for num_idxs in [5, 25, 50, 80, num_atoms]:
         atom_idxs = rng.choice(num_atoms, size=(num_idxs,), replace=False).astype(np.uint32)
         ignored_idxs = np.delete(identity_idxs, atom_idxs)
         unbound_pot.set_atom_idxs(atom_idxs)
@@ -155,7 +155,13 @@ def test_nonbonded_all_pairs_set_atom_idxs(rng: np.random.Generator):
         unbound_ref = ref_potential.unbound_impl(np.float32)
 
         du_dx, du_dl, du_dp, u = unbound_pot.execute(conf, params, box, lamb)
+        du_dx_2, du_dl_2, du_dp_2, u_2 = unbound_pot.execute(conf, params, box, lamb)
         ref_du_dx, ref_du_dl, ref_du_dp, ref_u = unbound_ref.execute(conf, params, box, lamb)
+
+        np.testing.assert_array_equal(du_dx_2, du_dx)
+        np.testing.assert_array_equal(du_dp_2, du_dp)
+        np.testing.assert_equal(du_dp_2, du_dp)
+        np.testing.assert_equal(u_2, u)
 
         # Atoms that are ignored by the potential, should always return 0.0
         assert np.all(du_dx[ignored_idxs] == 0.0)
