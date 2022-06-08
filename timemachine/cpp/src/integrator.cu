@@ -23,7 +23,7 @@ LangevinIntegrator::LangevinIntegrator(int N, double dt, double ca, const double
     d_ccs_ = gpuErrchkCudaMallocAndCopy(h_ccs, N);
 
     curandErrchk(curandCreateGenerator(&cr_rng_, CURAND_RNG_PSEUDO_DEFAULT));
-    gpuErrchk(cudaMalloc(&d_noise_, round_up_even(N * 3) * sizeof(double)));
+    gpuErrchk(cudaMalloc(&d_noise_, round_up_even(N * 3) * sizeof(*d_noise_)));
     curandErrchk(curandSetPseudoRandomGeneratorSeed(cr_rng_, seed));
 }
 
@@ -38,6 +38,7 @@ template <typename RealType>
 __global__ void update_forward(
     const int N,
     const int D,
+    const unsigned int *__restrict__ idxs,
     const RealType ca,
     const RealType *__restrict__ cbs,   // N
     const RealType *__restrict__ ccs,   // N
@@ -51,9 +52,15 @@ __global__ void update_forward(
     if (atom_idx >= N) {
         return;
     }
+    if (idxs) {
+        atom_idx = idxs[atom_idx];
+        if (atom_idx >= N) {
+            return;
+        }
+    }
 
-    int d_idx = blockIdx.y;
-    int local_idx = atom_idx * D + d_idx;
+    const int d_idx = blockIdx.y;
+    const int local_idx = atom_idx * D + d_idx;
 
     RealType force = FIXED_TO_FLOAT<RealType>(du_dx[local_idx]);
 
@@ -69,7 +76,12 @@ __global__ void update_forward(
 };
 
 void LangevinIntegrator::step_fwd(
-    double *d_x_t, double *d_v_t, unsigned long long *d_du_dx_t, double *d_box_t_, cudaStream_t stream) {
+    double *d_x_t,
+    double *d_v_t,
+    unsigned long long *d_du_dx_t,
+    double *d_box_t_,
+    unsigned int *d_idxs,
+    cudaStream_t stream) {
 
     const int D = 3;
     size_t tpb = warp_size;
@@ -80,7 +92,7 @@ void LangevinIntegrator::step_fwd(
     curandErrchk(templateCurandNormal(cr_rng_, d_noise_, round_up_even(N_ * D), 0.0, 1.0));
 
     update_forward<double>
-        <<<dimGrid_dx, tpb, 0, stream>>>(N_, D, ca_, d_cbs_, d_ccs_, d_noise_, d_x_t, d_v_t, d_du_dx_t, dt_);
+        <<<dimGrid_dx, tpb, 0, stream>>>(N_, D, d_idxs, ca_, d_cbs_, d_ccs_, d_noise_, d_x_t, d_v_t, d_du_dx_t, dt_);
 
     gpuErrchk(cudaPeekAtLastError());
 }

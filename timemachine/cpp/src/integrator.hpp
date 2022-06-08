@@ -9,8 +9,13 @@ class Integrator {
 public:
     virtual ~Integrator(){};
 
-    virtual void
-    step_fwd(double *d_x_t, double *d_v_t, unsigned long long *d_du_dx_t, double *d_box_t_, cudaStream_t stream) = 0;
+    virtual void step_fwd(
+        double *d_x_t,
+        double *d_v_t,
+        unsigned long long *d_du_dx_t,
+        double *d_box_t_,
+        unsigned int *d_idxs,
+        cudaStream_t stream) = 0;
 };
 
 class LangevinIntegrator : public Integrator {
@@ -31,7 +36,12 @@ public:
     virtual ~LangevinIntegrator();
 
     virtual void step_fwd(
-        double *d_x_t, double *d_v_t, unsigned long long *d_du_dx_t, double *d_box_t_, cudaStream_t stream) override;
+        double *d_x_t,
+        double *d_v_t,
+        unsigned long long *d_du_dx_t,
+        double *d_box_t_,
+        unsigned int *d_idxs,
+        cudaStream_t stream) override;
 };
 
 // template<typename RealType>
