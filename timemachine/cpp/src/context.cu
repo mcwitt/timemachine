@@ -59,6 +59,28 @@ Context::~Context() {
     // }
 };
 
+double get_nonbonded_potential_cutoff(std::shared_ptr<Potential> pot) {
+    if (std::shared_ptr<NonbondedAllPairs<float, true>> nb_pot =
+            std::dynamic_pointer_cast<NonbondedAllPairs<float, true>>(pot);
+        nb_pot) {
+        return nb_pot->get_cutoff();
+    } else if (std::shared_ptr<NonbondedAllPairs<float, false>> nb_pot =
+                   std::dynamic_pointer_cast<NonbondedAllPairs<float, false>>(pot);
+               nb_pot) {
+        return nb_pot->get_cutoff();
+    } else if (std::shared_ptr<NonbondedAllPairs<double, true>> nb_pot =
+                   std::dynamic_pointer_cast<NonbondedAllPairs<double, true>>(pot);
+               nb_pot) {
+        return nb_pot->get_cutoff();
+    } else if (std::shared_ptr<NonbondedAllPairs<double, false>> nb_pot =
+                   std::dynamic_pointer_cast<NonbondedAllPairs<double, false>>(pot);
+               nb_pot) {
+        return nb_pot->get_cutoff();
+    } else {
+        throw std::runtime_error("Unable to cast potential to NonbondedAllPairs");
+    }
+}
+
 bool is_nonbonded_potential(std::shared_ptr<Potential> pot) {
     if (std::shared_ptr<NonbondedAllPairs<float, true>> nb_pot =
             std::dynamic_pointer_cast<NonbondedAllPairs<float, true>>(pot);
@@ -203,6 +225,8 @@ std::array<std::vector<double>, 2> Context::local_md(
         select_op);
     DeviceBuffer<char> d_temp_storage_buffer(temp_storage_bytes);
 
+    const double outer_cutoff = get_nonbonded_potential_cutoff(nonbonded_potential);
+
     int max_interactions; // Number of ixns that the NBlist might find
     int num_row_indices;  // Number of row indices
     int num_col_indices;  // Number of column indices
@@ -276,8 +300,9 @@ std::array<std::vector<double>, 2> Context::local_md(
 
         nblist.set_idxs_device(num_col_indices, num_row_indices, d_col_idxs.data, d_row_idxs.data, stream);
         max_interactions = nblist.max_ixn_count();
-        // Build the neighborlist around the inner idxs to get the outer sphere.
-        nblist.build_nblist_device(N_, d_x_t_, d_box_t_, cutoff, stream);
+        // Build the neighborlist around the inner idxs to get the outer sphere. Use the nonbonded potential's cutoff
+        // to ensure correctness and to avoid wasted computation (ie cutoff >> outer_cutoff).
+        nblist.build_nblist_device(N_, d_x_t_, d_box_t_, outer_cutoff, stream);
 
         // Set the array to all N, which means it will be ignored as an idx
         k_initialize_array<unsigned int><<<ceil_divide(N_, tpb), tpb, 0, stream>>>(N_, d_sphere_idxs_outer.data, N_);
