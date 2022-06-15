@@ -142,6 +142,7 @@ def nonbonded_v3(
     lambda_plane_idxs,
     lambda_offset_idxs,
     runtime_validate=True,
+    transform_distances=lambda x, _: x,
 ):
     """Lennard-Jones + Coulomb, with a few important twists:
     * distances are computed in 4D, controlled by lambda, lambda_plane_idxs, lambda_offset_idxs
@@ -222,6 +223,7 @@ def nonbonded_v3(
     eps_ij = combining_rule_epsilon(eps_i, eps_j)
 
     dij = distance(conf, box)
+    dij = transform_distances(dij, cutoff)
 
     keep_mask = jnp.ones((N, N)) - jnp.eye(N)
     keep_mask = jnp.where(eps_ij != 0, keep_mask, 0)
