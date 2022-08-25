@@ -1,0 +1,5 @@
+{
+  "exclude": ["_build", "build", ".pytest-cache", "attic", "examples", "timemachine/cpp/build"],
+  "venvPath": "/Users/mwittmann/micromamba/envs/",
+  "venv": "timemachine"
+}
