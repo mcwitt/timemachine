@@ -80,12 +80,11 @@ setup(
     install_requires=[
         "importlib-resources",
         "jax",
-        "jaxlib>0.3.13",
+        "jaxlib",
         "networkx",
         "numpy",
         "pymbar>3.0.4,<4",
         "pyyaml",
-        "rdkit",
         "scipy",
         "typing-extensions",
         "matplotlib",

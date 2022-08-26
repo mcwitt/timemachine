@@ -1,13 +1,15 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(PYBIND11_PYTHON_VERSION 3.7 CACHE STRING "Which version of python we're building wrappers against")
+set(PYBIND11_PYTHON_VERSION 3.9 CACHE STRING "Which version of python we're building wrappers against")
 
 project(timemachine LANGUAGES CXX CUDA)
 
-find_package(PythonInterp 3.7 REQUIRED)
-find_package(PythonLibs 3.7 REQUIRED)
+find_package(PythonInterp 3.9 REQUIRED)
+find_package(PythonLibs 3.9 REQUIRED)
 
 string(APPEND CMAKE_CXX_FLAGS "-Werror -Wall -Wextra")
 
@@ -126,9 +128,9 @@ if (NOT CUDA_ARCH)
     endif()
   endif()
 endif()
-# If still not set, default to 75
+# If still not set, default to 61
 if (NOT CUDA_ARCH)
-  set(CUDA_ARCH "75")
+  set(CUDA_ARCH "61")
 endif()
 message("Cuda Arch: " ${CUDA_ARCH})
 set_property(TARGET ${LIBRARY_NAME} PROPERTY CUDA_ARCHITECTURES "${CUDA_ARCH}")
