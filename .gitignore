@@ -7,6 +7,7 @@ timemachine/cpp/build/
 oe_license.txt
 *.swp
 .ipynb_checkpoints/
+.cache/
 build/
 dist/
 *.egg-info/
@@ -17,3 +18,5 @@ pytest-artifacts/
 # Nsys profiling files
 *.sqlite
 *.nsys-rep
+
+.direnv/
