@@ -1,6 +1,5 @@
-from . import _version
-
-__version__ = _version.get_versions()["version"]
+__version__ = "@version@"
+__rev__ = "@rev@"
 
 
 def _suppress_jax_no_gpu_warning():
