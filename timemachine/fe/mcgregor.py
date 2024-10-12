@@ -448,7 +448,6 @@ def search(
     node = None
 
     for num_leaves, node in enumerate(leaves, 1):
-        num_edges = get_num_edges_upper_bound(node.marcs)
         if num_leaves > max_leaves:
             return MCSResult(
                 tuple(all_maps),
@@ -457,15 +456,15 @@ def search(
                 timed_out=True,
                 nodes_visited=-1,
             )
-        if num_edges < max_edges:
+        if node.num_edges_upper_bound < max_edges:
             continue
-        elif num_edges == max_edges:
+        elif node.num_edges_upper_bound == max_edges:
             all_maps.append(node.atom_map.a_to_b)
             all_marcs.append(node.marcs)
         else:
             all_maps = [node.atom_map.a_to_b]
             all_marcs = [node.marcs]
-            max_edges = num_edges
+            max_edges = node.num_edges_upper_bound
 
     assert node is not None, "found no valid mappings"
 
@@ -477,6 +476,7 @@ class Node:
     atom_map: AtomMap
     layer: int
     marcs: NDArray
+    num_edges_upper_bound: int  # redundant with marcs; stored to avoid recomputation
 
 
 def dfs_leaves(
@@ -523,28 +523,30 @@ def dfs_leaves(
 
     def neighbors(node: Node) -> List[Node]:
         mapped_neighbors = [
-            Node(atom_map, node.layer + 1, refine_marcs(g1, g2, node.layer, jdx, node.marcs))
+            Node(atom_map, node.layer + 1, refined_marcs, get_num_edges_upper_bound(refined_marcs))
             for jdx in priority_idxs[node.layer]
             if node.atom_map.b_to_a[jdx] == UNMAPPED
             for atom_map in [node.atom_map.add(node.layer, jdx)]
+            for refined_marcs in [refine_marcs(g1, g2, node.layer, jdx, node.marcs)]
             if (
                 not enforce_core_core
                 or _verify_core_is_connected(g1, g2, node.layer, jdx, atom_map.a_to_b, atom_map.b_to_a)
             )
         ]
 
-        unmapped_neighbor = Node(
-            node.atom_map,
-            node.layer + 1,
-            refine_marcs(g1, g2, node.layer, UNMAPPED, node.marcs),
-        )
+        refined_marcs = refine_marcs(g1, g2, node.layer, UNMAPPED, node.marcs)
+        unmapped_neighbor = Node(node.atom_map, node.layer + 1, refined_marcs, get_num_edges_upper_bound(refined_marcs))
 
-        return [
+        neighbors = [
             neighbor
             for neighbor in mapped_neighbors + [unmapped_neighbor]
             if satisfies_connected_components_constraints(neighbor)
             if filter_fxn(neighbor.atom_map.a_to_b)
         ]
+
+        neighbors = sorted(neighbors, key=lambda n: n.num_edges_upper_bound, reverse=True)
+
+        return neighbors
 
     best_num_edges = min_threshold
 
@@ -553,17 +555,16 @@ def dfs_leaves(
 
         # leaf-node; every atom has been mapped
         if node.layer == g1.n_vertices:
-            num_edges = get_num_edges_upper_bound(node.marcs)
-            best_num_edges = max(best_num_edges, num_edges)
+            best_num_edges = max(best_num_edges, node.num_edges_upper_bound)
             if leaf_filter_fxn(node.atom_map.a_to_b):
                 yield node
             return
 
         for neighbor in neighbors(node):
-            num_edges_upper_bound = get_num_edges_upper_bound(neighbor.marcs)
+            num_edges_upper_bound = neighbor.num_edges_upper_bound
             if num_edges_upper_bound >= best_num_edges:
                 yield from go(neighbor)
 
-    init_node = Node(init_atom_map, init_layer, init_marcs)
+    init_node = Node(init_atom_map, init_layer, init_marcs, get_num_edges_upper_bound(init_marcs))
 
     return go(init_node)
